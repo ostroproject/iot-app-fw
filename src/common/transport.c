@@ -123,7 +123,7 @@ static int check_event_callbacks(iot_transport_evt_t *evt)
             return FALSE;
     }
     else {
-        if (evt->recvrawfrom == NULL)
+        if (evt->recvraw == NULL && evt->recvrawfrom == NULL)
             return FALSE;
     }
 
@@ -234,6 +234,17 @@ int iot_transport_setopt(iot_transport_t *t, const char *opt, const void *val)
     if (t != NULL) {
         if (t->descr->req.setopt != NULL)
             return t->descr->req.setopt(t, opt, val);
+    }
+
+    return FALSE;
+}
+
+
+int iot_transport_getopt(iot_transport_t *t, const char *opt, void *val,
+                         socklen_t *len)
+{
+    if (t != NULL && t->descr->req.getopt != NULL) {
+        return t->descr->req.getopt(t, opt, val, len);
     }
 
     return FALSE;

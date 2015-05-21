@@ -115,7 +115,8 @@ typedef enum {
 #define IOT_TRANSPORT_MODE(t) ((t)->flags & IOT_TRANSPORT_MODE_MASK)
 
 
-#define IOT_TRANSPORT_OPT_TYPEMAP "type-map"
+#define IOT_TRANSPORT_OPT_TYPEMAP  "type-map"
+#define IOT_TRANSPORT_OPT_PEERCRED "peer-cred"
 
 /*
  * transport requests
@@ -147,6 +148,9 @@ typedef struct {
     void (*close)(iot_transport_t *t);
     /** Set a (possibly type specific) transport option. */
     int  (*setopt)(iot_transport_t *t, const char *opt, const void *value);
+    /** Get a (possibly type specific) transport option. */
+    int  (*getopt)(iot_transport_t *t, const char *opt, void *value,
+                   socklen_t *len);
     /** Send raw data over a (connected) transport. */
     int (*sendraw)(iot_transport_t *t, void *buf, size_t size);
     /** Send a JSON message over a (connected) transport. */
@@ -360,7 +364,8 @@ struct iot_transport_s {
 
 /** Automatically register a transport on startup. */
 #define IOT_REGISTER_TRANSPORT(_prfx, _typename, _structtype, _resolve,   \
-                               _open, _createfrom, _close, _setopt,       \
+                               _open, _createfrom, _close,                \
+                               _setopt, _getopt,                          \
                                _bind, _listen, _accept,                   \
                                _connect, _disconnect,                     \
                                _sendraw, _sendrawto,                      \
@@ -381,6 +386,7 @@ struct iot_transport_s {
                 .accept       = _accept,                                  \
                 .close        = _close,                                   \
                 .setopt       = _setopt,                                  \
+                .getopt       = _getopt,                                  \
                 .connect      = _connect,                                 \
                 .disconnect   = _disconnect,                              \
                 .sendraw      = _sendraw,                                 \
@@ -419,6 +425,10 @@ iot_transport_t *iot_transport_create_from(iot_mainloop_t *ml, const char *type,
 
 /** Set a (possibly type-specific) transport option. */
 int iot_transport_setopt(iot_transport_t *t, const char *opt, const void *val);
+
+/** Get a (possibly type-specific) transport option. */
+int iot_transport_getopt(iot_transport_t *t, const char *opt, void *val,
+                         socklen_t *len);
 
 /** Resolve an address string to a transport-specific address. */
 socklen_t iot_transport_resolve(iot_transport_t *t, const char *str,

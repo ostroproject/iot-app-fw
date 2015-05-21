@@ -619,21 +619,24 @@ static int dgrm_sendjsonto(iot_transport_t *mu, iot_json_t *msg,
 
 
 IOT_REGISTER_TRANSPORT(udp4, UDP4, dgrm_t, dgrm_resolve,
-                       dgrm_open, dgrm_createfrom, dgrm_close, NULL,
+                       dgrm_open, dgrm_createfrom, dgrm_close,
+                       NULL, NULL,
                        dgrm_bind, dgrm_listen, NULL,
                        dgrm_connect, dgrm_disconnect,
                        dgrm_sendraw, dgrm_sendrawto,
                        dgrm_sendjson, dgrm_sendjsonto);
 
 IOT_REGISTER_TRANSPORT(udp6, UDP6, dgrm_t, dgrm_resolve,
-                       dgrm_open, dgrm_createfrom, dgrm_close, NULL,
+                       dgrm_open, dgrm_createfrom, dgrm_close,
+                       NULL, NULL,
                        dgrm_bind, dgrm_listen, NULL,
                        dgrm_connect, dgrm_disconnect,
                        dgrm_sendraw, dgrm_sendrawto,
                        dgrm_sendjson, dgrm_sendjsonto);
 
 IOT_REGISTER_TRANSPORT(unxdgrm, UNXD, dgrm_t, dgrm_resolve,
-                       dgrm_open, dgrm_createfrom, dgrm_close, NULL,
+                       dgrm_open, dgrm_createfrom, dgrm_close,
+                       NULL, NULL,
                        dgrm_bind, dgrm_listen, NULL,
                        dgrm_connect, dgrm_disconnect,
                        dgrm_sendraw, dgrm_sendrawto,

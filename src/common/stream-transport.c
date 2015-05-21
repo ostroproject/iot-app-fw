@@ -32,6 +32,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <fcntl.h>
+#define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
@@ -644,6 +645,28 @@ static int strm_disconnect(iot_transport_t *mt)
 }
 
 
+static int strm_getopt(iot_transport_t *mt, const char *opt, void *val,
+                       socklen_t *len)
+{
+    strm_t *t = (strm_t *)mt;
+
+    if (opt && !strcmp(opt, IOT_TRANSPORT_OPT_PEERCRED)) {
+        if (!t->connected) {
+            errno = EAGAIN;
+            return FALSE;
+        }
+
+        if (getsockopt(t->sock, SOL_SOCKET, SO_PEERCRED, val, len) < 0)
+            return FALSE;
+        else
+            return TRUE;
+    }
+
+    errno = EOPNOTSUPP;
+    return FALSE;
+}
+
+
 static int strm_sendraw(iot_transport_t *mt, void *data, size_t size)
 {
     strm_t  *t = (strm_t *)mt;
@@ -701,21 +724,24 @@ static int strm_sendjson(iot_transport_t *mt, iot_json_t *msg)
 
 
 IOT_REGISTER_TRANSPORT(tcp4, TCP4, strm_t, strm_resolve,
-                       strm_open, strm_createfrom, strm_close, NULL,
+                       strm_open, strm_createfrom, strm_close,
+                       NULL, NULL,
                        strm_bind, strm_listen, strm_accept,
                        strm_connect, strm_disconnect,
                        strm_sendraw, NULL,
                        strm_sendjson, NULL);
 
 IOT_REGISTER_TRANSPORT(tcp6, TCP6, strm_t, strm_resolve,
-                       strm_open, strm_createfrom, strm_close, NULL,
+                       strm_open, strm_createfrom, strm_close,
+                       NULL, NULL,
                        strm_bind, strm_listen, strm_accept,
                        strm_connect, strm_disconnect,
                        strm_sendraw, NULL,
                        strm_sendjson, NULL);
 
 IOT_REGISTER_TRANSPORT(unxstrm, UNXS, strm_t, strm_resolve,
-                       strm_open, strm_createfrom, strm_close, NULL,
+                       strm_open, strm_createfrom, strm_close,
+                       NULL, strm_getopt,
                        strm_bind, strm_listen, strm_accept,
                        strm_connect, strm_disconnect,
                        strm_sendraw, NULL,
