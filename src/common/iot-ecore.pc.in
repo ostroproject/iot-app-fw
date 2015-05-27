@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: iot-ecore
+Description: IoT Application Framework, EFL/ecore mainloop glue library.
+Requires: iot-common
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -iot-ecore @ECORE_LIBS@
+Cflags: -I${includedir} @ECORE_CFLAGS@
