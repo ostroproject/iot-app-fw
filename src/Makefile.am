@@ -294,3 +294,64 @@ linker-script.qt: $(iot_qt_headers)
 
 clean-linker-script::
 	-rm -f linker-script.qt
+
+###################################
+# iot-launch-daemon
+#
+
+bin_PROGRAMS += iot-launch-daemon
+EXTRA_DIST   += $(config_DATA)
+configdir     = $(sysconfdir)/iot-launch
+config_DATA   = 
+
+iot_launch_daemon_SOURCES =				\
+		launcher/daemon/daemon.c		\
+		launcher/daemon/config.c		\
+		launcher/daemon/signal.c		\
+		launcher/daemon/transport.c		\
+		launcher/daemon/cgroup.c		\
+		launcher/daemon/application.c		\
+		launcher/daemon/nftables.c		\
+		launcher/daemon/security-manager.c	\
+		launcher/daemon/event.c			\
+		launcher/daemon/client.c		\
+		launcher/daemon/message.c		\
+		launcher/daemon/valgrind.c
+
+iot_launch_daemon_CFLAGS  =		\
+		$(AM_CFLAGS)		\
+		$(BUILTIN_CFLAGS)	\
+		$(JSON_CFLAGS)
+
+iot_launch_daemon_LDADD   =		\
+		libiot-common.la	\
+		$(JSON_LIBS)
+
+iot_launch_daemon_LDFLAGS = 		\
+		-rdynamic
+
+install-data-hook::
+#	rm -f $(DESTDIR)/$(sysconfdir)/iot-launch/??*
+#	mkdir -p $(DESTDIR)/$(sysconfdir)/iot-launch
+
+###################################
+# iot-launch
+#
+
+bin_PROGRAMS += iot-launch
+
+iot_launch_SOURCES =			\
+		launcher/client/launch.c
+
+iot_launch_CFLAGS  =			\
+		$(AM_CFLAGS)
+
+iot_launch_LDADD   =			\
+		libiot-common.la
+
+iot_launch_LDFLAGS =			\
+		-rdynamic
+
+# cleanup
+clean-local::
+	-rm -f *~

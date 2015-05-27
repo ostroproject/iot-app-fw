@@ -1,0 +1,5 @@
+#!/bin/sh
+echo "$0 $*" >> /tmp/iot-launch-agent.log
+echo "${0%-agent} --cleanup $*" >> /tmp/iot-launch-agent.log
+
+${0%-agent} --cleanup $*
