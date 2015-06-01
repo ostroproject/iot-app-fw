@@ -650,13 +650,20 @@ static int strm_getopt(iot_transport_t *mt, const char *opt, void *val,
 {
     strm_t *t = (strm_t *)mt;
 
-    if (opt && !strcmp(opt, IOT_TRANSPORT_OPT_PEERCRED)) {
-        if (!t->connected) {
-            errno = EAGAIN;
-            return FALSE;
-        }
+    if (!t->connected) {
+        errno = ENOTCONN;
+        return FALSE;
+    }
 
+    if (!strcmp(opt, IOT_TRANSPORT_OPT_PEERCRED)) {
         if (getsockopt(t->sock, SOL_SOCKET, SO_PEERCRED, val, len) < 0)
+            return FALSE;
+        else
+            return TRUE;
+    }
+
+    if (!strcmp(opt, IOT_TRANSPORT_OPT_PEERSEC)) {
+        if (getsockopt(t->sock, SOL_SOCKET, SO_PEERSEC, val, len) < 0)
             return FALSE;
         else
             return TRUE;

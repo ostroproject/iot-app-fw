@@ -115,8 +115,8 @@ typedef enum {
 #define IOT_TRANSPORT_MODE(t) ((t)->flags & IOT_TRANSPORT_MODE_MASK)
 
 
-#define IOT_TRANSPORT_OPT_TYPEMAP  "type-map"
 #define IOT_TRANSPORT_OPT_PEERCRED "peer-cred"
+#define IOT_TRANSPORT_OPT_PEERSEC  "peer-sec"
 
 /*
  * transport requests
