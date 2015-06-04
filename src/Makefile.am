@@ -96,6 +96,59 @@ clean-linker-script::
 
 
 ###################################
+# IoT application library
+#
+
+lib_LTLIBRARIES += libiot-app.la
+EXTRA_DIST      += app/iot-app.pc
+pkgconfig_DATA  += app/iot-app.pc
+
+
+libiot_apph_ladir      =				\
+		$(includedir)/iot
+
+libiot_apph_la_HEADERS =				\
+		app.h
+
+libiot_app_ladir      =					\
+		$(includedir)/iot/app
+
+libiot_app_la_HEADERS =					\
+		app/app.h
+
+libiot_app_la_REGULAR_SOURCES =				\
+		app/app.c
+
+libiot_app_la_SOURCES =					\
+		$(libiot_app_la_REGULAR_SOURCES)
+
+libiot_app_la_CFLAGS  =					\
+		$(AM_CFLAGS)				\
+		$(JSON_CFLAGS)
+
+libiot_app_la_LDFLAGS =					\
+		-Wl,-version-script=linker-script.app	\
+		-version-info @IOT_VERSION_INFO@
+
+libiot_app_la_LIBADD  = 				\
+		$(JSON_LIBS)				\
+		-lrt
+
+libiot_app_la_DEPENDENCIES =	\
+		linker-script.app	\
+		$(filter %.la, $(libiot_app_la_LIBADD))
+
+# linker script generation
+linker-script.app: $(libiot_app_la_HEADERS)
+	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+		-P "$(CC)" -c "$(libiot_app_la_CFLAGS)" \
+		-p '^iot_|^_iot_|^mrp_|^_mrp_' -o $@ $^
+
+clean-linker-script::
+	-rm -f linker-script.app
+
+
+###################################
 # IoT pulse glue library
 #
 
@@ -350,6 +403,32 @@ iot_launch_LDADD   =			\
 		libiot-common.la
 
 iot_launch_LDFLAGS =			\
+		-rdynamic
+
+# cleanup
+clean-local::
+	-rm -f *~
+
+
+###################################
+# iot-event-test
+#
+
+bin_PROGRAMS += iot-event-test
+
+iot_event_test_SOURCES =		\
+		app/tests/event-test.c
+
+iot_event_test_CFLAGS  =		\
+		$(AM_CFLAGS)		\
+		$(GLIB_CFLAGS)
+
+iot_event_test_LDADD   =		\
+		libiot-app.la		\
+		libiot-glib.la		\
+		libiot-common.la
+
+iot_event_test_LDFLAGS =		\
 		-rdynamic
 
 # cleanup

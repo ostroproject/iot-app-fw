@@ -295,6 +295,7 @@ AC_CONFIG_FILES([build-aux/shave
                  utils/Makefile
 		 src/Makefile
 		 src/common/iot-common.pc
+                 src/app/iot-app.pc
 		 src/common/iot-pulse.pc
 		 src/common/iot-ecore.pc
 		 src/common/iot-glib.pc
