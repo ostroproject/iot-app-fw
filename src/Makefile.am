@@ -1,18 +1,23 @@
-SUBDIRS         = . # common/tests
-AM_CFLAGS       = $(WARNING_CFLAGS) $(AM_CPPFLAGS) \
-		  -DSYSCONFDIR=\"@SYSCONFDIR@\" -DLIBDIR=\"@LIBDIR@\"
-IOT_CFLAGS   =
-pkgconfigdir    = ${libdir}/pkgconfig
+SUBDIRS          = . # common/tests
+AM_CFLAGS        = $(WARNING_CFLAGS) $(AM_CPPFLAGS) \
+		   -DSYSCONFDIR=\"@SYSCONFDIR@\" -DLIBDIR=\"@LIBDIR@\"
+IOT_CFLAGS       =
+pkgconfigdir     = ${libdir}/pkgconfig
 
-bin_PROGRAMS    =
-lib_LTLIBRARIES =
-pkgconfig_DATA  =
-EXTRA_DIST      =
+bin_PROGRAMS     =
+sbin_PROGRAMS    =
+libexec_PROGRAMS =
+noinst_PROGRAMS  =
 
-QUIET_GEN      = $(Q:@=@echo '  GEN   '$@;)
+lib_LTLIBRARIES  =
+pkgconfig_DATA   =
+EXTRA_DIST       =
 
-AM_CPPFLAGS     = -I$(top_builddir) -I$(top_builddir)/src
-BUILT_SOURCES   =
+QUIET_GEN        = $(Q:@=@echo '  GEN   '$@;)
+
+AM_CPPFLAGS      = -I$(top_builddir) -I$(top_builddir)/src
+BUILT_SOURCES    =
+
 
 ###################################
 # IoT common library
@@ -409,6 +414,10 @@ iot_launch_LDFLAGS =			\
 clean-local::
 	-rm -f *~
 
+install-exec-hook:
+	$(MKDIR_P) $(DESTDIR)$(libexecdir)/iot-launcher &&	\
+	ln -sf $(bindir)/iot-launch				\
+		$(DESTDIR)$(libexecdir)/iot-launcher/iot-launch-agent
 
 ###################################
 # iot-event-test

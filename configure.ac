@@ -4,7 +4,7 @@
 
 AC_PREREQ(2.59)
 
-AC_INIT([iot], m4_esyscmd([build-aux/git-version-gen .tarball-version]))
+AC_INIT([iot-app-framework], m4_esyscmd([build-aux/git-version-gen .tarball-version]))
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_MACRO_DIR([m4])
