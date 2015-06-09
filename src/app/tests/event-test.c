@@ -35,10 +35,16 @@
 #define _GNU_SOURCE
 #include <getopt.h>
 
-#include <glib-2.0/glib.h>
-
+#include <iot/config.h>
 #include <iot/common.h>
+
+#ifdef GLIB_ENABLED
 #include <iot/common/glib-glue.h>
+#endif
+#ifdef UV_ENABLED
+#include <iot/common/uv-glue.h>
+#endif
+
 #include <iot/app.h>
 
 
@@ -46,9 +52,20 @@
  * test application runtime context
  */
 
+enum {
+#ifdef GLIB_ENABLED
+    APP_GLIB,
+#endif
+#ifdef UV_ENABLED
+    APP_UV,
+#endif
+    APP_INVALID
+};
+
 typedef struct {
+    int          type;
     iot_app_t   *iot;                    /* IoT application context */
-    GMainLoop   *gml;                    /* native mainloop we use */
+    void        *ml;                     /* native mainloop we use */
     int          server;                 /* subscribe for or send events */
     const char  *label;                  /* client event destination label */
     const char  *appid;                  /*     app. id */
@@ -64,6 +81,11 @@ typedef struct {
     int          ival;                   /* send interval in msecs */
 } app_t;
 
+
+void mainloop_create(app_t *app);
+void mainloop_run(app_t *app);
+void mainloop_quit(app_t *app);
+void mainloop_destroy(app_t *app);
 
 /**
  * @brief IoT event notification callback.
@@ -85,7 +107,7 @@ static void event_cb(iot_app_t *iot, const char *event, iot_json_t *data)
 
     if (!strcmp(event, "sayonara")) {
         app = iot_app_get_data(iot);
-        g_main_loop_quit(app->gml);
+        mainloop_quit(app);
     }
 }
 
@@ -250,7 +272,7 @@ static void timer_cb(iot_timer_t *tmr, void *user_data)
     if (cnt >= app->nsend) {
         iot_timer_del(tmr);
         send_event(app, TRUE);
-        g_main_loop_quit(app->gml);
+        mainloop_quit(app);
     }
 }
 
@@ -415,11 +437,151 @@ static void config_set_defaults(app_t *app)
 
 
 /*
+ * mainloop functions - create, run, quit mainloop
+ */
+void mainloop_create(app_t *app)
+{
+    iot_mainloop_t *ml = NULL;
+
+    switch (app->type) {
+#ifdef GLIB_ENABLED
+    case APP_GLIB:
+        app->ml = g_main_loop_new(NULL, FALSE);
+
+        if (app->ml == NULL) {
+            iot_log_error("Failed to create GMainLoop.");
+            exit(1);
+        }
+
+        ml = iot_mainloop_glib_get(app->ml);
+
+        if (ml == NULL) {
+            iot_log_error("Failed to create IoT/glib mainloop.");
+            exit(1);
+        }
+        break;
+#endif
+
+#ifdef UV_ENABLED
+    case APP_UV:
+        app->ml = uv_default_loop();
+
+        if (app->ml == NULL) {
+            iot_log_error("Failed to create UV mainloop.");
+            exit(1);
+        }
+
+        ml = iot_mainloop_uv_get(app->ml);
+
+        if (ml == NULL) {
+            iot_log_error("Failed to create IoT/UV mainloop.");
+            exit(1);
+        }
+        break;
+#endif
+
+    case APP_INVALID:
+    default:
+        iot_log_error("Hey... you did not enable any mainloop I can use.");
+        exit(1);
+    }
+
+    app->iot = iot_app_create(ml, app);
+
+    if (app->iot == NULL) {
+        iot_log_error("Failed to create IoT application context.");
+        exit(1);
+    }
+}
+
+
+void mainloop_run(app_t *app)
+{
+    switch (app->type) {
+#ifdef GLIB_ENABLED
+    case APP_GLIB:
+        g_main_loop_run(app->ml);
+        break;
+#endif
+
+#ifdef UV_ENABLED
+    case APP_UV:
+        uv_run(app->ml, UV_RUN_DEFAULT);
+        break;
+#endif
+
+    case APP_INVALID:
+    default:
+        iot_log_error("Hey... you did not enable any mainloop I can use.");
+        exit(1);
+    }
+}
+
+
+void mainloop_quit(app_t *app)
+{
+    switch (app->type) {
+#ifdef GLIB_ENABLED
+    case APP_GLIB:
+        g_main_loop_quit(app->ml);
+        break;
+#endif
+
+#ifdef UV_ENABLED
+    case APP_UV:
+        uv_stop(app->ml);
+        break;
+#endif
+
+    case APP_INVALID:
+    default:
+        iot_log_error("Hey... you did not enable any mainloop I can use.");
+        exit(1);
+    }
+}
+
+
+void mainloop_destroy(app_t *app)
+{
+#ifdef GLIB_ENABLED
+    switch (app->type) {
+    case APP_GLIB:
+        g_main_loop_unref(app->ml);
+        app->ml = NULL;
+        break;
+#endif
+
+#ifdef UV_ENABLED
+ case APP_UV:
+        uv_unref(app->ml);
+        app->ml = NULL;
+        break;
+#endif
+
+    case APP_INVALID:
+    default:
+        iot_log_error("Hey... you did not enable any mainloop I can use.");
+        exit(1);
+    }
+}
+
+
+/*
  * parse the command line
  */
 static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
 {
-#   define OPTIONS "sl:a:b:u:p:e:S:B:I:vd:h"
+#ifdef GLIB_ENABLED
+#    define OPT_GLIB "G"
+#else
+#    define OPT_GLIB ""
+#endif
+#ifdef UV_ENABLED
+#    define OPT_UV "U"
+#else
+#    define OPT_UV ""
+#endif
+#   define OPTIONS "sl:a:b:u:p:e:S:B:I:vd:h"OPT_GLIB""OPT_UV
     struct option options[] = {
         { "server"  , no_argument      , NULL, 's' },
         { "label"   , required_argument, NULL, 'l' },
@@ -432,6 +594,12 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
         { "burst"   , required_argument, NULL, 'B' },
         { "interval", required_argument, NULL, 'I' },
         { "verbose" , optional_argument, NULL, 'v' },
+#ifdef GLIB_ENABLED
+        { "glib"    , no_argument      , NULL, 'G' },
+#endif
+#ifdef UV_ENABLED
+        { "uv"      , no_argument      , NULL, 'U' },
+#endif
         { "debug"   , required_argument, NULL, 'd' },
         { "help"    , no_argument      , NULL, 'h' },
         { NULL, 0, NULL, 0 }
@@ -531,6 +699,20 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
             iot_debug_enable(TRUE);
             break;
 
+#ifdef GLIB_ENABLED
+        case 'G':
+            app->type = APP_GLIB;
+            iot_log_info("Using GLIB mainloop...");
+            break;
+#endif
+
+#ifdef UV_ENABLED
+        case 'U':
+            app->type = APP_UV;
+            iot_log_info("Using UV mainloop...");
+            break;
+#endif
+
         case 'h':
             help++;
             break;
@@ -567,39 +749,20 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
  */
 int main(int argc, char *argv[], char *envp[])
 {
-    app_t           app;
-    iot_mainloop_t *ml;
+    app_t app;
 
     iot_clear(&app);
-    app.gml = g_main_loop_new(NULL, FALSE);
-
-    if (app.gml == NULL) {
-        iot_log_error("Failed to create GMainLoop.");
-        exit(1);
-    }
-
-    ml = iot_mainloop_glib_get(app.gml);
-
-    if (ml == NULL) {
-        iot_log_error("Failed to create IoT mainloop.");
-        exit(1);
-    }
-
-    app.iot = iot_app_create(ml, &app);
-
-    if (app.iot == NULL) {
-        iot_log_error("Failed to create IoT application context.");
-        exit(1);
-    }
 
     parse_cmdline(&app, argc, argv, envp);
+
+    mainloop_create(&app);
 
     if (app.server)
         setup_server(&app);
     else
         setup_client(&app);
 
-    g_main_loop_run(app.gml);
+    mainloop_run(&app);
 
     return 0;
 }
