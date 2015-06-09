@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: iot-uv
+Description: IoT Application Framework, UV mainloop glue library.
+Requires: iot-common
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -liot-uv @UV_LIBS@
+Cflags: -I${includedir} @UV_CFLAGS@

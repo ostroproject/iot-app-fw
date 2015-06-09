@@ -189,6 +189,32 @@ AC_SUBST(GLIB_ENABLED)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
+# Check if UV mainloop support was enabled.
+AC_ARG_ENABLE(uv,
+              [  --enable-uv             enable UV mainloop support],
+	      [enable_uv=$enableval], [enable_uv=auto])
+
+if test "$enable_uv" != "no"; then
+    PKG_CHECK_MODULES(UV, libuv,
+                      [have_uv=yes], [have_uv=no])
+    if test "$have_uv" = "no" -a "$enable_uv" = "yes"; then
+        AC_MSG_ERROR([UV development libraries not found.])
+    fi
+
+    enable_uv="$have_uv"
+else
+    AC_MSG_NOTICE([UV mainloop support is disabled.])
+fi
+
+if test "$enable_uv" = "yes"; then
+    AC_DEFINE([UV_ENABLED], 1, [Enable UV mainloop support ?])
+fi
+AM_CONDITIONAL(UV_ENABLED, [test "$enable_uv" = "yes"])
+AC_SUBST(UV_ENABLED)
+AC_SUBST(UV_CFLAGS)
+AC_SUBST(UV_LIBS)
+
+
 # Check if qt mainloop support was enabled.
 AC_ARG_ENABLE(qt,
               [  --enable-qt             enable qt mainloop support],
@@ -299,6 +325,7 @@ AC_CONFIG_FILES([build-aux/shave
 		 src/common/iot-pulse.pc
 		 src/common/iot-ecore.pc
 		 src/common/iot-glib.pc
+                 src/common/iot-uv.pc
                  src/common/iot-qt.pc
 		 ])
 AC_OUTPUT
@@ -313,4 +340,5 @@ fi
 echo "PulseAudio mainloop support: $enable_pulse"
 echo "EFL/ecore mainloop support: $enable_ecore"
 echo "glib mainloop support: $enable_glib"
+echo "UV mainloop support: $enable_uv"
 echo "Qt mainloop support: $enable_qt"

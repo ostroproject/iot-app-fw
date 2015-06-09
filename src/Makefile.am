@@ -281,7 +281,7 @@ libiot_glib_la_LDFLAGS =		\
 
 libiot_glib_la_LIBADD  =		\
 		libiot-common.la	\
-		$(GLIB_LIBS)d
+		$(GLIB_LIBS)
 
 libiot_glib_la_DEPENDENCIES =	\
 		linker-script.glib	\
@@ -299,6 +299,55 @@ linker-script.glib: $(iot_glib_headers)
 
 clean-linker-script::
 	-rm -f linker-script.glib
+
+###################################
+# IoT UV glue library
+#
+
+iot_uv_headers =			\
+		common/uv-glue.h
+
+if UV_ENABLED
+lib_LTLIBRARIES += libiot-uv.la
+EXTRA_DIST      += common/iot-uv.pc
+pkgconfig_DATA  += common/iot-uv.pc
+
+libiot_uv_ladir      =		\
+		$(includedir)/iot/common
+
+libiot_uv_la_HEADERS = $(iot_uv_headers)
+
+libiot_uv_la_SOURCES =		\
+		common/uv-glue.c
+
+libiot_uv_la_CFLAGS  =		\
+		$(AM_CFLAGS)		\
+		$(UV_CFLAGS)
+
+libiot_uv_la_LDFLAGS =		\
+		-Wl,-version-script=linker-script.uv \
+		-version-info @IOT_VERSION_INFO@
+
+libiot_uv_la_LIBADD  =		\
+		libiot-common.la	\
+		$(UV_LIBS)
+
+libiot_uv_la_DEPENDENCIES =	\
+		linker-script.uv	\
+		$(filter %.la, $(libiot_uv_la_LIBADD))
+
+libuvincludedir      = $(includedir)/iot/uv
+libuvinclude_HEADERS = $(libiot_uv_la_HEADERS)
+endif
+
+# linker script generation
+linker-script.uv: $(iot_uv_headers)
+	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+		-P "$(CC)" -c "$(libiot_uv_la_CFLAGS)" \
+		-p '^iot_|^_iot|^mrp_|^_mrp_' -o $@ $^
+
+clean-linker-script::
+	-rm -f linker-script.uv
 
 ###################################
 # IoT Qt glue library
@@ -423,6 +472,13 @@ install-exec-hook:
 # iot-event-test
 #
 
+if GLIB_ENABLED
+IOT_GLIB = libiot-glib.la
+endif
+if UV_ENABLED
+IOT_UV   = libiot-uv.la
+endif
+
 bin_PROGRAMS += iot-event-test
 
 iot_event_test_SOURCES =		\
@@ -430,11 +486,13 @@ iot_event_test_SOURCES =		\
 
 iot_event_test_CFLAGS  =		\
 		$(AM_CFLAGS)		\
-		$(GLIB_CFLAGS)
+		$(GLIB_CFLAGS)		\
+		$(UV_CFLAGS)
 
 iot_event_test_LDADD   =		\
 		libiot-app.la		\
-		libiot-glib.la		\
+		$(IOT_GLIB)		\
+		$(IOT_UV)		\
 		libiot-common.la
 
 iot_event_test_LDFLAGS =		\
