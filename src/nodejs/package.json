@@ -1,0 +1,7 @@
+{
+    "name": "iot-appfw",
+    "version": "0.0.1",
+    "description": "IoT OS Application Framework Bindings",
+    "engine": "node 0.10.36",
+    "gypfile": true
+}
