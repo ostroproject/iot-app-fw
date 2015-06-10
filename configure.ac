@@ -189,32 +189,6 @@ AC_SUBST(GLIB_ENABLED)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
-# Check if UV mainloop support was enabled.
-AC_ARG_ENABLE(uv,
-              [  --enable-uv             enable UV mainloop support],
-	      [enable_uv=$enableval], [enable_uv=auto])
-
-if test "$enable_uv" != "no"; then
-    PKG_CHECK_MODULES(UV, libuv,
-                      [have_uv=yes], [have_uv=no])
-    if test "$have_uv" = "no" -a "$enable_uv" = "yes"; then
-        AC_MSG_ERROR([UV development libraries not found.])
-    fi
-
-    enable_uv="$have_uv"
-else
-    AC_MSG_NOTICE([UV mainloop support is disabled.])
-fi
-
-if test "$enable_uv" = "yes"; then
-    AC_DEFINE([UV_ENABLED], 1, [Enable UV mainloop support ?])
-fi
-AM_CONDITIONAL(UV_ENABLED, [test "$enable_uv" = "yes"])
-AC_SUBST(UV_ENABLED)
-AC_SUBST(UV_CFLAGS)
-AC_SUBST(UV_LIBS)
-
-
 # Check if qt mainloop support was enabled.
 AC_ARG_ENABLE(qt,
               [  --enable-qt             enable qt mainloop support],
@@ -241,6 +215,67 @@ AM_CONDITIONAL(QT_ENABLED, [test "$enable_qt" = "yes"])
 AC_SUBST(QT_ENABLED)
 AC_SUBST(QTCORE_CFLAGS)
 AC_SUBST(QTCORE_LIBS)
+
+# Check if UV mainloop support was enabled.
+AC_ARG_ENABLE(uv,
+              [  --enable-uv             enable UV mainloop support],
+	      [enable_uv=$enableval], [enable_uv=auto])
+
+if test "$enable_uv" != "no"; then
+    PKG_CHECK_MODULES(UV, libuv,
+                      [have_uv=yes], [have_uv=no])
+    if test "$have_uv" = "no" -a "$enable_uv" = "yes"; then
+        AC_MSG_ERROR([UV development libraries not found.])
+    fi
+
+    enable_uv="$have_uv"
+else
+    AC_MSG_NOTICE([UV mainloop support is disabled.])
+fi
+
+if test "$enable_uv" = "yes"; then
+    AC_DEFINE([UV_ENABLED], 1, [Enable UV mainloop support ?])
+fi
+
+# Check if NodeJS support was enabled.
+AC_ARG_ENABLE(nodejs,
+              [  --enable-nodejs         enable NodeJS bindings],
+	      [enable_nodejs=$enableval], [enable_nodejs=auto])
+
+if test "$enable_nodejs" = "yes"; then
+    PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
+    if test "$have_uv" = "no"; then
+        AC_MSG_ERROR([UV development libraries (for NodeJS) not found.])
+    fi
+
+    enable_uv="$have_uv"
+    
+    AC_CHECK_PROG(have_npm, [npm], [yes], [no])
+    if test "$have_npm" = "no"; then
+        AC_MSG_ERROR([npm binary (for NodeJS) not found.])
+    fi
+
+    AC_CHECK_FILES([/usr/include/node/node.h
+                    /usr/include/node/common.gypi
+                    /usr/include/node/config.gypi],
+                   [have_nodedev=yes], [have_nodedev=no])
+    if test "$have_nodedev" = "no"; then
+        AC_MSG_ERROR([NodeJS development files not found.])
+    fi
+else
+    AC_MSG_NOTICE([NodeJS bindings disabled.])
+fi
+
+AM_CONDITIONAL(UV_ENABLED, [test "$enable_uv" = "yes"])
+AC_SUBST(UV_ENABLED)
+AC_SUBST(UV_CFLAGS)
+AC_SUBST(UV_LIBS)
+
+if test "$enable_nodejs" = "yes"; then
+    AC_DEFINE([NODEJS_ENABLED], 1, [Enable NodeJS bindings ?])
+fi
+AM_CONDITIONAL(NODEJS_ENABLED, [test "$enable_nodejs" = "yes"])
+AC_SUBST(NODEJS_ENABLED)
 
 # Check for json(-c).
 PKG_CHECK_MODULES(JSON, [json], [have_json=yes], [have_json=no])
@@ -341,4 +376,5 @@ echo "PulseAudio mainloop support: $enable_pulse"
 echo "EFL/ecore mainloop support: $enable_ecore"
 echo "glib mainloop support: $enable_glib"
 echo "UV mainloop support: $enable_uv"
+echo "NodeJS bindings: $enable_nodejs"
 echo "Qt mainloop support: $enable_qt"

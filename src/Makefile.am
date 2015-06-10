@@ -498,6 +498,17 @@ iot_event_test_LDADD   =		\
 iot_event_test_LDFLAGS =		\
 		-rdynamic
 
+###################################
+# NodeJS bindings
+#
+if NODEJS_ENABLED
+all-local:: nodejs-bindings
+
+nodejs-bindings:
+	cd nodejs && \
+	npm install
+endif
+
 # cleanup
 clean-local::
 	-rm -f *~
