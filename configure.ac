@@ -240,7 +240,7 @@ fi
 # Check if NodeJS support was enabled.
 AC_ARG_ENABLE(nodejs,
               [  --enable-nodejs         enable NodeJS bindings],
-	      [enable_nodejs=$enableval], [enable_nodejs=auto])
+	      [enable_nodejs=$enableval], [enable_nodejs=no])
 
 if test "$enable_nodejs" = "yes"; then
     PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
@@ -276,6 +276,31 @@ if test "$enable_nodejs" = "yes"; then
 fi
 AM_CONDITIONAL(NODEJS_ENABLED, [test "$enable_nodejs" = "yes"])
 AC_SUBST(NODEJS_ENABLED)
+
+# Check if systemd socket-based activation was enabled.
+AC_ARG_ENABLE(systemd,
+              [  --enable-systemd       enable systemd socket-based activation],
+	      [enable_systemd=$enableval], [enable_systemd=auto])
+
+if test "$enable_systemd" != "no"; then
+    PKG_CHECK_MODULES(SYSTEMD, libsystemd-daemon,
+                      [have_systemd=yes], [have_systemd=no])
+    if test "$have_systemd" = "no" -a "$enable_systemd" = "yes"; then
+        AC_MSG_ERROR([Systemd development libraries not found.])
+    fi
+
+    enable_systemd="$have_systemd"
+else
+    AC_MSG_NOTICE([systemd support is disabled.])
+fi
+
+if test "$enable_systemd" = "yes"; then
+    AC_DEFINE([SYSTEMD_ENABLED], 1, [Enable systemd socket-based activation ?])
+fi
+
+AM_CONDITIONAL(SYSTEMD_ENABLED, [test "$enable_systemd" = "yes"])
+AC_SUBST(SYSTEMD_CFLAGS)
+AC_SUBST(SYSTEMD_LIBS)
 
 # Check for json(-c).
 PKG_CHECK_MODULES(JSON, [json], [have_json=yes], [have_json=no])
@@ -378,3 +403,4 @@ echo "glib mainloop support: $enable_glib"
 echo "UV mainloop support: $enable_uv"
 echo "NodeJS bindings: $enable_nodejs"
 echo "Qt mainloop support: $enable_qt"
+echo "Systemd socket-based activation: $enable_systemd"

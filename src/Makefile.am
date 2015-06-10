@@ -428,11 +428,13 @@ iot_launch_daemon_SOURCES =				\
 iot_launch_daemon_CFLAGS  =		\
 		$(AM_CFLAGS)		\
 		$(BUILTIN_CFLAGS)	\
-		$(JSON_CFLAGS)
+		$(JSON_CFLAGS)		\
+		$(SYSTEMD_CFLAGS)
 
 iot_launch_daemon_LDADD   =		\
 		libiot-common.la	\
-		$(JSON_LIBS)
+		$(JSON_LIBS)		\
+		$(SYSTEMD_LIBS)
 
 iot_launch_daemon_LDFLAGS = 		\
 		-rdynamic
