@@ -1,0 +1,10 @@
+[Unit]
+Description=IoT Application Launcher Daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/iot-launch-daemon -f -vvv -S launcher,appfw
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
