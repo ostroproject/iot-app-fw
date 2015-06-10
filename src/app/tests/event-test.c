@@ -543,8 +543,8 @@ void mainloop_quit(app_t *app)
 
 void mainloop_destroy(app_t *app)
 {
-#ifdef GLIB_ENABLED
     switch (app->type) {
+#ifdef GLIB_ENABLED
     case APP_GLIB:
         g_main_loop_unref(app->ml);
         app->ml = NULL;
