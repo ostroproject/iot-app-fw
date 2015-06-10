@@ -65,6 +65,8 @@ typedef struct {
     const char      *cgroot;             /* cgroup fs mount point */
     const char      *cgdir;              /* our cgroup directory */
     const char      *cgagent;            /* our cgroup release agent */
+    int              lnc_fd;             /* systemd-passed socket for lnc */
+    int              app_fd;             /* systemd-passed socket for app */
 } launcher_t;
 
 

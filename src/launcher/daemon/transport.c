@@ -68,7 +68,7 @@ void transport_init(launcher_t *l)
     iot_sockaddr_t  addr;
     socklen_t       alen;
     const char     *type;
-    int             flags;
+    int             flags, state, sock;
 
     alen = iot_transport_resolve(NULL, l->lnc_addr, &addr, sizeof(addr), &type);
 
@@ -77,8 +77,17 @@ void transport_init(launcher_t *l)
         exit(1);
     }
 
-    flags  = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_MODE_JSON;
-    l->lnc = iot_transport_create(ml, type, &lnc_evt, l, flags);
+    flags  = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_NONBLOCK | \
+        IOT_TRANSPORT_MODE_JSON;
+
+    if (l->lnc_fd < 0)
+        l->lnc = iot_transport_create(ml, type, &lnc_evt, l, flags);
+    else {
+        state  = IOT_TRANSPORT_LISTENED;
+        sock   = l->lnc_fd;
+        l->lnc = iot_transport_create_from(ml, type, &sock, &lnc_evt, l,
+                                           flags, state);
+    }
 
     if (l->lnc == NULL) {
         iot_log_error("Failed to create transport '%s'.", l->lnc_addr);
@@ -105,8 +114,17 @@ void transport_init(launcher_t *l)
         exit(1);
     }
 
-    flags  = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_MODE_JSON;
-    l->app = iot_transport_create(ml, type, &app_evt, l, flags);
+    flags = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_NONBLOCK |  \
+        IOT_TRANSPORT_MODE_JSON;
+
+    if (l->app_fd < 0)
+        l->app = iot_transport_create(ml, type, &app_evt, l, flags);
+    else {
+        state  = IOT_TRANSPORT_LISTENED;
+        sock   = l->app_fd;
+        l->app = iot_transport_create_from(ml, type, &sock, &app_evt, l,
+                                           flags, state);
+    }
 
     if (l->app == NULL) {
         iot_log_error("Failed to create transport '%s'.", l->app_addr);
