@@ -219,7 +219,9 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 {
 #define MAX_ARGS 256
 #ifdef SYSTEMD_ENABLED
-    #define OPT_SOCKETS "S"
+#    define OPT_SOCKETS "S"
+#else
+#    define OPT_SOCKETS ""
 #endif
 
 #define OPTIONS "L:A:a:l:t:vd:fhV"OPT_SOCKETS
