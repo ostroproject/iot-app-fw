@@ -503,11 +503,21 @@ iot_event_test_LDFLAGS =		\
 # NodeJS bindings
 #
 if NODEJS_ENABLED
+NODEJS_METADATA = package.json
+NODEJS_SRC      = src/appfw.cpp
+
 all-local:: nodejs-bindings
 
 nodejs-bindings:
-	cd $(top_srcdir)/src/nodejs && \
-	npm install
+	mkdir -p $(top_builddir)/src/nodejs/src &&		\
+	if test "$(top_builddir)" != "$(top_srcdir)"; then	\
+	    cp $(top_srcdir)/src/nodejs/$(NODEJS_METADATA)	\
+	        $(top_builddir)/src/nodejs &&			\
+	    cp $(top_srcdir)/src/nodejs/$(NODEJS_SRC)		\
+	        $(top_builddir)/src/nodejs/src;			\
+	fi &&							\
+	cd $(top_builddir)/src/nodejs &&			\
+	    npm install
 endif
 
 # cleanup
