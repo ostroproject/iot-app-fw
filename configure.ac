@@ -376,17 +376,19 @@ fi
 
 # Generate output.
 AC_CONFIG_FILES([build-aux/shave
-		 build-aux/shave-libtool
-		 Makefile
+                 build-aux/shave-libtool
+                 Makefile
                  utils/Makefile
-		 src/Makefile
-		 src/common/iot-common.pc
+                 src/Makefile
+                 src/common/iot-common.pc
                  src/app/iot-app.pc
-		 src/common/iot-pulse.pc
-		 src/common/iot-ecore.pc
-		 src/common/iot-glib.pc
+                 src/common/iot-pulse.pc
+                 src/common/iot-ecore.pc
+                 src/common/iot-glib.pc
                  src/common/iot-uv.pc
                  src/common/iot-qt.pc
+                 packaging.in/iot-launch.service
+                 packaging.in/iot-launch.socket
 		 ])
 AC_OUTPUT
 
