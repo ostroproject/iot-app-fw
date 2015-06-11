@@ -210,7 +210,7 @@ static void set_passed_sockets(launcher_t *l, const char *order,
         i++;
     }
 #else
-    print_usage(l, argv[0], EOPNOTSUPP, "socket activation disabled");
+    print_usage(l, argv0, EOPNOTSUPP, "socket activation disabled");
 #endif
 }
 
