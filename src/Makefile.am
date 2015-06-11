@@ -431,7 +431,8 @@ iot_launch_daemon_CFLAGS  =		\
 		$(AM_CFLAGS)		\
 		$(BUILTIN_CFLAGS)	\
 		$(JSON_CFLAGS)		\
-		$(SYSTEMD_CFLAGS)
+		$(SYSTEMD_CFLAGS)	\
+		-DLIBEXECDIR=\"@libexecdir@\"
 
 iot_launch_daemon_LDADD   =		\
 		libiot-common.la	\

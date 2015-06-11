@@ -63,7 +63,11 @@
 #endif
 
 #ifndef IOT_LIBEXECDIR
-#    define IOT_LIBEXECDIR "/usr/libexec"
+#    ifdef LIBEXECDIR
+#        define IOT_LIBEXECDIR LIBEXECDIR
+#    else
+#        define IOT_LIBEXECDIR /usr/libexec
+#    endif
 #endif
 
 static void print_usage(launcher_t *l, const char *argv0, int exit_code,
