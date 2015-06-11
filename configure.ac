@@ -368,12 +368,6 @@ AC_SUBST(SYSCONFDIR, [$sysconfdir])
 # Shave by default.
 SHAVE_INIT([build-aux], [enable])
 
-# Create IoT symlink to src.
-if test ! -L iot; then
-    AC_MSG_NOTICE([Symlinking src to iot...])
-    ln -s src iot
-fi
-
 # Generate output.
 AC_CONFIG_FILES([build-aux/shave
                  build-aux/shave-libtool

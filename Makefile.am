@@ -3,7 +3,7 @@ doc_DATA = AUTHORS ChangeLog NEWS README
 
 # This is the only way with automake I know of to force 'check-git-hooks'
 # to be evaluated before 'all'. If there is a nicer way, I'm all ears...
-BUILT_SOURCES = install-git-hooks
+BUILT_SOURCES = install-git-hooks install-iot-symlink
 
 ###################################
 # git hook management
@@ -23,6 +23,14 @@ install-git-hooks:
 	            chmod a+x .git/hooks/$${hook##*/};              \
 	        fi                                                  \
 	    done                                                    \
+	fi
+
+install-iot-symlink:
+	if test ! -L $(top_srcdir)/iot; then		\
+	   ln -sf ./src $(top_srcdir)/iot;		\
+	fi;						\
+	if test ! -L $(top_builddir)/iot; then		\
+	   ln -sf ./src $(top_builddir)/iot;		\
 	fi
 
 # cleanup
