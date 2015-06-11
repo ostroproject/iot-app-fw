@@ -33,6 +33,13 @@ install-iot-symlink:
 	   ln -sf ./src $(top_builddir)/iot;		\
 	fi
 
+install-data-hook:
+	mkdir -p $(DESTDIR)/lib/systemd/system && 		\
+	cp $(top_builddir)/packaging.in/iot-launch.service	\
+	    $(DESTDIR)/lib/systemd/system
+	cp $(top_builddir)/packaging.in/iot-launch.socket	\
+	    $(DESTDIR)/lib/systemd/system
+
 # cleanup
 clean-local:
 	rm -f *~
