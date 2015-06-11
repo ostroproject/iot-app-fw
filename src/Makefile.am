@@ -15,9 +15,11 @@ EXTRA_DIST       =
 
 QUIET_GEN        = $(Q:@=@echo '  GEN   '$@;)
 
-AM_CPPFLAGS      = -I$(top_builddir) -I$(top_builddir)/src
+AM_CPPFLAGS      = -I$(top_builddir) -I$(top_builddir)/src \
+                   -I$(top_srcdir) -I$(top_srcdir)/src
 BUILT_SOURCES    =
 
+GEN_LINKERSCRIPT = $(top_srcdir)/build-aux/gen-linker-script -b $(top_builddir)
 
 ###################################
 # IoT common library
@@ -79,7 +81,7 @@ libiot_common_la_CFLAGS  =		\
 		$(JSON_CFLAGS)
 
 libiot_common_la_LDFLAGS =					\
-		-Wl,-version-script=linker-script.common	\
+		-Wl,-version-script=$(top_srcdir)/linker-script.common	\
 		-version-info @IOT_VERSION_INFO@
 
 libiot_common_la_LIBADD  = 		\
@@ -87,17 +89,17 @@ libiot_common_la_LIBADD  = 		\
 		-lrt
 
 libiot_common_la_DEPENDENCIES =	\
-		linker-script.common	\
+		$(top_srcdir)/linker-script.common	\
 		$(filter %.la, $(libiot_common_la_LIBADD))
 
 # linker script generation
-linker-script.common: $(libiot_common_la_HEADERS)
-	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+$(top_srcdir)/linker-script.common: $(libiot_common_la_HEADERS)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
 		-P "$(CC)" -c "$(libiot_common_la_CFLAGS)" \
 		-p '^iot_|^_iot_|^mrp_|^_mrp_' -o $@ $^
 
 clean-linker-script::
-	-rm -f linker-script.common
+	-rm -f $(top_srcdir)/linker-script.common
 
 
 ###################################
@@ -132,7 +134,7 @@ libiot_app_la_CFLAGS  =					\
 		$(JSON_CFLAGS)
 
 libiot_app_la_LDFLAGS =					\
-		-Wl,-version-script=linker-script.app	\
+		-Wl,-version-script=$(top_srcdir)/linker-script.app	\
 		-version-info @IOT_VERSION_INFO@
 
 libiot_app_la_LIBADD  = 				\
@@ -140,17 +142,17 @@ libiot_app_la_LIBADD  = 				\
 		-lrt
 
 libiot_app_la_DEPENDENCIES =	\
-		linker-script.app	\
+		$(top_srcdir)/linker-script.app	\
 		$(filter %.la, $(libiot_app_la_LIBADD))
 
 # linker script generation
-linker-script.app: $(libiot_app_la_HEADERS)
-	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+$(top_srcdir)/linker-script.app: $(libiot_app_la_HEADERS)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
 		-P "$(CC)" -c "$(libiot_app_la_CFLAGS)" \
 		-p '^iot_|^_iot_|^mrp_|^_mrp_' -o $@ $^
 
 clean-linker-script::
-	-rm -f linker-script.app
+	-rm -f $(top_srcdir)/linker-script.app
 
 
 ###################################
@@ -178,7 +180,7 @@ libiot_pulse_la_CFLAGS  =		\
 		$(PULSE_CFLAGS)
 
 libiot_pulse_la_LDFLAGS =		\
-		-Wl,-version-script=linker-script.pulse \
+		-Wl,-version-script=$(top_srcdir)/linker-script.pulse \
 		-version-info @IOT_VERSION_INFO@
 
 libiot_pulse_la_LIBADD  =		\
@@ -186,7 +188,7 @@ libiot_pulse_la_LIBADD  =		\
 		$(PULSE_LIBS)
 
 libiot_pulse_la_DEPENDENCIES =	\
-		linker-script.pulse	\
+		$(top_srcdir)/linker-script.pulse	\
 		$(filter %.la, $(libiot_pulse_la_LIBADD))
 
 libpulseincludedir      = $(includedir)/iot/pulse
@@ -194,13 +196,13 @@ libpulseinclude_HEADERS = $(libiot_pulse_la_HEADERS)
 endif
 
 # linker script generation
-linker-script.pulse: $(iot_pulse_headers)
-	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+$(top_srcdir)/linker-script.pulse: $(iot_pulse_headers)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
 		-P "$(CC)" -c "$(libiot_pulse_la_CFLAGS)" \
                 -p '^iot_|^_iot|^mrp_|^_mrp_' -o $@ $^
 
 clean-linker-script::
-	-rm -f linker-script.pulse
+	-rm -f $(top_srcdir)/linker-script.pulse
 
 ###################################
 # IoT ecore glue library
@@ -227,7 +229,7 @@ libiot_ecore_la_CFLAGS  =		\
 		$(ECORE_CFLAGS)
 
 libiot_ecore_la_LDFLAGS =		\
-		-Wl,-version-script=linker-script.ecore \
+		-Wl,-version-script=$(top_srcdir)/linker-script.ecore \
 		-version-info @IOT_VERSION_INFO@
 
 libiot_ecore_la_LIBADD  =		\
@@ -235,7 +237,7 @@ libiot_ecore_la_LIBADD  =		\
 		$(ECORE_LIBS)
 
 libiot_ecore_la_DEPENDENCIES =	\
-		linker-script.ecore	\
+		$(top_srcdir)/linker-script.ecore	\
 		$(filter %.la, $(libiot_ecore_la_LIBADD))
 
 libecoreincludedir      = $(includedir)/iot/ecore
@@ -243,13 +245,13 @@ libecoreinclude_HEADERS = $(libiot_ecore_la_HEADERS)
 endif
 
 # linker script generation
-linker-script.ecore: $(iot_ecore_headers)
-	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+$(top_srcdir)/linker-script.ecore: $(iot_ecore_headers)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
 		-P "$(CC)" -c "$(libiot_ecore_la_CFLAGS)" \
 		-p '^iot_|^_iot|^mrp_|^_mrp_' -o $@ $^
 
 clean-linker-script::
-	-rm -f linker-script.ecore
+	-rm -f $(top_srcdir)/linker-script.ecore
 
 ###################################
 # IoT glib glue library
@@ -276,7 +278,7 @@ libiot_glib_la_CFLAGS  =		\
 		$(GLIB_CFLAGS)
 
 libiot_glib_la_LDFLAGS =		\
-		-Wl,-version-script=linker-script.glib \
+		-Wl,-version-script=$(top_srcdir)/linker-script.glib \
 		-version-info @IOT_VERSION_INFO@
 
 libiot_glib_la_LIBADD  =		\
@@ -284,7 +286,7 @@ libiot_glib_la_LIBADD  =		\
 		$(GLIB_LIBS)
 
 libiot_glib_la_DEPENDENCIES =	\
-		linker-script.glib	\
+		$(top_srcdir)/linker-script.glib	\
 		$(filter %.la, $(libiot_glib_la_LIBADD))
 
 libglibincludedir      = $(includedir)/iot/glib
@@ -292,13 +294,13 @@ libglibinclude_HEADERS = $(libiot_glib_la_HEADERS)
 endif
 
 # linker script generation
-linker-script.glib: $(iot_glib_headers)
-	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+$(top_srcdir)/linker-script.glib: $(iot_glib_headers)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
 		-P "$(CC)" -c "$(libiot_glib_la_CFLAGS)" \
 		-p '^iot_|^_iot|^mrp_|^_mrp_' -o $@ $^
 
 clean-linker-script::
-	-rm -f linker-script.glib
+	-rm -f $(top_srcdir)/linker-script.glib
 
 ###################################
 # IoT UV glue library
@@ -325,7 +327,7 @@ libiot_uv_la_CFLAGS  =		\
 		$(UV_CFLAGS)
 
 libiot_uv_la_LDFLAGS =		\
-		-Wl,-version-script=linker-script.uv \
+		-Wl,-version-script=$(top_srcdir)/linker-script.uv \
 		-version-info @IOT_VERSION_INFO@
 
 libiot_uv_la_LIBADD  =		\
@@ -333,7 +335,7 @@ libiot_uv_la_LIBADD  =		\
 		$(UV_LIBS)
 
 libiot_uv_la_DEPENDENCIES =	\
-		linker-script.uv	\
+		$(top_srcdir)/linker-script.uv	\
 		$(filter %.la, $(libiot_uv_la_LIBADD))
 
 libuvincludedir      = $(includedir)/iot/uv
@@ -341,13 +343,13 @@ libuvinclude_HEADERS = $(libiot_uv_la_HEADERS)
 endif
 
 # linker script generation
-linker-script.uv: $(iot_uv_headers)
-	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+$(top_srcdir)/linker-script.uv: $(iot_uv_headers)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
 		-P "$(CC)" -c "$(libiot_uv_la_CFLAGS)" \
 		-p '^iot_|^_iot|^mrp_|^_mrp_' -o $@ $^
 
 clean-linker-script::
-	-rm -f linker-script.uv
+	-rm -f $(top_srcdir)/linker-script.uv
 
 ###################################
 # IoT Qt glue library
@@ -376,13 +378,13 @@ libiot_qt_la_CPPFLAGS  =		\
 		$(QTCORE_CFLAGS)
 
 libiot_qt_la_LDFLAGS =		\
-		-Wl,-version-script=linker-script.qt \
+		-Wl,-version-script=$(top_srcdir)/linker-script.qt \
 		-version-info @IOT_VERSION_INFO@
 
 libiot_qt_la_LIBADD  = $(QTCORE_LIBS)
 
 libiot_qt_la_DEPENDENCIES =		\
-		linker-script.qt	\
+		$(top_srcdir)/linker-script.qt	\
 		$(filter %.la, $(libiot_qt_la_LIBADD))
 
 libqtincludedir      = $(includedir)/iot/qt
@@ -394,13 +396,13 @@ common/qt-glue-priv.moc.h: common/qt-glue-priv.h
 endif
 
 # linker script generation
-linker-script.qt: $(iot_qt_headers)
-	$(QUIET_GEN)$(top_builddir)/build-aux/gen-linker-script -q \
+$(top_srcdir)/linker-script.qt: $(iot_qt_headers)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
 		-P "$(CC)" -c "$(libiot_qt_la_CPPFLAGS) -DQT_ENABLED=1" \
 		-p '^iot_|^_iot|^mrp_|^_mrp_' -o $@ $^
 
 clean-linker-script::
-	-rm -f linker-script.qt
+	-rm -f $(top_srcdir)/linker-script.qt
 
 ###################################
 # iot-launch-daemon
@@ -507,7 +509,7 @@ if NODEJS_ENABLED
 all-local:: nodejs-bindings
 
 nodejs-bindings:
-	cd nodejs && \
+	cd $(top_srcdir)/src/nodejs && \
 	npm install
 endif
 
