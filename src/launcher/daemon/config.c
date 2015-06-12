@@ -214,7 +214,7 @@ static void set_passed_sockets(launcher_t *l, const char *order,
         i++;
     }
 #else
-    print_usage(l, argv0, EOPNOTSUPP, "socket activation disabled");
+    print_usage(l, argv0, EOPNOTSUPP, "socket activation support is disabled");
 #endif
 }
 
@@ -222,13 +222,8 @@ static void set_passed_sockets(launcher_t *l, const char *order,
 static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 {
 #define MAX_ARGS 256
-#ifdef SYSTEMD_ENABLED
-#    define OPT_SOCKETS "S"
-#else
-#    define OPT_SOCKETS ""
-#endif
 
-#define OPTIONS "L:A:a:l:t:vd:fhV"OPT_SOCKETS
+#define OPTIONS "L:A:a:l:t:vd:fhVS"
     struct option options[] = {
         { "launcher"         , required_argument, NULL, 'L' },
         { "appfw"            , required_argument, NULL, 'A' },
@@ -327,12 +322,10 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
             valgrind(optarg, argc, argv, optind, saved_argc, saved_argv, envp);
             break;
 
-#ifdef SYSTEMD_ENABLED
         case 'S':
             SAVE_OPTARG("-S", optarg);
             set_passed_sockets(l, optarg, argv[0]);
             break;
-#endif
 
         default:
             print_usage(l, argv[0], EINVAL, "invalid option '%c'", opt);
