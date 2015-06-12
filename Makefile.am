@@ -34,11 +34,16 @@ install-iot-symlink:
 	fi
 
 install-data-hook:
-	mkdir -p $(DESTDIR)/lib/systemd/system && 		\
+	mkdir -p $(DESTDIR)/lib/systemd/system
+if SYSTEMD_ENABLED
+	cp $(top_builddir)/packaging.in/iot-launch.service-socket	\
+	    $(DESTDIR)/lib/systemd/system/iot-launch.service
+	cp $(top_builddir)/packaging.in/iot-launch.socket		\
+	    $(DESTDIR)/lib/systemd/system
+else
 	cp $(top_builddir)/packaging.in/iot-launch.service	\
 	    $(DESTDIR)/lib/systemd/system
-	cp $(top_builddir)/packaging.in/iot-launch.socket	\
-	    $(DESTDIR)/lib/systemd/system
+endif
 
 # cleanup
 clean-local:
