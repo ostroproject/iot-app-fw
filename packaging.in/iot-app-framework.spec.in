@@ -128,10 +128,10 @@ This package contains various test binaries for the IoT Application Framework.
 %setup -q
 
 %build
-%if %{?_with_debug:1}%{!?_with_debug:0}
+#%if %{?_with_debug:1}%{!?_with_debug:0}
 export CFLAGS="-O0 -g3"
 V="V=1"
-%endif
+#%endif
 
 CONFIG_OPTIONS=""
 DYNAMIC_PLUGINS="domain-control"
@@ -165,7 +165,7 @@ NUM_CPUS="`cat /proc/cpuinfo | tr -s '\t' ' ' | \
 [ -z "$NUM_CPUS" ] && NUM_CPUS=1
 
 ./bootstrap && \
-    %configure $CONFIG_OPTIONS && \
+    %configure $CONFIG_OPTIONS --disable-nodejs --disable-uv && \
     make clean && \
     make -j$(($NUM_CPUS + 1)) $V
 
@@ -217,6 +217,8 @@ ldconfig
 %{_bindir}/iot-launch-daemon
 %{_bindir}/iot-launch
 %{_libexecdir}/iot-launcher/*
+/lib/systemd/system/iot-launch.service
+/lib/systemd/system/iot-launch.socket
 
 %files doc
 %defattr(-,root,root,-)
