@@ -80,28 +80,30 @@ void transport_init(launcher_t *l)
     flags  = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_NONBLOCK | \
         IOT_TRANSPORT_MODE_JSON;
 
-    if (l->lnc_fd < 0)
+    if (l->lnc_fd < 0) {
         l->lnc = iot_transport_create(ml, type, &lnc_evt, l, flags);
+
+        if (l->lnc == NULL) {
+            iot_log_error("Failed to create transport '%s'.", l->lnc_addr);
+            exit(1);
+        }
+
+        if (!iot_transport_bind(l->lnc, &addr, alen)) {
+            iot_log_error("Failed to bind to transport address '%s'.",
+                          l->lnc_addr);
+            exit(1);
+        }
+
+        if (!iot_transport_listen(l->lnc, 0)) {
+            iot_log_info("Listen on transport '%s' failed.", l->lnc_addr);
+            exit(1);
+        }
+    }
     else {
         state  = IOT_TRANSPORT_LISTENED;
         sock   = l->lnc_fd;
         l->lnc = iot_transport_create_from(ml, type, &sock, &lnc_evt, l,
                                            flags, state);
-    }
-
-    if (l->lnc == NULL) {
-        iot_log_error("Failed to create transport '%s'.", l->lnc_addr);
-        exit(1);
-    }
-
-    if (!iot_transport_bind(l->lnc, &addr, alen)) {
-        iot_log_error("Failed to bind to transport address '%s'.", l->lnc_addr);
-        exit(1);
-    }
-
-    if (!iot_transport_listen(l->lnc, 0)) {
-        iot_log_info("Listen on transport '%s' failed.", l->lnc_addr);
-        exit(1);
     }
 
     iot_log_info("Transport '%s' created and listening...", l->lnc_addr);
@@ -117,8 +119,26 @@ void transport_init(launcher_t *l)
     flags = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_NONBLOCK |  \
         IOT_TRANSPORT_MODE_JSON;
 
-    if (l->app_fd < 0)
+    if (l->app_fd < 0) {
         l->app = iot_transport_create(ml, type, &app_evt, l, flags);
+
+        if (l->app == NULL) {
+            iot_log_error("Failed to create transport '%s'.", l->app_addr);
+            exit(1);
+        }
+
+        if (!iot_transport_bind(l->app, &addr, alen)) {
+            iot_log_error("Failed to bind to transport address '%s'.",
+                          l->app_addr);
+            exit(1);
+        }
+
+        if (!iot_transport_listen(l->app, 0)) {
+            iot_log_info("Listen on transport '%s' failed.", l->app_addr);
+            exit(1);
+        }
+    }
+
     else {
         state  = IOT_TRANSPORT_LISTENED;
         sock   = l->app_fd;
@@ -126,20 +146,6 @@ void transport_init(launcher_t *l)
                                            flags, state);
     }
 
-    if (l->app == NULL) {
-        iot_log_error("Failed to create transport '%s'.", l->app_addr);
-        exit(1);
-    }
-
-    if (!iot_transport_bind(l->app, &addr, alen)) {
-        iot_log_error("Failed to bind to transport address '%s'.", l->app_addr);
-        exit(1);
-    }
-
-    if (!iot_transport_listen(l->app, 0)) {
-        iot_log_info("Listen on transport '%s' failed.", l->app_addr);
-        exit(1);
-    }
 
     iot_log_info("Transport '%s' created and listening...", l->app_addr);
 }

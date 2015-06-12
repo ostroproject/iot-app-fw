@@ -85,9 +85,9 @@ static void print_usage(launcher_t *l, const char *argv0, int exit_code,
 
     printf("usage: %s [options] [-V [valgrind-path] [valgrind-options]]\n\n"
            "The possible options are:\n"
-           "  -L  --launcher=<addr>           launcher socket address\n"
-           "  -E  --event=<addr>              event relay socket address\n"
-           "  -A  --agent=<path>             cgroup notification agent\n"
+           "  -L  --launcher=<addr>          launcher socket address\n"
+           "  -A  --appfw=<addr>             IoT app client socket address\n"
+           "  -a  --agent=<path>             cgroup notification agent\n"
            "  -t, --log-target=<target>      log target to use\n"
            "      TARGET is one of stderr,stdout,syslog, or a logfile path\n"
            "  -l, --log-level=<levels>       logging level to use\n"
@@ -117,10 +117,8 @@ static void config_set_defaults(launcher_t *l, char *argv0)
 
     l->lnc_addr = IOT_LAUNCH_ADDRESS;
     l->app_addr = IOT_APPFW_ADDRESS;
-#ifdef SYSTEMD_ENABLED
     l->lnc_fd   = -1;
     l->app_fd   = -1;
-#endif
 
     if (strstr(argv0, "/iot-app-fw/src/iot-launch") ||
         strstr(argv0, "/iot-app-fw/src/.libs/")) {
@@ -223,7 +221,7 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 {
 #define MAX_ARGS 256
 
-#define OPTIONS "L:A:a:l:t:vd:fhVS"
+#define OPTIONS "L:A:a:l:t:vd:fhVS:D:"
     struct option options[] = {
         { "launcher"         , required_argument, NULL, 'L' },
         { "appfw"            , required_argument, NULL, 'A' },
@@ -235,9 +233,8 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         { "foreground"       , no_argument      , NULL, 'f' },
         { "help"             , no_argument      , NULL, 'h' },
         { "valgrind"         , optional_argument, NULL, 'V' },
-#ifdef SYSTEMD_ENABLED
         { "sockets"          , required_argument, NULL, 'S' },
-#endif
+        { "delay"            , required_argument, NULL, 'D' },
         { NULL, 0, NULL, 0 }
     };
 
@@ -253,7 +250,7 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
     char *saved_argv[MAX_ARGS];
     int   saved_argc;
 
-    int opt, help;
+    int opt, help, delay;
 
     help = FALSE;
     saved_argc = 0;
@@ -325,6 +322,12 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         case 'S':
             SAVE_OPTARG("-S", optarg);
             set_passed_sockets(l, optarg, argv[0]);
+            break;
+
+        case 'D':
+            delay = (int)strtol(optarg, NULL, 10);
+            iot_log_info("Waiting for an initial delay of %d seconds...", delay);
+            sleep(delay);
             break;
 
         default:
