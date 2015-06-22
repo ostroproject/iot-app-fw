@@ -464,10 +464,6 @@ iot_launch_LDADD   =			\
 iot_launch_LDFLAGS =			\
 		-rdynamic
 
-# cleanup
-clean-local::
-	-rm -f *~
-
 install-exec-hook:
 	$(MKDIR_P) $(DESTDIR)$(libexecdir)/iot-launcher &&	\
 	ln -sf $(bindir)/iot-launch				\
