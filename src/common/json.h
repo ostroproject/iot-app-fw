@@ -238,7 +238,7 @@ int iot_json_array_get_item(iot_json_t *a, int idx, iot_json_type_t type, ...);
 #define iot_json_foreach_member(o, _k, _v, it)                  \
     for (it.entry = json_object_get_object((o))->head;          \
          (it.entry ?                                            \
-          (_k = it.key = it.entry->k,                           \
+          (_k = it.key = (char *)it.entry->k,                   \
            _v = it.val = (iot_json_t *)it.entry->v,             \
            it.entry) : 0);                                      \
          it.entry = it.entry->next)
