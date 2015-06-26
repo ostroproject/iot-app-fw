@@ -59,18 +59,20 @@
  */
 
 typedef struct {
-    iot_mainloop_t   *ml;                /* mainloop */
-    iot_transport_t  *t;                 /* transport to privileged */
-    const char       *addr;              /* address we listen on */
-    const char       *appid;             /* application id */
-    const char       *argv0;             /* us... */
-    int               argc;              /* number of arguments for exec */
-    char            **argv;              /* arguments for exec */
+    iot_mainloop_t    *ml;               /* mainloop */
+    iot_transport_t   *t;                /* transport to privileged */
+    const char        *addr;             /* address we listen on */
+    const char        *appid;            /* application id */
+    const char        *argv0;            /* us... */
+    int                argc;             /* number of arguments for exec */
+    char             **argv;             /* arguments for exec */
 
-    int              log_mask;           /* what to log */
-    const char      *log_target;         /* where to log it to */
-    int              agent;              /* running as cgroup release agent */
-    int              cleanup;            /* whether launching or cleaning up */
+    int                log_mask;         /* what to log */
+    const char        *log_target;       /* where to log it to */
+    int                agent;            /* running as cgroup release agent */
+    int                cleanup;          /* whether launching or cleaning up */
+    iot_sighandler_t  *sh_int;           /* SIGINT handler */
+    iot_sighandler_t  *sh_term;          /* SIGHUP handler */
 } launcher_t;
 
 
@@ -289,8 +291,18 @@ static void run_mainloop(launcher_t *l)
 
 static void setup_signals(launcher_t *l)
 {
-    iot_add_sighandler(l->ml, SIGINT , signal_handler, l);
-    iot_add_sighandler(l->ml, SIGTERM, signal_handler, l);
+    l->sh_int  = iot_add_sighandler(l->ml, SIGINT , signal_handler, l);
+    l->sh_term = iot_add_sighandler(l->ml, SIGTERM, signal_handler, l);
+}
+
+
+static void clear_signals(launcher_t *l)
+{
+    iot_del_sighandler(l->sh_int);
+    iot_del_sighandler(l->sh_term);
+
+    l->sh_int  = NULL;
+    l->sh_term = NULL;
 }
 
 
@@ -300,6 +312,7 @@ static int launch_process(launcher_t *l)
 
     memcpy(argv, l->argv, sizeof(l->argv[0]) * l->argc);
     argv[l->argc] = NULL;
+    clear_signals(l);
 
     return execv(argv[0], argv);
 }
