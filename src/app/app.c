@@ -250,6 +250,7 @@ int iot_app_event_subscribe(iot_app_t *app, char **events,
     }
 
     pending_enq(app, pnd);
+    iot_json_unref(req);
 
     return seq;
 
@@ -341,6 +342,11 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
     if (!iot_json_add_string(req, "event", event))
         goto fail;
 
+    /*
+     * Hmm... should we ref data here ? If we want caller-owns semantics,
+     * we should... otherwise unreffing the request will unref (and free)
+     * data as well unless the caller has added an extra reference.
+     */
     if (data)
         iot_json_add_object(req, "data", data);
 
