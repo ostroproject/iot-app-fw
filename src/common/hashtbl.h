@@ -39,12 +39,12 @@
 IOT_CDECL_BEGIN
 
 /**
- * \addtogroup MurphyCommonInfra
+ * \addtogroup IoTCommonInfra
  * @{
  *
  * @file hash-table.h
  *
- * @brief Backward-ccompatibilty layer to provide the original Murphy hash table
+ * @brief Backward-ccompatibilty layer to provide the original IoT hash table
  *        implementation API. Please consider directly using directly the new
  *        hash table implementatio @iot_hashtbl_t. For more details, and the new
  *        API, please refer to hash-table.h.

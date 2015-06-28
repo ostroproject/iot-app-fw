@@ -45,14 +45,14 @@ IOT_CDECL_BEGIN
  *
  * @file mainloop.h
  *
- * @brief Murphy mainloop implementation.
+ * @brief IoT mainloop implementation.
  *
- * The Murphy mainloop provides the basis for asynchronous single-threaded
- * event processing within Murphy. Most of the other services and APIs
- * offered by Murphy utilize either directly or indirectly the mainloop
+ * The IoT mainloop provides the basis for asynchronous single-threaded
+ * event processing within the framework. Most of the other services and
+ * APIs offered utilize either directly or indirectly the mainloop
  * abstraction.
  *
- * The Murphy mainloop provides abstractions for I/O watches, timers,
+ * The IoT mainloop provides abstractions for I/O watches, timers,
  * deferred callbacks, POSIX signal watches, and wakeup callbacks.
  * Additionally, the mainloop provides an abstraction of superloops,
  * a mechanims that allows to be pumped by an external mainloop.
@@ -75,7 +75,7 @@ IOT_CDECL_BEGIN
  * delivered to the process. It allows one to wait for signals in a unified
  * fashion with timers and I/O.
  *
- * Wakeup callbacks are triggered when the Murphy mainloop is woken up by
+ * Wakeup callbacks are triggered when the IoT mainloop is woken up by
  * certain events or conditions. It allows one to piggyback extra processing
  * on an event that would have woken up the mainloop anyway. This might come
  * handy in battery-powered devices to conserve battery by concentrating
@@ -86,15 +86,15 @@ IOT_CDECL_BEGIN
  * filter that will prevent then from being called too often, if there is a
  * storm of events that surpasses the threshold.
  *
- * Superloops provide the opposite mechanism. They allow the Murphy mainloop
+ * Superloops provide the opposite mechanism. They allow the IoT mainloop
  * to be embedded into and pumped by 3rd-party mainloops.
  *
  * There are a number of superloop implementations readily available in the
- * Murphy source distribution for the most popular mainloop implementations,
+ * IoT source distribution for the most popular mainloop implementations,
  * including GMainloop, PulseAudio mainloop, EFL/ecore, Qt mainloop, and
  * wayland.
  *
- * Murphy also provides a simple publish-subscribe event mechanism, with
+ * IoT also provides a simple publish-subscribe event mechanism, with
  * support for both synchronous and asynchronous event delivery. Arbitrary
  * data in various supported formats (iot_json_t, custom void *) can be
  * attached to events by the emitter. Events can be registered automatically
@@ -104,14 +104,14 @@ IOT_CDECL_BEGIN
  */
 
 /**
- * @brief Opaque Murphy mainloop type.
+ * @brief Opaque IoT mainloop type.
  */
 typedef struct iot_mainloop_s iot_mainloop_t;
 
 /**
- * @brief Murphy I/O watches.
+ * @brief IoT I/O watches.
  *
- * Murphy I/O watches provide a very simple, straightforward mechanism for
+ * IoT I/O watches provide a very simple, straightforward mechanism for
  * monitoring the state of a file descriptor. One creates an I/O watch for
  * a descriptor and a set of events of interest together with a callback and
  * an opaque user data pointer. The mainloop will trigger the callback whenever
@@ -241,9 +241,9 @@ iot_io_event_t iot_get_io_event_mode(iot_mainloop_t *ml);
 #define iot_io_event_mode_get iot_get_io_event_mode
 
 /**
- * @brief Murphy timers.
+ * @brief IoT timers.
  *
- * Murphy timers provide a simple mechanism for the delayed execution of a
+ * IoT timers provide a simple mechanism for the delayed execution of a
  * function or repeated execution of a function at certain intervals. A timer
  * is created with an interval, a callback to be triggered and an opaque user
  * data pointer to pass to the function. It is guaranteed that the function
@@ -256,7 +256,7 @@ iot_io_event_t iot_get_io_event_mode(iot_mainloop_t *ml);
  */
 
 /**
- * @brief Opaque Murphy timer type.
+ * @brief Opaque IoT timer type.
  */
 typedef struct iot_timer_s iot_timer_t;
 
@@ -272,7 +272,7 @@ typedef struct iot_timer_s iot_timer_t;
 typedef void (*iot_timer_cb_t)(iot_timer_t *t, void *user_data);
 
 /**
- * @brief Create a new Murphy timer.
+ * @brief Create a new IoT timer.
  *
  * Create new timer for the given mainloop and the specified interval.
  *
@@ -338,9 +338,9 @@ iot_mainloop_t *iot_get_timer_mainloop(iot_timer_t *t);
 
 
 /**
- * @brief Murphy deferred callbacks.
+ * @brief IoT deferred callbacks.
  *
- * Murphy deferred callback provide a simple mechanism for delaying execution
+ * IoT deferred callback provide a simple mechanism for delaying execution
  * of a function until all pending events of the mainloop has been processed.
  * A delayed callback will be called after all events have been processed and
  * delivered before the mainloop starts polling for new events.
@@ -351,7 +351,7 @@ iot_mainloop_t *iot_get_timer_mainloop(iot_timer_t *t);
  */
 
 /**
- * @brief Opaque Murphy deferred callback type.
+ * @brief Opaque IoT deferred callback type.
  */
 typedef struct iot_deferred_s iot_deferred_t;
 
@@ -436,9 +436,9 @@ iot_mainloop_t *iot_get_deferred_mainloop(iot_deferred_t *d);
 
 
 /**
- * @brief Murphy signal handlers.
+ * @brief IoT signal handlers.
  *
- * Murphy signal handlers provide a mechanism to treat signals in an unified
+ * IoT signal handlers provide a mechanism to treat signals in an unified
  * manner to I/O and timers. Each signal handler created for a particular
  * signal will be called during the iteration of the mainloop, if that signal
  * has been delivered to the process running the mainloop since the previous
@@ -446,7 +446,7 @@ iot_mainloop_t *iot_get_deferred_mainloop(iot_deferred_t *d);
  */
 
 /**
- * @brief Opaque Murphy signal handler type.
+ * @brief Opaque IoT signal handler type.
  */
 typedef struct iot_sighandler_s iot_sighandler_t;
 
@@ -511,10 +511,10 @@ iot_mainloop_t *iot_get_sighandler_mainloop(iot_sighandler_t *h);
 
 
 /**
- * @brief Murphy wakeup callbacks.
+ * @brief IoT wakeup callbacks.
  *
- * Murphy wakeup callbacks allow one to piggyback processing on events that
- * wake up the Murphy mainloop (timers, and I/O or signals) anyway but not
+ * IoT wakeup callbacks allow one to piggyback processing on events that
+ * wake up the IoT mainloop (timers, and I/O or signals) anyway but not
  * causing a wakeup by themselves. This can be useful in certain situations
  * on battery-powered devices that can frequently enter and come out of a
  * power-saving state. To avoid extra wakeups and for saving energy, one might
@@ -528,7 +528,7 @@ iot_mainloop_t *iot_get_sighandler_mainloop(iot_sighandler_t *h);
  */
 
 /**
- * @brief Opaque Murphy wakeup callback type.
+ * @brief Opaque IoT wakeup callback type.
  */
 typedef struct iot_wakeup_s iot_wakeup_t;
 
@@ -560,7 +560,7 @@ typedef void (*iot_wakeup_cb_t)(iot_wakeup_t *w, iot_wakeup_event_t event,
                                 void *user_data);
 
 /**
- * @brief Create a new Murphy wakeup callback.
+ * @brief Create a new IoT wakeup callback.
  *
  * Create a new wakeup callback for the given mainloop and for the
  * specified events. If @lpf_msecs is specified it acts as a low-pass
@@ -621,41 +621,40 @@ iot_mainloop_t *iot_get_wakeup_mainloop(iot_wakeup_t *w);
 
 
 /**
- * @brief Murphy superloop.
+ * @brief IoT superloop.
  *
- * Murphy supoerloops serve an an abstraction to allow the Murphy mainloop
+ * IoT superloops serve an an abstraction to allow the IoT mainloop
  * to be embedded or enslaved under the control of another mainloop. They
- * let the Murphy mainloop to be pumped by 'external' mainloops.
+ * let the IoT mainloop to be pumped by 'external' mainloops.
  *
- * This can come handy if one needs to integrate some Murphy-based component
- * into 3rd-party software or library which typically do not use a Murphy
- * mainloop. The most typical case is if that one needs to communicate with
- * Murphy from an existing external component (either directly or for instance
- * using one of the Murphy resource libraries) using a Murphy transport/IPC.
- * Murphy transports/IPC use a Murphy mainloop abstraction for I/O and timers.
- * In such a case, one can embed a Murphy mainloop under the real mainloop of
+ * This can come handy if one needs to integrate some IoT-based component
+ * into 3rd-party software or library which typically do not use an IoT
+ * mainloop. The most typical case is if that one needs to communicate
+ * from an existing external component using an IoT transport/IPC.
+ * IoT transports/IPC use an IoT mainloop abstraction for I/O and timers.
+ * In such a case, one can embed an IoT mainloop under the real mainloop of
  * the hosting component, and pass that to the transport/IPC code to take care
  * of the communication details.
  *
- * Note that Murphy provides implementation for being embedded under many of
- * the popular mainloops, including GMainloop, PulseAudios mainloop, EFL/ecore
- * mainloop, Qt mainloop, Wayland mainloop, and the message pump of Crosswalk.
+ * Note that the IoT app framework provides implementation for being embedded
+ * under many of the popular mainloops, including GMainloop, PulseAudio
+ * mainloop, EFL/ecore mainloop, Qt mainloop, and libuv/NodeJS.
  */
 
 /**
  * @brief Superloop operations.
  *
- * Superloop operations are essentially the basic primitives Murphy needs
+ * Superloop operations are essentially the basic primitives IoT mainloop needs
  * an external mainloop to provide so that it can integrate itself under
- * that mainloop. The adaptation code which integrates Murphy to a particular
- * mainloop implementation needs to implement these using the APIs provided
- * by that external mainloop.
+ * that mainloop. The adaptation code which integrates an IoT mainloop to a
+ * particular mainloop implementation needs to implement these using the APIs
+ * provided by that external mainloop.
  *
- * Note that this interface might change in the future. Integrating to the
- * crosswalk infrastructure caused problems and changes which were not anti-
- * cipated  originally at all. They do not fit in nicely to the original
- * abstraction at all. We hope to address the resulting ugliness eventually
- * in an upcoming Murphy release.
+ * Note that this interface might change in the future. Integrating to certain
+ * infrastructures caused problems and changes which were not anticipated
+ * originally at all. They do not fit in nicely to the original abstraction at
+ * all. If necessary/possible, we hope to address the resulting ugliness
+ * eventually in an upcoming release.
  */
 typedef struct {
     void *(*add_io)(void *glue_data, int fd, iot_io_event_t events,
@@ -711,7 +710,7 @@ typedef struct {
 } iot_superloop_ops_t;
 
 /**
- * @brief Set a superloop to pump the given Murphy mainloop.
+ * @brief Set a superloop to pump the given mainloop.
  *
  * Set the given superloop up as the pumping mainloop for @ml.
  *
@@ -725,7 +724,7 @@ int iot_set_superloop(iot_mainloop_t *ml, iot_superloop_ops_t *ops,
                       void *loop_data);
 
 /**
- * @brief Clear the superloop that pumps a Murphy mainloop.
+ * @brief Clear the superloop that pumps an IoT mainloop.
  *
  * Clear the superloop effectively stopping it from pumping @ml.
  *
@@ -754,18 +753,19 @@ int iot_mainloop_unregister(iot_mainloop_t *ml);
 
 
 /**
- * @brief Murphy mainloop.
+ * @brief IoT mainloop.
  *
- * The Murphy mainloop provides the basis for asynchronous single-threaded
- * event processing within Murphy. I/O watches, timers, deferred callbacks,
- * signal handlers and wakeup callbacks, as well as all object that use these
- * are inhrently operating within the context of a mainloop.
+ * The IoT mainloop provides the basis for asynchronous single-threaded
+ * event processing within the IoT application framework. I/O watches,
+ * timers, deferred callbacks, signal handlers and wakeup callbacks, as
+ * well as all object that use these are inhrently operating within the
+ * context of a mainloop.
  */
 
 /**
  * @brief Create a new mainloop.
  *
- * Creates and initializes a new Murphy mainloop.
+ * Creates and initializes a new mainloop.
  *
  * @return Return the new mainloop, or @NULL upon failure.
  */
@@ -851,10 +851,10 @@ void iot_mainloop_quit(iot_mainloop_t *ml, int exit_code);
 
 
 /**
- * @brief Murphy event bus and events.
+ * @brief IoT application framework event bus and events.
  *
- * Murphy events provide a simple publish-subscribe mechanism with support
- * for both asynchronous and synchronous event delivery and for attaching
+ * Events provide a simple publish-subscribe mechanism with support for
+ * both asynchronous and synchronous event delivery and for attaching
  * arbitrary data to emitted events. Events are registered dynamically and
  * they can be referred to either by their well-known names or by their
  * dynamically assigned integer identifiers.
@@ -886,7 +886,7 @@ void iot_mainloop_quit(iot_mainloop_t *ml, int exit_code);
 
 
 /**
- * @brief Opaque Murphy event watch type.
+ * @brief Opaque IoT event watch type.
  */
 typedef struct iot_event_watch_s iot_event_watch_t;
 
@@ -903,7 +903,7 @@ typedef void (*iot_event_watch_cb_t)(iot_event_watch_t *w, uint32_t id,
                                      int format, void *data, void *user_data);
 
 /**
- * @brief Opaque Murphy event bus type.
+ * @brief Opaque IoT event bus type.
  */
 typedef struct iot_event_bus_s iot_event_bus_t;
 
@@ -920,7 +920,7 @@ typedef iot_mask_t iot_event_mask_t;
  */
 typedef struct {
     char     *name;                      /**< event name */
-    uint32_t  id;                        /**< event id assigned by Murphy */
+    uint32_t  id;                        /**< event id assigned locally */
 } iot_event_def_t;
 
 /**

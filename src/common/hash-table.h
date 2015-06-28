@@ -39,21 +39,21 @@
 IOT_CDECL_BEGIN
 
 /**
- * \addtogroup MurphyCommonInfra
+ * \addtogroup IoTCommonInfra
  * @{
  *
  * @file hash-table.h
  *
- * @brief Murphy hash table implementation.
+ * @brief IoT hash table implementation.
  *
- * Murphy hash tables provide a simple, general hash table implementation.
+ * IoT hash tables provide a simple, general hash table implementation.
  * The API provides the usual functions for creating, destroying, and
  * resetting hash tables. It provides functions for adding entries, deleting
  * entries and looking up entries to and from hash tables. Additionally,
  * macros and functions are provided for iterating through all entries in a
  * hash table.
  *
- * One potentially interesting feature of Murphy hash tables is the optional
+ * One potentially interesting feature of IoT hash tables is the optional
  * cookie support. You can think of hash table cookies as hints to speed up
  * insertion, lookup, deletion and replacement operations of hash table
  * entries. In the best case, the achievable efficiency is O(1). Cookies can

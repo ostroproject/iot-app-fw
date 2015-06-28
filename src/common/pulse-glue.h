@@ -33,13 +33,13 @@
 #include <iot/common/mainloop.h>
 #include <pulse/mainloop.h>
 
-/** Register the given murphy mainloop with the given pulse mainloop. */
+/** Register the given IoT mainloop with the given pulse mainloop. */
 int iot_mainloop_register_with_pulse(iot_mainloop_t *ml, pa_mainloop_api *pa);
 
-/** Unrgister the given murphy mainloop from the given pulse mainloop. */
+/** Unrgister the given IoT mainloop from the given pulse mainloop. */
 int iot_mainloop_unregister_from_pulse(iot_mainloop_t *ml);
 
-/** Create a murphy mainloop and set it up with the given pulse mainloop. */
+/** Create a IoT mainloop and set it up with the given pulse mainloop. */
 iot_mainloop_t *iot_mainloop_pulse_get(pa_mainloop_api *pa);
 
 #endif /* __IOT_PULSE_H__ */

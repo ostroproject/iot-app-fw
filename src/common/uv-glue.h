@@ -35,13 +35,13 @@
 
 IOT_CDECL_BEGIN
 
-/** Register the given murphy mainloop with the UV mainloop. */
+/** Register the given IoT mainloop with the UV mainloop. */
 int iot_mainloop_register_with_uv(iot_mainloop_t *ml, uv_loop_t *uv);
 
-/** Unrgister the given murphy mainloop from the UV mainloop. */
+/** Unrgister the given IoT mainloop from the UV mainloop. */
 int iot_mainloop_unregister_from_uv(iot_mainloop_t *ml);
 
-/** Create a murphy mainloop and set it up with the UV mainloop. */
+/** Create a IoT mainloop and set it up with the UV mainloop. */
 iot_mainloop_t *iot_mainloop_uv_get(uv_loop_t *uv);
 
 IOT_CDECL_END

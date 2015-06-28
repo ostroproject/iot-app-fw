@@ -42,7 +42,7 @@
 IOT_CDECL_BEGIN
 
 /**
- * \addtogroup MurphyCommonInfra
+ * \addtogroup IoTCommonInfra
  *
  * @{
  *

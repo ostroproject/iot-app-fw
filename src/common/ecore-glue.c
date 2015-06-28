@@ -337,7 +337,7 @@ static iot_superloop_ops_t ecore_ops = {
 };
 
 
-static const char     *ecore_glue = "murphy-ecore-glue";
+static const char     *ecore_glue = "iot-ecore-glue";
 static iot_mainloop_t *ecore_ml;
 
 

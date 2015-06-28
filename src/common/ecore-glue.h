@@ -32,13 +32,13 @@
 
 IOT_CDECL_BEGIN
 
-/** Register the given murphy mainloop with the ecore mainloop. */
+/** Register the given IoT mainloop with the ecore mainloop. */
 int iot_mainloop_register_with_ecore(iot_mainloop_t *ml);
 
-/** Unrgister the given murphy mainloop from the ecore mainloop. */
+/** Unrgister the given IoT mainloop from the ecore mainloop. */
 int iot_mainloop_unregister_from_ecore(iot_mainloop_t *ml);
 
-/** Create a murphy mainloop and set it up with the ecore mainloop. */
+/** Create a IoT mainloop and set it up with the ecore mainloop. */
 iot_mainloop_t *iot_mainloop_ecore_get(void);
 
 IOT_CDECL_END

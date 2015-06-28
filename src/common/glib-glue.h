@@ -35,13 +35,13 @@
 
 IOT_CDECL_BEGIN
 
-/** Register the given murphy mainloop with the glib mainloop. */
+/** Register the given IoT mainloop with the glib mainloop. */
 int iot_mainloop_register_with_glib(iot_mainloop_t *ml, GMainLoop *gml);
 
-/** Unrgister the given murphy mainloop from the glib mainloop. */
+/** Unrgister the given IoT mainloop from the glib mainloop. */
 int iot_mainloop_unregister_from_glib(iot_mainloop_t *ml);
 
-/** Create a murphy mainloop and set it up with the glib mainloop. */
+/** Create a IoT mainloop and set it up with the glib mainloop. */
 iot_mainloop_t *iot_mainloop_glib_get(GMainLoop *gml);
 
 IOT_CDECL_END

@@ -35,13 +35,13 @@
 
 IOT_CDECL_BEGIN
 
-/** Register the given murphy mainloop with the qt mainloop. */
+/** Register the given IoT mainloop with the qt mainloop. */
 int iot_mainloop_register_with_qt(iot_mainloop_t *ml);
 
-/** Unrgister the given murphy mainloop from the qt mainloop. */
+/** Unrgister the given IoT mainloop from the qt mainloop. */
 int iot_mainloop_unregister_from_qt(iot_mainloop_t *ml);
 
-/** Create a murphy mainloop and set it up with the qt mainloop. */
+/** Create a IoT mainloop and set it up with the qt mainloop. */
 iot_mainloop_t *iot_mainloop_qt_get(void);
 
 IOT_CDECL_END

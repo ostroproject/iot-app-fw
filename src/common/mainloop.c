@@ -1472,7 +1472,7 @@ static inline void dump_timers(iot_mainloop_t *ml)
     if (next != NULL && ml->next_timer != NULL &&
         !is_deleted(ml->next_timer) && next != ml->next_timer) {
         iot_debug("*** BUG ml->next_timer is not the nearest !!! ***");
-        if (getenv("__MURPHY_TIMER_CHECK_ABORT") != NULL)
+        if (getenv("__IOT_TIMER_CHECK_ABORT") != NULL)
             abort();
     }
 }
