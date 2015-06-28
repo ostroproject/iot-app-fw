@@ -1,1 +1,58 @@
-Please see README.md.
+You can try this to get things quickly up and running.
+
+Prerequisits:
+-------------
+
+json-c, glib (optional), nodejs/libuv (optional), systemd (optional)
+
+
+Compilation
+-----------
+
+./bootstrap --prefix=/usr --sysconfdir=/etc --enable-glib --enable-nodejs \
+            --enable-systemd --enable-nodejs
+
+make
+
+
+Testing Native Test Client
+--------------------------
+
+In a terminal, run
+sudo ./src/iot-launch-daemon -f -vvv
+
+In another terminal, run
+./src/iot-event-test -s -vvv
+
+In a third terminal, run
+./iot-event-test -u kli
+
+In this setup, the client running in terminal two will subscribe
+for a bunch of events, dump the event whenever it receives one, and
+emit a 'sayonara' event when it receives a 'goodbye' event.
+The client running in terminal three will subscribe for the 'sayonara'
+event then emit a bunch of events, including ones that are subscribed
+for by the other client.
+
+
+Testing NodeJS Bindings
+-----------------------
+
+In a terminal, run
+sudo ./src/iot-launch-daemon -f -vvv
+
+In another terminal, run
+cd src/nodejs
+LD_LIBRARY_PATH=$(pwd)/../.libs node tick-tock.js --tock --dump
+
+In a third terminal, run
+cd src/nodejs
+LD_LIBRARY_PATH=$(pwd)/../.libs node tick-tock.js --tick --count 20 --delay 250
+
+In this setup, the client running in terminal two will subscribe for
+events 'tick' and 'ka-boom'. It will emit a 'tock' whenever it receives
+'tick'. Once it receives a 'ka-boom', it will emit itself a 'ka-boom' and
+exit. The client in terminal three will subscribe for 'tock' and 'ka-boom'
+events. It will emit an initial 'tick' and emit further ones whenever it
+receives a 'tock'. Once it receives a 'tock' with an attached count <= 0,
+it will emit a 'ka-boom' event and finally exit when it receives a 'ka-boom'.
