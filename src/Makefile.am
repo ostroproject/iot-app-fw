@@ -323,7 +323,7 @@ libiot_uv_la_SOURCES =		\
 		common/uv-glue.c
 
 libiot_uv_la_CFLAGS  =		\
-		$(AM_CFLAGS)		\
+		$(AM_CFLAGS)	\
 		$(UV_CFLAGS)
 
 libiot_uv_la_LDFLAGS =		\

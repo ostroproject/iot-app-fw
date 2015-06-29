@@ -32,10 +32,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include <uv.h>
-
 #include <iot/common/mm.h>
 #include <iot/common/mainloop.h>
+#include <iot/common/uv-glue.h>
 
 
 typedef struct {

@@ -30,8 +30,18 @@
 #ifndef __IOT_UV_H__
 #define __IOT_UV_H__
 
+#include <iot/config.h>
 #include <iot/common/mainloop.h>
-#include <uv.h>
+
+#ifndef UV_ENABLED
+#    error "libuv support has not been enabled"
+#endif
+
+#ifdef UV_STANDALONE
+#    include <uv.h>
+#else
+#    include <node/uv.h>
+#endif
 
 IOT_CDECL_BEGIN
 

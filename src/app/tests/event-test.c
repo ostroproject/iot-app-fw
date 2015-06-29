@@ -41,7 +41,7 @@
 #ifdef GLIB_ENABLED
 #include <iot/common/glib-glue.h>
 #endif
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
 #include <iot/common/uv-glue.h>
 #endif
 
@@ -56,7 +56,7 @@ enum {
 #ifdef GLIB_ENABLED
     APP_GLIB,
 #endif
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
     APP_UV,
 #endif
     APP_INVALID
@@ -462,7 +462,7 @@ void mainloop_create(app_t *app)
         break;
 #endif
 
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
     case APP_UV:
         app->ml = uv_default_loop();
 
@@ -504,7 +504,7 @@ void mainloop_run(app_t *app)
         break;
 #endif
 
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
     case APP_UV:
         uv_run(app->ml, UV_RUN_DEFAULT);
         break;
@@ -527,7 +527,7 @@ void mainloop_quit(app_t *app)
         break;
 #endif
 
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
     case APP_UV:
         uv_stop(app->ml);
         break;
@@ -551,7 +551,7 @@ void mainloop_destroy(app_t *app)
         break;
 #endif
 
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
  case APP_UV:
         uv_unref(app->ml);
         app->ml = NULL;
@@ -576,7 +576,7 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
 #else
 #    define OPT_GLIB ""
 #endif
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
 #    define OPT_UV "U"
 #else
 #    define OPT_UV ""
@@ -597,7 +597,7 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
 #ifdef GLIB_ENABLED
         { "glib"    , no_argument      , NULL, 'G' },
 #endif
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
         { "uv"      , no_argument      , NULL, 'U' },
 #endif
         { "debug"   , required_argument, NULL, 'd' },
@@ -706,7 +706,7 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
             break;
 #endif
 
-#ifdef UV_ENABLED
+#ifdef UV_STANDALONE
         case 'U':
             app->type = APP_UV;
             iot_log_info("Using UV mainloop...");
