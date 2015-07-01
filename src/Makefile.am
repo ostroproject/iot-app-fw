@@ -500,6 +500,66 @@ iot_event_test_LDFLAGS =		\
 		-rdynamic
 
 ###################################
+# iot-event-send
+#
+
+if GLIB_ENABLED
+IOT_GLIB = libiot-glib.la
+endif
+if UV_ENABLED
+IOT_UV   = libiot-uv.la
+endif
+
+bin_PROGRAMS += iot-event-send
+
+iot_event_send_SOURCES =		\
+		app/tests/event-send.c
+
+iot_event_send_CFLAGS  =		\
+		$(AM_CFLAGS)		\
+		$(GLIB_CFLAGS)		\
+		$(UV_CFLAGS)
+
+iot_event_send_LDADD   =		\
+		libiot-app.la		\
+		$(IOT_GLIB)		\
+		$(IOT_UV)		\
+		libiot-common.la
+
+iot_event_send_LDFLAGS =		\
+		-rdynamic
+
+###################################
+# iot-event-catch
+#
+
+if GLIB_ENABLED
+IOT_GLIB = libiot-glib.la
+endif
+if UV_ENABLED
+IOT_UV   = libiot-uv.la
+endif
+
+bin_PROGRAMS += iot-event-catch
+
+iot_event_catch_SOURCES =		\
+		app/tests/event-catch.c
+
+iot_event_catch_CFLAGS  =		\
+		$(AM_CFLAGS)		\
+		$(GLIB_CFLAGS)		\
+		$(UV_CFLAGS)
+
+iot_event_catch_LDADD   =		\
+		libiot-app.la		\
+		$(IOT_GLIB)		\
+		$(IOT_UV)		\
+		libiot-common.la
+
+iot_event_catch_LDFLAGS =		\
+		-rdynamic
+
+###################################
 # NodeJS bindings
 #
 if NODEJS_ENABLED
