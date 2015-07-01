@@ -222,8 +222,7 @@ AC_ARG_ENABLE(uv,
 	      [enable_uv=$enableval], [enable_uv=auto])
 
 if test "$enable_uv" != "no"; then
-    PKG_CHECK_MODULES(UV, libuv,
-                      [have_uv=yes], [have_uv=no])
+    PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
     if test "$have_uv" = "no" -a "$enable_uv" = "yes"; then
         AC_MSG_ERROR([UV development libraries not found.])
     fi
@@ -241,6 +240,11 @@ AC_ARG_ENABLE(nodejs,
 
 if test "$enable_nodejs" = "yes"; then
     PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
+
+    if test "$have_uv" = "yes"; then
+        enable_uv=yes
+        standalone_uv=yes
+    fi
     
     AC_CHECK_PROG(have_npm, [npm], [yes], [no])
     if test "$have_npm" = "no"; then
@@ -273,7 +277,7 @@ AC_SUBST(UV_LIBS)
 if test "$enable_uv" = "yes"; then
     AC_DEFINE([UV_ENABLED], 1, [Enable UV mainloop support ?])
 fi
-if test "$uv_standalone" = "yes"; then
+if test "$standalone_uv" = "yes"; then
     AC_DEFINE([UV_STANDALONE], 1, [Standalone UV library available ?])
 fi
 
