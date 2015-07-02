@@ -233,8 +233,9 @@ static void print_usage(app_t *app, const char *argv0, int exit_code,
            "  -u, --user=<user-name>         target application user\n"
            "  -p, --process=<process-id>     target application process id\n"
            "  -e, --events=<evt1,...,evtN>   events to send/subscribe for \n"
-           "  -S, --send=<events>            number of event to send\n"
-           "  -B, --burst=<events>           number of events in initial burst\n"
+           "  -q, --quit=<quit-event>        last event to send\n"
+           "  -D, --data=<JSON-data>         data to attach to events\n"
+           "  -n, --nevent=<events>          number of event to send\n"
            "  -I, --interval=<msecs>         delay between sending\n"
            "  -v, --verbose                  increase logging verbosity\n"
            "  -d, --debug                    enable given debug configuration\n"
@@ -476,7 +477,7 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
 #else
 #    define OPT_UV ""
 #endif
-#   define OPTIONS "l:a:b:u:p:e:d:n:I:vd:h"OPT_GLIB""OPT_UV
+#   define OPTIONS "l:a:b:u:p:e:q:D:n:I:vd:h"OPT_GLIB""OPT_UV
     struct option options[] = {
         { "label"   , required_argument, NULL, 'l' },
         { "appid"   , required_argument, NULL, 'a' },
@@ -484,6 +485,7 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
         { "user"    , required_argument, NULL, 'u' },
         { "process" , required_argument, NULL, 'p' },
         { "events"  , required_argument, NULL, 'e' },
+        { "quit"    , required_argument, NULL, 'q' },
         { "data"    , required_argument, NULL, 'D' },
         { "nevent"  , required_argument, NULL, 'n' },
         { "interval", required_argument, NULL, 'I' },
@@ -548,6 +550,10 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
 
         case 'e':
             app->evlist = optarg;
+            break;
+
+        case 'q':
+            app->quit_event = optarg;
             break;
 
         case 'D': {
