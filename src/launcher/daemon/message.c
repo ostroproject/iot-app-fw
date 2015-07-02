@@ -153,11 +153,12 @@ static int parse_send(event_send_req_t *req)
         return -1;
     }
 
-    iot_json_get_object (msg, "data"   , &req->data);
     iot_json_get_string (msg, "label"  , &req->target.label);
     iot_json_get_string (msg, "appid"  , &req->target.appid);
     iot_json_get_integer(msg, "user"   , &req->target.user);
     iot_json_get_integer(msg, "process", &req->target.process);
+
+    req->data = iot_json_get(msg, "data");
 
     return 0;
 }

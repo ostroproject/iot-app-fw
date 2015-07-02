@@ -145,7 +145,8 @@ static int send_event(app_t *app, const char *event)
     int         seq, c;
 
     data = iot_json_ref(app->data);
-    iot_json_add_integer(data, "count", c = app->cnt);
+    if (iot_json_get_type(app->data) == IOT_JSON_OBJECT)
+        iot_json_add_integer(data, "count", c = app->cnt);
 
     iot_log_info("Sending event <%s> to { %s,%s,%s, user %d, pid %u }",
                  event, id.label  ? id.label  : "-", id.appid  ? id.appid  : "-",
@@ -557,11 +558,9 @@ static void parse_cmdline(app_t *app, int argc, char **argv, char **envp)
             break;
 
         case 'D': {
-            char *jstr = optarg;
-            int   jlen = strlen(jstr);
+            app->data = iot_json_string_to_object(optarg, -1);
 
-            if (iot_json_parse_object(&jstr, &jlen, &app->data) < 0 ||
-                (jstr && *jstr)) {
+            if (app->data == NULL && optarg[0]) {
                 iot_log_error("Invalid JSON data: '%s'.", optarg);
                 exit(1);
             }

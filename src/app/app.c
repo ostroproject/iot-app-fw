@@ -434,8 +434,7 @@ static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
         if (!iot_json_get_string(msg, "message", &message))
             message = NULL;
 
-        if (!iot_json_get_object(msg, "data", &data))
-            data = NULL;
+        data = iot_json_get(msg, "data");
 
         pending_notify(app, seqno, status, message, data);
     }
@@ -443,8 +442,7 @@ static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
         if (!iot_json_get_string(msg, "event", &event))
             return;
 
-        if (!iot_json_get_object(msg, "data", &data))
-            data = NULL;
+        data = iot_json_get(msg, "data");
 
         event_dispatch(app, event, data);
     }
