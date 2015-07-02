@@ -148,57 +148,75 @@ Handle<Value> BridgeSystemSignals(const Arguments &args)
 /*
  * Helper functions to convert JSON to JS Objects.
  */
-Local<Value> JsonToArray(iot_json_t *a);
+Local<Value> JsonToJSArray(iot_json_t *a);
 
-Local<Value> JsonToObject(iot_json_t *o)
+Local<Value> JsonToJSObject(iot_json_t *o)
 {
-    const char *key;
-    iot_json_t *val;
-    iot_json_iter_t it;
+    if (o == NULL)
+        goto out;
 
-    Local<Object> js_o = Object::New();
+    switch (iot_json_get_type(o)) {
+    case IOT_JSON_STRING:
+        return String::New(iot_json_string_value(o));
+    case IOT_JSON_INTEGER:
+        return Number::New(iot_json_integer_value(o));
+    case IOT_JSON_BOOLEAN:
+        return BooleanObject::New(iot_json_boolean_value(o));
+    case IOT_JSON_DOUBLE:
+        return Number::New(iot_json_double_value(o));
+    case IOT_JSON_ARRAY:
+        return JsonToJSArray(o);
+    case IOT_JSON_OBJECT:
+        const char *key;
+        iot_json_t *val;
+        iot_json_iter_t it;
 
-    iot_json_foreach_member(o, key, val, it) {
-        switch (iot_json_get_type(val)) {
-        case IOT_JSON_STRING:
-            js_o->Set(String::New(key),
-                      String::New(iot_json_string_value(val)));
+        Local<Object> js_o = Object::New();
+
+        iot_json_foreach_member(o, key, val, it) {
+            switch (iot_json_get_type(val)) {
+            case IOT_JSON_STRING:
+                js_o->Set(String::New(key),
+                          String::New(iot_json_string_value(val)));
+                break;
+
+            case IOT_JSON_INTEGER:
+                js_o->Set(String::New(key),
+                          Integer::New(iot_json_integer_value(val)));
+                break;
+
+            case IOT_JSON_BOOLEAN:
+                js_o->Set(String::New(key),
+                          Boolean::New(iot_json_boolean_value(val)?true:false));
             break;
 
-        case IOT_JSON_INTEGER:
-            js_o->Set(String::New(key),
-                      Integer::New(iot_json_integer_value(val)));
-            break;
+            case IOT_JSON_DOUBLE:
+                js_o->Set(String::New(key),
+                          Number::New(iot_json_double_value(val)));
+                break;
 
-        case IOT_JSON_BOOLEAN:
-            js_o->Set(String::New(key),
-                      Boolean::New(iot_json_boolean_value(val) ? true : false));
-            break;
+            case IOT_JSON_ARRAY:
+                js_o->Set(String::New(key), JsonToJSArray(val));
+                break;
 
-        case IOT_JSON_DOUBLE:
-            js_o->Set(String::New(key),
-                      Number::New(iot_json_double_value(val)));
-            break;
+            case IOT_JSON_OBJECT:
+                js_o->Set(String::New(key), JsonToJSObject(val));
+                break;
 
-        case IOT_JSON_ARRAY:
-            js_o->Set(String::New(key), JsonToArray(val));
-            break;
-
-
-        case IOT_JSON_OBJECT:
-            js_o->Set(String::New(key), JsonToObject(val));
-            break;
-
-        default:
-            break;
+            default:
+                break;
+            }
         }
+
+        return js_o;
     }
 
-    return js_o;
+ out:
+    return Object::New();
 }
 
 
-Local<Value> JsonToArray(iot_json_t *a)
+Local<Value> JsonToJSArray(iot_json_t *a)
 {
     iot_json_t *e;
     int i, n;
@@ -232,11 +250,11 @@ Local<Value> JsonToArray(iot_json_t *a)
             break;
 
         case IOT_JSON_ARRAY:
-            js_a->Set(i, JsonToArray(e));
+            js_a->Set(i, JsonToJSArray(e));
             break;
 
         case IOT_JSON_OBJECT:
-            js_a->Set((uint32_t)i, JsonToObject(e));
+            js_a->Set((uint32_t)i, JsonToJSObject(e));
             break;
 
         default:
@@ -256,7 +274,7 @@ static void dispatch_event(iot_app_t *iot, const char *event, iot_json_t *data)
     int js_argc = 2;
     Handle<Value> js_argv[js_argc] = {
         Handle<Value>(String::New(event)),
-        JsonToObject(data),
+        JsonToJSObject(data)
     };
     Local<Value> js_fn, js_data;
 
