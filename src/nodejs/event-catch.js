@@ -83,7 +83,7 @@ var Dumper = function (init) {
 
                 this.depth++;
                 for (e in o)
-                    this.dump(e);
+                    this.dump(o[e]);
                 this.depth--;
 
                 this.append(this.indent("]\n"));
