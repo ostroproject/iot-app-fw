@@ -330,20 +330,43 @@ Handle<Value> SubscribeEvents(const Arguments &args)
 /*
  * Helper functions to convert JS to JSON Objects.
  */
-iot_json_t *ArrayToJson(Local<Array> &js_arr);
+iot_json_t *JSArrayToJson(Local<Array> &js_arr);
 
-iot_json_t *ObjectToJson(Local<Object> &js_obj)
+iot_json_t *JSObjectToJson(Local<Object> &js_obj)
 {
-    Local<Array> members = js_obj->GetOwnPropertyNames();
-    iot_json_t *o;
-    uint32_t n;
+    if (js_obj->IsString())
+        return iot_json_create(IOT_JSON_STRING,
+                               *String::AsciiValue(Local<String>::Cast(js_obj)),
+                               -1);
 
-    o = iot_json_create(IOT_JSON_OBJECT);
+    if (js_obj->IsNumber()) {
+        if (js_obj->NumberValue() == js_obj->IntegerValue())
+            return iot_json_create(IOT_JSON_INTEGER,
+                                   (int)js_obj->IntegerValue());
+        else
+            return iot_json_create(IOT_JSON_DOUBLE,
+                                   (double)js_obj->NumberValue());
+    }
+
+    if (js_obj->IsBoolean())
+        return iot_json_create(IOT_JSON_BOOLEAN,
+                               js_obj->BooleanValue() ? 1 : 0);
+
+    if (js_obj->IsObject() && js_obj->IsArray()) {
+        Local<Array> js_a = Local<Array>::Cast(js_obj);
+        return JSArrayToJson(js_a);
+    }
+
+    if (!js_obj->IsObject())
+        return iot_json_create(IOT_JSON_OBJECT);
+
+    Local<Array> members = js_obj->GetOwnPropertyNames();
+    iot_json_t *o = iot_json_create(IOT_JSON_OBJECT);
 
     if (o == NULL)
         return NULL;
 
-    n = members->Length();
+    uint32_t n = members->Length();
 
     for (uint32_t i = 0; i < n; i++) {
         Local<Value> k, v;
@@ -374,18 +397,18 @@ iot_json_t *ObjectToJson(Local<Object> &js_obj)
         }
         else if (v->IsObject() && !v->IsArray()) {
             Local<Object> js_o = Local<Object>::Cast(v);
-            iot_json_add(o, key, ObjectToJson(js_o));
+            iot_json_add(o, key, JSObjectToJson(js_o));
         }
         else if (v->IsArray()) {
             Local<Array> js_a = Local<Array>::Cast(v);
-            iot_json_add(o, key, ArrayToJson(js_a));
+            iot_json_add(o, key, JSArrayToJson(js_a));
         }
     }
 
     return o;
 }
 
-iot_json_t *ArrayToJson(Local<Array>&js_arr)
+iot_json_t *JSArrayToJson(Local<Array>&js_arr)
 {
     uint32_t i, n;
     iot_json_t *a;
@@ -419,11 +442,11 @@ iot_json_t *ArrayToJson(Local<Array>&js_arr)
         }
         else if (v->IsArray()) {
             Local<Array> js_a = Local<Array>::Cast(v);
-            e = ArrayToJson(js_a);
+            e = JSArrayToJson(js_a);
         }
         else if (v->IsObject()) {
             Local<Object> js_o = Local<Object>::Cast(v);
-            e = ObjectToJson(js_o);
+            e = JSObjectToJson(js_o);
         }
         else
             continue;
@@ -530,7 +553,7 @@ Handle<Value> SendEvent(const Arguments &args)
               dst.binary ? dst.binary : "*", dst.user, dst.process);
 
     Local<Object>data = Local<Object>::Cast(args[2]);
-    iot_json_t *json = ObjectToJson(data);
+    iot_json_t *json = JSObjectToJson(data);
 
     iot_app_event_send(iot, event, iot_json_ref(json), &dst, NULL, NULL);
 

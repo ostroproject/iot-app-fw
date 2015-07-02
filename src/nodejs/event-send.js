@@ -111,7 +111,6 @@ function parse_cmdline(app, argv) {
             break;
 
         case "--debug":
-        case "-d":
             d[d.length] = optarg;
             i += 2;
             break;
