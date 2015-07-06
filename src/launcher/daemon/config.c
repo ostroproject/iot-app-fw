@@ -80,6 +80,8 @@ static void print_usage(launcher_t *l, const char *argv0, int exit_code,
     if (fmt && *fmt) {
         va_start(ap, fmt);
         vprintf(fmt, ap);
+        if (fmt && *fmt)
+            printf("\n");
         va_end(ap);
     }
 
