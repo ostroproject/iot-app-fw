@@ -238,36 +238,79 @@ else
 fi
 
 # Check if NodeJS support was enabled.
+function node_config () {
+    local _def="process.config.target_defaults"
+    local _var="process.config.variables"
+    local _v="$1"
+
+    which node >& /dev/null || return 1
+
+    case $1 in
+        --cflags)
+            node -e "var a = $_def.cflags, r = ''; for (i in a) \
+                         r += ' ' + a[[i]]; \
+                     console.log(r.trim());"
+            node -e "var a = $_def.include_dirs; r = ''; for (i in a) \
+                         r += ' -I' + as[[i]]; \
+                     console.log(r.trim());"
+            node -e "var a = $_def.defines; r = ''; for (i in a) \
+                         r += ' ' + a[[i]]; \
+                     console.log(r.trim());"
+            ;;
+        --libs)
+            node -e "var a = ${_def}.libraries; r = ''; for (i in a) \
+                         r += ' ' + a[[i]]; \
+                     console.log(r.trim());"
+            ;;
+        *)
+            node -e "console.log($_var.$1);";
+            ;;
+    esac
+}
+
 AC_ARG_ENABLE(nodejs,
               [  --enable-nodejs         enable NodeJS bindings],
 	      [enable_nodejs=$enableval], [enable_nodejs=no])
 
-if test "$enable_nodejs" = "yes"; then
-    PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
+AC_ARG_WITH(npm,
+              [  --without-npm           compile NodeJS bindings without npm],
+              [with_npm=$with_npm], [with_npm=no])
 
-    if test "$have_uv" = "yes"; then
-        enable_uv=yes
-        standalone_uv=yes
-    fi
-    
+if test "$enable_nodejs" = "yes"; then
     AC_CHECK_PROG(have_npm, [npm], [yes], [no])
     if test "$have_npm" = "no"; then
-        AC_MSG_ERROR([npm binary (for NodeJS) not found.])
+        AC_MSG_ERROR([npm binary/NodeJS not found.])
     fi
 
     AC_LANG_PUSH([C++])
-    AC_CHECK_HEADERS([node/node.h], [have_nodedev=yes], [have_nodedev=no])
+    AC_CHECK_HEADERS([node/node.h], [have_nodeh=yes], [have_nodeh=no])
     AC_LANG_POP([C++])
-    if test "$have_nodedev" = "no"; then
-        AC_MSG_ERROR([NodeJS development files not found.])
+    if test "$have_nodeh" = "no"; then
+        AC_MSG_ERROR([NodeJS header files not found.])
     fi
-    enable_uv=yes
-    if test "$have_uv" = "no"; then
-        UV_CFLAGS=""
-        UV_LIBS=""
-        standalone_uv="no"
+
+    if test -z "$have_uv"; then
+        PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
+
+        # Since we have NodeJS, we must have and enable libuv.
+        enable_uv=yes
+
+        # If libuv was found use it, otherwise use NodeJS' private copy.
+        if test "$have_uv" = "yes"; then
+            standalone_uv=yes
+        else
+            standalone_uv=no
+            UV_CFLAGS=""
+            UV_LIBS=""
+        fi
+    fi
+
+    if test "$with_npm" = "no"; then
+        NODE_CXXFLAGS=$(node_config --cflags)
+        NODE_LIBS=$(node_config --libs)
     else
-        standalone_uv="yes"
+        NODE_CXXFLAGS=""
+        NODE_LIBS=""
     fi
 else
     AC_MSG_NOTICE([NodeJS bindings disabled.])
@@ -290,6 +333,10 @@ if test "$enable_nodejs" = "yes"; then
 fi
 AM_CONDITIONAL(NODEJS_ENABLED, [test "$enable_nodejs" = "yes"])
 AC_SUBST(NODEJS_ENABLED)
+
+AM_CONDITIONAL(WITH_NPM, [test "$with_npm" = "yes"])
+AC_SUBST(NODE_CXXFLAGS)
+AC_SUBST(NODE_LIBS)
 
 # Check if systemd socket-based activation was enabled.
 AC_ARG_ENABLE(systemd,
@@ -414,9 +461,16 @@ echo "PulseAudio mainloop support: $enable_pulse"
 echo "EFL/ecore mainloop support: $enable_ecore"
 echo "glib mainloop support: $enable_glib"
 echo "UV mainloop support: $enable_uv"
-echo "UV standalone library: $standalone_uv"
-echo "UV_CFLAGS=$UV_CFLAGS"
-echo "UV_LIBS=$UV_LIBS"
+echo "    * libuv standalone library: $standalone_uv"
+if test "$standalone_uv" = "yes"; then
+    echo "    * libuv CFLAGS: $UV_CFLAGS"
+    echo "    * libuv LIBS: $UV_LIBS"
+fi
 echo "NodeJS bindings: $enable_nodejs"
+echo "  * compile NodeJS bindings using npm: $with_npm"
+if test "$with_npm" = "no"; then
+    echo "    * NodeJS CXXFLAGS: $NODE_CXXFLAGS"
+    echo "    * NodeJS LIBS: $NODE_LIBS"
+fi
 echo "Qt mainloop support: $enable_qt"
 echo "Systemd socket-based activation: $enable_systemd"
