@@ -227,7 +227,6 @@ static void print_usage(app_t *app, const char *argv0, int exit_code,
 
     printf("usage: %s [options]\n\n"
            "The possible options are:\n"
-           "  -s, --server                   subscribe and wait for events\n"
            "  -l, --label=<label>            target application label\n"
            "  -a, --appid=<appid>            target application id\n"
            "  -b, --binary=<path>            target application binary path\n"
@@ -240,6 +239,12 @@ static void print_usage(app_t *app, const char *argv0, int exit_code,
            "  -I, --interval=<msecs>         delay between sending\n"
            "  -v, --verbose                  increase logging verbosity\n"
            "  -d, --debug                    enable given debug configuration\n"
+#ifdef GLIB_ENABLED
+           "  -G, --glib                     use a GMainLoop\n"
+#endif
+#ifdef UV_STANDALONE
+           "  -U, --uv                       use a libuv mainloop\n"
+#endif
            "  -h, --help                     show help on usage\n",
            argv0);
 
