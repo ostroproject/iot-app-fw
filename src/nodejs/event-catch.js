@@ -189,9 +189,12 @@ app.iot.onIOTEvent = function (event, event_data) {
         process.exit(0);
 }
 
-if (app.iot.bridge_signals)
+if (app.bridge_signals) {
+    console.log("*** BRIDGING SYSTEM SIGNALS ***");
     app.iot.BridgeSystemSignals();
-    
-app.iot.SubscribeEvents(app.events);
+}
 
+process.on('SIGHUP', function () { console.log("Got SIGHUP..."); });
+
+app.iot.SubscribeEvents(app.events);
 
