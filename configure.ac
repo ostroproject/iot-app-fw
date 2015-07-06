@@ -228,7 +228,11 @@ if test "$enable_uv" != "no"; then
     fi
 
     enable_uv="$have_uv"
-    standalone_uv="yes"
+    if test "$have_uv" = "yes"; then
+        standalone_uv="yes"
+    else
+        standalone_uv="no"
+    fi
 else
     AC_MSG_NOTICE([UV mainloop support is disabled.])
 fi
