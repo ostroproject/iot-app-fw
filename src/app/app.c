@@ -280,6 +280,7 @@ static void bridge_signals(iot_sighandler_t *h, int signum, void *user_data)
         return;
     }
 
+    iot_debug("bridging system signal event '%s'...", event);
     event_dispatch(app, event, NULL);
 }
 
@@ -304,6 +305,8 @@ int iot_app_bridge_signals(iot_app_t *app)
         app->sigh = app->sigt = NULL;
         return -1;
     }
+
+    iot_debug("installed handlers to bridge SIGHUP and SIGTERM");
 
     return 0;
 }

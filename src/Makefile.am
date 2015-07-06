@@ -476,7 +476,7 @@ install-exec-hook:
 if GLIB_ENABLED
 IOT_GLIB = libiot-glib.la
 endif
-if UV_ENABLED
+if UV_STANDALONE
 IOT_UV   = libiot-uv.la
 endif
 
@@ -554,6 +554,7 @@ NODEJS_SRC      = src/appfw.cpp
 
 all-local:: nodejs-bindings
 
+if WITH_NPM
 nodejs-bindings:
 	mkdir -p $(top_builddir)/src/nodejs/src &&		\
 	if test "$(top_builddir)" != "$(top_srcdir)"; then	\
@@ -564,6 +565,30 @@ nodejs-bindings:
 	fi &&							\
 	cd $(top_builddir)/src/nodejs &&			\
 	    npm install
+else
+lib_LTLIBRARIES += libiot-nodejs.la
+
+libiot_nodejs_la_SOURCES = nodejs/src/node-appfw.cpp
+
+libiot_nodejs_la_CXXFLAGS =		\
+		$(AM_CFLAGS)		\
+		$(NODE_CFLAGS)		\
+		$(NODE_CXXFLAGS)	\
+		-I/usr/include/node
+
+libiot_nodejs_la_LDFLAGS =
+
+libiot_nodejs_la_LIBADD  = 		\
+		libiot-app.la		\
+		libiot-uv.la		\
+		libiot-common.la	\
+		$(NODE_LIBS)
+
+nodejs-bindings:
+	cp $(top_builddir)/src/.libs/libiot-nodejs.so \
+	    $(top_builddir)/src/.libs/iot-appfw.node
+endif
+
 endif
 
 # cleanup

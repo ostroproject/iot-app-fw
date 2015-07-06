@@ -238,58 +238,14 @@ else
 fi
 
 # Check if NodeJS support was enabled.
-AC_ARG_ENABLE(nodejs,
-              [  --enable-nodejs         enable NodeJS bindings],
-	      [enable_nodejs=$enableval], [enable_nodejs=no])
+CHECK_NODEJS([NODE], [UV])
 
-if test "$enable_nodejs" = "yes"; then
-    PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
-
-    if test "$have_uv" = "yes"; then
-        enable_uv=yes
-        standalone_uv=yes
-    fi
-    
-    AC_CHECK_PROG(have_npm, [npm], [yes], [no])
-    if test "$have_npm" = "no"; then
-        AC_MSG_ERROR([npm binary (for NodeJS) not found.])
-    fi
-
-    AC_LANG_PUSH([C++])
-    AC_CHECK_HEADERS([node/node.h], [have_nodedev=yes], [have_nodedev=no])
-    AC_LANG_POP([C++])
-    if test "$have_nodedev" = "no"; then
-        AC_MSG_ERROR([NodeJS development files not found.])
-    fi
-    enable_uv=yes
-    if test "$have_uv" = "no"; then
-        UV_CFLAGS=""
-        UV_LIBS=""
-        standalone_uv="no"
-    else
-        standalone_uv="yes"
-    fi
-else
-    AC_MSG_NOTICE([NodeJS bindings disabled.])
-fi
-
-AM_CONDITIONAL(UV_ENABLED, [test "$enable_uv" = "yes"])
-AM_CONDITIONAL(UV_STANDALONE, [test "$standalone_uv" = "yes"])
-AC_SUBST(UV_ENABLED)
-AC_SUBST(UV_CFLAGS)
-AC_SUBST(UV_LIBS)
-if test "$enable_uv" = "yes"; then
-    AC_DEFINE([UV_ENABLED], 1, [Enable UV mainloop support ?])
-fi
-if test "$standalone_uv" = "yes"; then
-    AC_DEFINE([UV_STANDALONE], 1, [Standalone UV library available ?])
-fi
-
-if test "$enable_nodejs" = "yes"; then
-    AC_DEFINE([NODEJS_ENABLED], 1, [Enable NodeJS bindings ?])
-fi
-AM_CONDITIONAL(NODEJS_ENABLED, [test "$enable_nodejs" = "yes"])
-AC_SUBST(NODEJS_ENABLED)
+echo "NODE_CXXFLAGS: $NODE_CXXFLAGS"
+echo "NODE_LIBS: $NODE_LIBS"
+echo "NODE_PREFIX: $NODE_PREFIX"
+echo "UV_CFLAGS: $UV_CFLAGS"
+echo "UV_LIBS: $UV_LIBS"
+echo "UV_STANDALONE: $UV_STANDALONE"
 
 # Check if systemd socket-based activation was enabled.
 AC_ARG_ENABLE(systemd,
@@ -413,10 +369,18 @@ fi
 echo "PulseAudio mainloop support: $enable_pulse"
 echo "EFL/ecore mainloop support: $enable_ecore"
 echo "glib mainloop support: $enable_glib"
-echo "UV mainloop support: $enable_uv"
-echo "UV standalone library: $standalone_uv"
-echo "UV_CFLAGS=$UV_CFLAGS"
-echo "UV_LIBS=$UV_LIBS"
-echo "NodeJS bindings: $enable_nodejs"
+echo "UV mainloop support: $UV_ENABLED"
+echo "    * libuv standalone library: $UV_STANDALONE"
+if test "$UV_STANDALONE" = "yes"; then
+    echo "    * libuv CFLAGS: $UV_CFLAGS"
+    echo "    * libuv LIBS: $UV_LIBS"
+fi
+echo "NodeJS bindings: ${NODEJS_ENABLED:-no}"
+if test "$NODEJS_ENABLED" = "yes"; then
+    echo "    * NodeJS prefix: $NODE_PREFIX"
+    echo "    * NodeJS path: $NODE_PREFIX/bin/node"
+    echo "    * NodeJS CXXFLAGS: $NODE_CXXFLAGS"
+    echo "    * NodeJS LIBS: $NODE_LIBS"
+fi
 echo "Qt mainloop support: $enable_qt"
 echo "Systemd socket-based activation: $enable_systemd"

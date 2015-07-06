@@ -7,7 +7,7 @@
    "targets": [
      {
        "target_name": "iot-appfw",
-       "sources": [ "src/appfw.cpp" ]
+       "sources": [ "src/node-appfw.cpp" ]
      }
    ]
  }
