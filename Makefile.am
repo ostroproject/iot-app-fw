@@ -43,12 +43,12 @@ install-iot-symlink:
 install-data-hook:
 	mkdir -p $(DESTDIR)/lib/systemd/system
 if SYSTEMD_ENABLED
-	$(substcp) $(top_builddir)/packaging.in/iot-launch.service-socket.in  \
+	$(substcp) $(top_srcdir)/packaging.in/iot-launch.service-socket.in  \
 	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
-	$(substcp) $(top_builddir)/packaging.in/iot-launch.socket.in	      \
+	$(substcp) $(top_srcdir)/packaging.in/iot-launch.socket.in	      \
 	    > $(DESTDIR)/lib/systemd/system/iot-launch.socket
 else
-	$(substcp) $(top_builddir)/packaging.in/iot-launch.service.in	      \
+	$(substcp) $(top_srcdir)/packaging.in/iot-launch.service.in	      \
 	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
 endif
 
