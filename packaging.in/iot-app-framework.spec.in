@@ -252,6 +252,8 @@ ldconfig
 %files tests
 %defattr(-,root,root,-)
 %{_bindir}/iot-event-test
+%{_bindir}/iot-event-send
+%{_bindir}/iot-event-catch
 
 %changelog
 * Mon Jun 08 2015 Krisztian Litkey <krisztian.litkey@intel.com> -
