@@ -503,13 +503,6 @@ iot_event_test_LDFLAGS =		\
 # iot-event-send
 #
 
-if GLIB_ENABLED
-IOT_GLIB = libiot-glib.la
-endif
-if UV_ENABLED
-IOT_UV   = libiot-uv.la
-endif
-
 bin_PROGRAMS += iot-event-send
 
 iot_event_send_SOURCES =		\
@@ -532,13 +525,6 @@ iot_event_send_LDFLAGS =		\
 ###################################
 # iot-event-catch
 #
-
-if GLIB_ENABLED
-IOT_GLIB = libiot-glib.la
-endif
-if UV_ENABLED
-IOT_UV   = libiot-uv.la
-endif
 
 bin_PROGRAMS += iot-event-catch
 
