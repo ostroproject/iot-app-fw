@@ -3,7 +3,7 @@ Description=IoT Application Launcher Daemon
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/iot-launch-daemon -a @libexecdir@/iot-launcher/iot-launch-agent -f -vvv
+ExecStart=@bindir@/iot-launch-daemon -a @libexecdir@/iot-launcher/iot-launch-agent -f -vvv
 KillSignal=SIGTERM
 
 [Install]

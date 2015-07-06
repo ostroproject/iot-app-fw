@@ -395,9 +395,6 @@ AC_CONFIG_FILES([build-aux/shave
                  src/common/iot-glib.pc
                  src/common/iot-uv.pc
                  src/common/iot-qt.pc
-                 packaging.in/iot-launch.service
-                 packaging.in/iot-launch.service-socket
-                 packaging.in/iot-launch.socket
                  src/nodejs/binding.gyp
 		 ])
 AC_OUTPUT

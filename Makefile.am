@@ -5,6 +5,13 @@ doc_DATA = AUTHORS ChangeLog NEWS README
 # to be evaluated before 'all'. If there is a nicer way, I'm all ears...
 BUILT_SOURCES = install-git-hooks install-iot-symlink
 
+
+# command to copy a file while substituting libexecdir,bindir, and prefix
+substcp = sed                                     \
+            -e 's|@libexecdir[@]|$(libexecdir)|g' \
+            -e 's|@bindir[@]|$(bindir)|g'         \
+            -e 's|@prefix[@]|$(prefix)|g'
+
 ###################################
 # git hook management
 #
@@ -36,13 +43,13 @@ install-iot-symlink:
 install-data-hook:
 	mkdir -p $(DESTDIR)/lib/systemd/system
 if SYSTEMD_ENABLED
-	cp $(top_builddir)/packaging.in/iot-launch.service-socket	\
-	    $(DESTDIR)/lib/systemd/system/iot-launch.service
-	cp $(top_builddir)/packaging.in/iot-launch.socket		\
-	    $(DESTDIR)/lib/systemd/system
+	$(substcp) $(top_builddir)/packaging.in/iot-launch.service-socket.in  \
+	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
+	$(substcp) $(top_builddir)/packaging.in/iot-launch.socket.in	      \
+	    > $(DESTDIR)/lib/systemd/system/iot-launch.socket
 else
-	cp $(top_builddir)/packaging.in/iot-launch.service	\
-	    $(DESTDIR)/lib/systemd/system
+	$(substcp) $(top_builddir)/packaging.in/iot-launch.service.in	      \
+	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
 endif
 
 # cleanup
