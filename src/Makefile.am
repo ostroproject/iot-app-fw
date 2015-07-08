@@ -581,12 +581,46 @@ nodejs-post-build-hook:
 nodejs-install-hook:
 endif
 
+###################################
+# Python bindings
+#
+
+if PYTHON_ENABLED
+python-bindings-build:
+	cd python && \
+	if test ! -f python-app-fw-wrapper.cpp; then \
+		ln -s $(top_srcdir)/../src/python/python-app-fw-wrapper.cpp .; \
+		ln -s $(top_srcdir)/../src/python/appfw.py .; \
+	fi && \
+	python setup.py build
+
+python-install-hook:
+	cd python && \
+	if test "x$(DESTDIR)" = "x"; then \
+		python setup.py install; \
+	else \
+		python setup.py install --root $(DESTDIR); \
+	fi
+
+python-bindings-clean:
+	cd python && \
+	if test -f setup.py; then \
+	    python setup.py clean; \
+	else \
+	    :; \
+	fi
+else
+python-bindings-build:
+python-install-hook:
+python-bindings-clean:
+endif
+
 # Extra local actions to perform after a build.
-all-local: nodejs-post-build-hook
+all-local: nodejs-post-build-hook python-bindings-build
 
 # Extra local eactions to perform after (binary) installation.
-install-exec-hook: agent-install-hook nodejs-install-hook
+install-exec-hook: agent-install-hook nodejs-install-hook python-install-hook
 
 # cleanup
-clean-local::
+clean-local: python-bindings-clean
 	-rm -f *~
