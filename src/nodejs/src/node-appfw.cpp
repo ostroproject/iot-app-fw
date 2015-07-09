@@ -18,6 +18,7 @@ using namespace v8;
 #if NODE_MODULE_VERSION <= 11
 #    define V8IOT_RETTYPE Handle<Value>
 #    define V8IOT_ARGTYPE const Arguments
+#    define V8IOT_RETURN_DEFAULT() return Undefined()
 
 #    define V8IOT_THROW(_type, _msg) do {                               \
         v8::Local<v8::Value> e = Exception::_type(String::New(_msg));   \
@@ -36,7 +37,7 @@ using namespace v8;
             V8IOT_THROW(TypeError, #_fn": "_msg);                       \
         }                                                               \
                                                                         \
-        return Undefined();                                             \
+        V8IOT_RETURN_DEFAULT();                                         \
     } while (0)
 
 #    define V8IOT_CHECK_ARGV(_fn, _args, _idx, _type, _nullok,          \
@@ -52,11 +53,52 @@ using namespace v8;
         else                                                            \
             V8IOT_THROW(TypeError, #_fn": "_msg);                       \
                                                                         \
-        return Undefined();                                             \
+        V8IOT_RETURN_DEFAULT();                                         \
     } while (0)
 #else
 #    define V8IOT_RETTYPE void
 #    define V8IOT_ARGTYPE const FunctionCallbackInfo<Value>
+#    define V8IOT_RETURN_DEFAULT() return
+
+#    define V8IOT_THROW(_type, _msg) do {                                 \
+        v8::Isolate* iso = Isolate::GetCurrent();                         \
+        v8::Local<v8::Value> e =                                          \
+            Exception::_type(String::NewFromUtf8(iso, _msg,               \
+                                                 String::kNormalString)); \
+        iso->ThrowException(e);                                           \
+    } while (0)
+
+#    define V8IOT_CHECK_ARGC(_fn, _args, _expected, _msg) do {          \
+        if ((_args).Length() == (_expected))                            \
+            break;                                                      \
+                                                                        \
+        if (!*(_msg)) {                                                 \
+            V8IOT_THROW(TypeError, #_fn": expects "#_expected           \
+                        " arguments");                                  \
+        }                                                               \
+        else {                                                          \
+            V8IOT_THROW(TypeError, #_fn": "_msg);                       \
+        }                                                               \
+                                                                        \
+        V8IOT_RETURN_DEFAULT();                                         \
+    } while (0)
+
+#    define V8IOT_CHECK_ARGV(_fn, _args, _idx, _type, _nullok,          \
+                             _msg) do {                                 \
+        if ((_args)[(_idx)]->Is##_type())                               \
+            break;                                                      \
+        if ((_nullok) && (_args)[(_idx)]->IsNull())                     \
+            break;                                                      \
+                                                                        \
+        if (!*(_msg))                                                   \
+            V8IOT_THROW(TypeError, #_fn": expects "#_type               \
+                        " as "#_idx" argument");                        \
+        else                                                            \
+            V8IOT_THROW(TypeError, #_fn": "_msg);                       \
+                                                                        \
+        V8IOT_RETURN_DEFAULT();                                         \
+    } while (0)
+
 #endif
 
 
@@ -83,7 +125,7 @@ public:
     // IoT app framework context getter
     inline iot_app_t *IoTApp() { return iot_; }
     // JS (extension) object getter
-    inline Handle<Object> &JsObj() {
+    inline Persistent<Object> &JsObj() {
         assert(!js_.IsEmpty());
         return js_;
     }
@@ -91,7 +133,11 @@ public:
     void SetJsObj(Local<Object> &obj) {
         if (!js_.IsEmpty())
             return;
+#if NODE_MODULE_VERSION <= 11
         js_ = Persistent<Object>::New(obj);
+#else
+        js_.Reset(Isolate::GetCurrent(), obj);
+#endif
     }
 
     // JS event dispatcher
@@ -114,6 +160,16 @@ public:
     Local<Value> JS_Integer(int i);
     Local<Value> JS_Boolean(bool b);
     Local<Value> JS_Double(double d);
+    Local<Array> JS_Array();
+    Local<Object> JS_Object();
+
+#if NODE_MODULE_VERSION <= 11
+#    define JS_FunctionTemplate(_fn)                    \
+    FunctionTemplate::New(_fn)
+#else
+#    define JS_FunctionTemplate(_fn)                    \
+    FunctionTemplate::New(Isolate::GetCurrent(), _fn)
+#endif
 
     // Wrapper for getting the value of a JS string
     char *JS_StringValue(Local<Value> js_s, char *buf, size_t size);
@@ -141,7 +197,7 @@ public:
 private:
     static NodeIoTApp *app_;             // singleton instance
     iot_app_t *iot_;                     // underlying C-lib context
-    Handle<Object> js_;                  // JS extenstion object
+    Persistent<Object>js_;               // JS extension object
 
     // private constructor
     NodeIoTApp(Handle<Object> &exports);
@@ -170,13 +226,13 @@ NodeIoTApp::NodeIoTApp(Handle<Object> &exports)
     iot_app_event_set_handler(iot_, dispatch_event);
 
     Export(exports, "SetDebug",
-           FunctionTemplate::New(JS_SetDebug)->GetFunction());
+           JS_FunctionTemplate(JS_SetDebug)->GetFunction());
     Export(exports, "BridgeSystemSignals",
-           FunctionTemplate::New(JS_BridgeSystemSignals)->GetFunction());
+           JS_FunctionTemplate(JS_BridgeSystemSignals)->GetFunction());
     Export(exports, "SubscribeEvents",
-           FunctionTemplate::New(JS_SubscribeEvents)->GetFunction());
+           JS_FunctionTemplate(JS_SubscribeEvents)->GetFunction());
     Export(exports, "SendEvent",
-           FunctionTemplate::New(JS_SendEvent)->GetFunction());
+           JS_FunctionTemplate(JS_SendEvent)->GetFunction());
 
 }
 
@@ -188,12 +244,17 @@ void NodeIoTApp::DispatchEvent(const char *event, Local<Value> &data)
         data
     };
     int js_argc = IOT_ARRAY_SIZE(js_argv);
-    Local<Value> js_fn = js_->Get(Handle<Value>(JS_String("onIOTEvent")));
+#if NODE_MODULE_VERSION <= 11
+    Local<Object> obj = *js_;
+#else
+    Local<Object> obj = Local<Object>::New(Isolate::GetCurrent(), js_);
+#endif
+    Local<Value> js_fn = obj->Get(Handle<Value>(JS_String("onIOTEvent")));
 
     if (!js_fn->IsFunction())
         return;
 
-    Local<Function>::Cast(js_fn)->Call(js_, js_argc, js_argv);
+    Local<Function>::Cast(js_fn)->Call(obj, js_argc, js_argv);
 }
 
 
@@ -220,8 +281,8 @@ void NodeIoTApp::Export(Handle<Object> &e, const char *s, Local<Function> f)
 #if NODE_MODULE_VERSION <= 11
     e->Set(String::NewSymbol(s), f);
 #else
-    e->Set(String::NewFromUtf(Isolate::GetCurrent(),
-                              s, String::kInternalizedString), f);
+    e->Set(String::NewFromUtf8(Isolate::GetCurrent(),
+                               s, String::kInternalizedString), f);
 #endif
 }
 
@@ -232,26 +293,65 @@ void NodeIoTApp::Export(Handle<Object> &e, const char *s, Local<Function> f)
 
 Local<Value> NodeIoTApp::JS_String(const char *s)
 {
+#if NODE_MODULE_VERSION <= 11
     return String::New(s);
+#else
+    return String::NewFromUtf8(Isolate::GetCurrent(), s,
+                               String::kNormalString);
+#endif
 }
 
 
 Local<Value> NodeIoTApp::JS_Integer(int i)
 {
+#if NODE_MODULE_VERSION <= 11
     return Integer::New(i);
+#else
+    return Integer::New(Isolate::GetCurrent(), i);
+#endif
 }
 
 
 Local<Value> NodeIoTApp::JS_Boolean(bool b)
 {
+#if NODE_MODULE_VERSION <= 11
     return BooleanObject::New(b);
+#else
+    return Boolean::New(Isolate::GetCurrent(), b);
+#endif
 }
 
 
 Local<Value> NodeIoTApp::JS_Double(double d)
 {
+#if NODE_MODULE_VERSION <= 11
     return Number::New(d);
+#else
+    return Number::New(Isolate::GetCurrent(), d);
+#endif
 }
+
+
+Local<Array> NodeIoTApp::JS_Array()
+{
+#if NODE_MODULE_VERSION <= 11
+    return Array::New();
+#else
+    return Array::New(Isolate::GetCurrent());
+#endif
+}
+
+
+Local<Object> NodeIoTApp::JS_Object()
+{
+#if NODE_MODULE_VERSION <= 11
+    return Object::New();
+#else
+    return Object::New(Isolate::GetCurrent());
+#endif
+}
+
+
 
 
 char *NodeIoTApp::JS_StringValue(Local<Value> js_s, char *buf, size_t size)
@@ -430,7 +530,7 @@ bool NodeIoTApp::JS_GetMember(Local<Object> &js_o, const char *key, bool &b)
 
 Local<Value> NodeIoTApp::JsonToArray(iot_json_t *a)
 {
-    Local<Array> js_a = Array::New();
+    Local<Array> js_a = JS_Array();
     uint32_t n = (uint32_t)iot_json_array_length(a);
 
     for (uint32_t i = 0; i < n; i++) {
@@ -457,7 +557,7 @@ Local<Value> NodeIoTApp::JsonToArray(iot_json_t *a)
             break;
 
         default:
-            return Local<Value>::New(Undefined());
+            break;
         }
     }
 
@@ -468,7 +568,7 @@ Local<Value> NodeIoTApp::JsonToArray(iot_json_t *a)
 Local<Value> NodeIoTApp::JsonToObject(iot_json_t *o)
 {
     if (o == NULL)
-        return Object::New();
+        return JS_Object();
 
     switch (iot_json_get_type(o)) {
     case IOT_JSON_STRING:
@@ -485,7 +585,7 @@ Local<Value> NodeIoTApp::JsonToObject(iot_json_t *o)
         const char *key;
         iot_json_t *val;
         iot_json_iter_t it;
-        Local<Object> js_o = Object::New();
+        Local<Object> js_o = JS_Object();
 
         iot_json_foreach_member(o, key, val, it) {
             switch (iot_json_get_type(val)) {
@@ -509,7 +609,7 @@ Local<Value> NodeIoTApp::JsonToObject(iot_json_t *o)
                 break;
 
             default:
-                return Local<Value>::New(Undefined());
+                break;
             }
         }
 
@@ -517,7 +617,7 @@ Local<Value> NodeIoTApp::JsonToObject(iot_json_t *o)
     }
 
     default:
-        return Local<Value>::New(Undefined());
+        return JS_Object();
     }
 }
 
@@ -708,7 +808,7 @@ static V8IOT_RETTYPE JS_SetDebug(V8IOT_ARGTYPE &args)
     char *site;
 
     if (nsite <= 0)
-        return Undefined();
+        V8IOT_RETURN_DEFAULT();
 
     iot_log_enable(IOT_LOG_MASK_DEBUG);
     iot_debug_enable(true);
@@ -718,7 +818,7 @@ static V8IOT_RETTYPE JS_SetDebug(V8IOT_ARGTYPE &args)
             iot_debug_set_config(site);
     }
 
-    return Undefined();
+    V8IOT_RETURN_DEFAULT();
 }
 
 
@@ -734,7 +834,7 @@ static V8IOT_RETTYPE JS_BridgeSystemSignals(V8IOT_ARGTYPE &args)
     Local<Object> js = args.This();
     app->SetJsObj(js);
 
-    return Undefined();
+    V8IOT_RETURN_DEFAULT();
 }
 
 
@@ -781,7 +881,7 @@ static V8IOT_RETTYPE JS_SubscribeEvents(V8IOT_ARGTYPE &args)
     Local<Object> js = args.This();
     app->SetJsObj(js);
 
-    return Undefined();
+    V8IOT_RETURN_DEFAULT();
 }
 
 
@@ -821,7 +921,7 @@ static V8IOT_RETTYPE JS_SendEvent(V8IOT_ARGTYPE &args)
 
     iot_app_event_send(app->IoTApp(), event, data, &dst, NULL, NULL);
 
-    return Undefined();
+    V8IOT_RETURN_DEFAULT();
 }
 
 
