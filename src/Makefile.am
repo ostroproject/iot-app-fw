@@ -464,7 +464,19 @@ iot_launch_LDADD   =			\
 iot_launch_LDFLAGS =			\
 		-rdynamic
 
-install-exec-hook:
+install-exec-hook: python-install-hook iot-agent-install-hook
+
+python-install-hook:
+if PYTHON_ENABLED
+	cd python && \
+	if test "x$(DESTDIR)" = "x"; then \
+		python setup.py install; \
+	else \
+		python setup.py install --root $(DESTDIR); \
+	fi
+endif
+
+iot-agent-install-hook:
 	$(MKDIR_P) $(DESTDIR)$(libexecdir)/iot-launcher &&	\
 	ln -sf $(bindir)/iot-launch				\
 		$(DESTDIR)$(libexecdir)/iot-launcher/iot-launch-agent
@@ -545,14 +557,14 @@ iot_event_catch_LDADD   =		\
 iot_event_catch_LDFLAGS =		\
 		-rdynamic
 
+all-local:: nodejs-bindings python-bindings-build
+
 ###################################
 # NodeJS bindings
 #
 if NODEJS_ENABLED
 NODEJS_METADATA = package.json
 NODEJS_SRC      = src/appfw.cpp
-
-all-local:: nodejs-bindings
 
 if WITH_NPM
 nodejs-bindings:
@@ -587,9 +599,39 @@ nodejs-bindings:
 	cp $(top_builddir)/src/.libs/libiot-nodejs.so \
 	    $(top_builddir)/src/.libs/iot-appfw.node
 endif
+else
+nodejs-bindings:
+	:
+endif
 
+###################################
+# Python bindings
+#
+
+python-bindings-build:
+if PYTHON_ENABLED
+	cd python && \
+	if test ! -f python-app-fw-wrapper.cpp; then \
+		ln -s $(top_srcdir)/../src/python/python-app-fw-wrapper.cpp .; \
+		ln -s $(top_srcdir)/../src/python/appfw.py .; \
+	fi && \
+	python setup.py build
+else
+	:
+endif
+
+python-bindings-clean:
+if PYTHON_ENABLED
+	cd python && \
+	if test -f setup.py; then \
+	    python setup.py clean; \
+	else \
+	    :; \
+	fi
+else
+	:
 endif
 
 # cleanup
-clean-local::
+clean-local: python-bindings-clean
 	-rm -f *~

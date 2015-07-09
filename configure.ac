@@ -316,6 +316,39 @@ else
     AC_MSG_NOTICE([NodeJS bindings disabled.])
 fi
 
+# Check for python
+AC_ARG_ENABLE(python,
+              [ --enable-python   enable Python bindings],
+        [enable_python=yes], [enable_python=no])
+
+if test "$enable_python" = "yes"; then
+    PKG_CHECK_MODULES(PYTHON, python,
+                      [have_python=yes], [have_python=no])
+    if test "$have_python" = "no"; then
+        AC_MSG_ERROR([Python development libraries not found.])
+    fi
+
+    if test "$enable_glib" != "yes"; then
+        PKG_CHECK_MODULES(GLIB, glib-2.0,
+                        [have_glib=yes], [have_glib=no])
+        if test "$have_glib" = "no" -a "$enable_glib" = "yes"; then
+            AC_MSG_ERROR([Python support requires glib.])
+        fi
+    fi
+
+    GLIB_INCLUDES_TEMP=$(echo $GLIB_CFLAGS | tr -s "\t" | tr " " "\n" | grep "^-I" | sed "s/-I//g")
+    t=""
+    GLIB_INCLUDES=""
+    for i in $GLIB_INCLUDES_TEMP;
+    do
+        GLIB_INCLUDES="$GLIB_INCLUDES$t\"$i\""
+        t=","
+    done
+fi
+
+AC_SUBST(GLIB_INCLUDES)
+AM_CONDITIONAL(PYTHON_ENABLED, [test "$enable_python" = "yes"])
+
 AM_CONDITIONAL(UV_ENABLED, [test "$enable_uv" = "yes"])
 AM_CONDITIONAL(UV_STANDALONE, [test "$standalone_uv" = "yes"])
 AC_SUBST(UV_ENABLED)
@@ -447,6 +480,7 @@ AC_CONFIG_FILES([build-aux/shave
                  src/common/iot-uv.pc
                  src/common/iot-qt.pc
                  src/nodejs/binding.gyp
+                 src/python/setup.py
 		 ])
 AC_OUTPUT
 
@@ -472,5 +506,6 @@ if test "$with_npm" = "no"; then
     echo "    * NodeJS CXXFLAGS: $NODE_CXXFLAGS"
     echo "    * NodeJS LIBS: $NODE_LIBS"
 fi
+echo "Python bindings: $enable_python"
 echo "Qt mainloop support: $enable_qt"
 echo "Systemd socket-based activation: $enable_systemd"
