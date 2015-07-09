@@ -74,11 +74,13 @@ function parse_cmdline(app, argv) {
         case "--user":
         case "-u":
             app.user = optarg;
+            i += 2;
             break;
 
         case "--process":
         case "-p":
             app.process = optarg;
+            i += 2;
             break;
 
         case "--events":
@@ -94,7 +96,7 @@ function parse_cmdline(app, argv) {
             break;
 
         case "--data":
-        case "-d":
+        case "-D":
             app.data = optarg;
             i += 2;
             break;
@@ -108,6 +110,7 @@ function parse_cmdline(app, argv) {
         case "--interval":
         case "-I":
             app.delay = optarg;
+            i += 2;
             break;
 
         case "--debug":
