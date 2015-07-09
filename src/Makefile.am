@@ -568,11 +568,12 @@ nodejs-bindings:
 else
 lib_LTLIBRARIES += libiot-nodejs.la
 
-libiot_nodejs_la_SOURCES = nodejs/src/appfw.cpp
+libiot_nodejs_la_SOURCES = nodejs/src/node-appfw.cpp
 
 libiot_nodejs_la_CXXFLAGS =		\
 		$(AM_CFLAGS)		\
 		$(NODE_CFLAGS)		\
+		$(NODE_CXXFLAGS)	\
 		-I/usr/include/node
 
 libiot_nodejs_la_LDFLAGS =

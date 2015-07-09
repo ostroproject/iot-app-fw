@@ -242,31 +242,38 @@ function node_config () {
     local _def="process.config.target_defaults"
     local _var="process.config.variables"
     local _v="$1"
+    local _node=$nodejs_path/bin/node
 
-    which node >& /dev/null || return 1
+    if ! test -x $_node; then
+        return 1
+    fi
 
     case $1 in
         --cflags)
-            node -e "var a = $_def.cflags, r = ''; for (i in a) \
-                         r += ' ' + a[[i]]; \
-                     console.log(r.trim());"
-            node -e "var a = $_def.include_dirs; r = ''; for (i in a) \
-                         r += ' -I' + as[[i]]; \
-                     console.log(r.trim());"
-            node -e "var a = $_def.defines; r = ''; for (i in a) \
-                         r += ' ' + a[[i]]; \
-                     console.log(r.trim());"
+            $_node -e "var a = $_def.cflags, r = ''; for (i in a) \
+                          r += ' ' + a[[i]]; \
+                       console.log(r.trim());"
+            $_node -e "var a = $_def.include_dirs; r = ''; for (i in a) \
+                          r += ' -I' + as[[i]]; \
+                       console.log(r.trim());"
+            $_node -e "var a = $_def.defines; r = ''; for (i in a) \
+                           r += ' ' + a[[i]]; \
+                       console.log(r.trim());"
             ;;
         --libs)
-            node -e "var a = ${_def}.libraries; r = ''; for (i in a) \
-                         r += ' ' + a[[i]]; \
-                     console.log(r.trim());"
+            $_node -e "var a = ${_def}.libraries; r = ''; for (i in a) \
+                          r += ' ' + a[[i]]; \
+                       console.log(r.trim());"
             ;;
         *)
-            node -e "console.log($_var.$1);";
+            $_node -e "var a = $_var.$_v; console.log(a.trim());"
             ;;
     esac
 }
+
+AC_ARG_WITH(nodejs,
+              [  --with-nodejs           use NodeJS from the given location],
+              [nodejs_path=$with_nodejs], [nodejs_path=none])
 
 AC_ARG_ENABLE(nodejs,
               [  --enable-nodejs         enable NodeJS bindings],
@@ -277,13 +284,18 @@ AC_ARG_WITH(npm,
               [with_npm=$with_npm], [with_npm=no])
 
 if test "$enable_nodejs" = "yes"; then
-    AC_CHECK_PROG(have_npm, [npm], [yes], [no])
+    if test "$nodejs_path" = "none"; then
+        nodejs_path=/usr
+    fi
+
+    AC_CHECK_PROG(have_npm, [npm], [yes], [no], ["$nodejs/bin"])
     if test "$have_npm" = "no"; then
         AC_MSG_ERROR([npm binary/NodeJS not found.])
     fi
 
     AC_LANG_PUSH([C++])
-    AC_CHECK_HEADERS([node/node.h], [have_nodeh=yes], [have_nodeh=no])
+    AC_CHECK_HEADERS([$nodejs_path/include/node/node.h],
+                     [have_nodeh=yes], [have_nodeh=no])
     AC_LANG_POP([C++])
     if test "$have_nodeh" = "no"; then
         AC_MSG_ERROR([NodeJS header files not found.])
@@ -308,6 +320,11 @@ if test "$enable_nodejs" = "yes"; then
     if test "$with_npm" = "no"; then
         NODE_CXXFLAGS=$(node_config --cflags)
         NODE_LIBS=$(node_config --libs)
+        NODE_PREFIX=$(node_config node_prefix)
+        if test -n "$NODE_PREFIX"; then
+            NODE_CXXFLAGS="$NODE_CXXFLAGS -I$NODE_PREFIX/include"
+            NODE_CXXFLAGS="$NODE_CXXFLAGS -I$NODE_PREFIX/include/node"
+        fi
     else
         NODE_CXXFLAGS=""
         NODE_LIBS=""
@@ -467,10 +484,14 @@ if test "$standalone_uv" = "yes"; then
     echo "    * libuv LIBS: $UV_LIBS"
 fi
 echo "NodeJS bindings: $enable_nodejs"
-echo "  * compile NodeJS bindings using npm: $with_npm"
-if test "$with_npm" = "no"; then
-    echo "    * NodeJS CXXFLAGS: $NODE_CXXFLAGS"
-    echo "    * NodeJS LIBS: $NODE_LIBS"
+echo "    * compile NodeJS bindings using npm: $with_npm"
+if test "$enable_nodejs" = "yes"; then
+    echo "    * nodejs path: $nodejs_path"
+    if test "$with_npm" = "no"; then
+        echo "    * NodeJS prefix: $NODE_PREFIX"
+        echo "    * NodeJS CXXFLAGS: $NODE_CXXFLAGS"
+        echo "    * NodeJS LIBS: $NODE_LIBS"
+    fi
 fi
 echo "Qt mainloop support: $enable_qt"
 echo "Systemd socket-based activation: $enable_systemd"
