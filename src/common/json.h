@@ -98,6 +98,12 @@ iot_json_type_t iot_json_get_type(iot_json_t *o);
 /** Check if a JSON object has the given type. */
 int iot_json_is_type(iot_json_t *o, iot_json_type_t type);
 
+/** Convenience macros to create values of JSON objects of basic types. */
+#define iot_json_string(s) iot_json_create(IOT_JSON_STRING, s, -1)
+#define iot_json_integer(i) iot_json_create(IOT_JSON_INTEGER, (int)i)
+#define iot_json_double(d) iot_json_create(IOT_JSON_DOUBLE, (double)d)
+#define iot_json_boolean(b) iot_json_create(IOT_JSON_BOOLEAN, b ? 1 : 0)
+
 /** Convenience macros to get values of JSON objects of basic types. */
 #define iot_json_string_value(o)  json_object_get_string(o)
 #define iot_json_integer_value(o) json_object_get_int(o)
