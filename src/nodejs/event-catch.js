@@ -190,7 +190,6 @@ app.iot.onIOTEvent = function (event, event_data) {
 }
 
 if (app.bridge_signals) {
-    console.log("*** BRIDGING SYSTEM SIGNALS ***");
     app.iot.BridgeSystemSignals();
 }
 
