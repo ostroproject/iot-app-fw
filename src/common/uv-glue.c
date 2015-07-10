@@ -167,12 +167,17 @@ static void del_io(void *glue_data, void *id)
     iot_free(io);
 }
 
-
-static void timer_cb(uv_timer_t *handle, int status)
+static void timer_cb(uv_timer_t *handle
+#if UV_VERSION_MAJOR < 1
+                     , int status
+#endif
+                     )
 {
     tmr_t *t = (tmr_t *)handle->data;
 
+#if UV_VERSION_MAJOR < 1
     IOT_UNUSED(status);
+#endif
 
     t->cb(t->glue_data, t, t->user_data);
 }
@@ -225,11 +230,17 @@ static void mod_timer(void *glue_data, void *id, unsigned int msecs)
 }
 
 
-static void defer_cb(uv_timer_t *handle, int status)
+static void defer_cb(uv_timer_t *handle
+#if UV_VERSION_MAJOR < 1
+                     , int status
+#endif
+                     )
 {
     dfr_t *d = (dfr_t *)handle->data;
 
+#if UV_VERSION_MAJOR < 1
     IOT_UNUSED(status);
+#endif
 
     d->cb(d->glue_data, d, d->user_data);
 
