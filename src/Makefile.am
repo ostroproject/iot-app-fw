@@ -464,7 +464,7 @@ iot_launch_LDADD   =			\
 iot_launch_LDFLAGS =			\
 		-rdynamic
 
-install-exec-hook:
+agent-install-hook:
 	$(MKDIR_P) $(DESTDIR)$(libexecdir)/iot-launcher &&	\
 	ln -sf $(bindir)/iot-launch				\
 		$(DESTDIR)$(libexecdir)/iot-launcher/iot-launch-agent
@@ -548,33 +548,17 @@ iot_event_catch_LDFLAGS =		\
 ###################################
 # NodeJS bindings
 #
+
 if NODEJS_ENABLED
-NODEJS_METADATA = package.json
-NODEJS_SRC      = src/appfw.cpp
-
-all-local:: nodejs-bindings
-
-if WITH_NPM
-nodejs-bindings:
-	mkdir -p $(top_builddir)/src/nodejs/src &&		\
-	if test "$(top_builddir)" != "$(top_srcdir)"; then	\
-	    cp $(top_srcdir)/src/nodejs/$(NODEJS_METADATA)	\
-	        $(top_builddir)/src/nodejs &&			\
-	    cp $(top_srcdir)/src/nodejs/$(NODEJS_SRC)		\
-	        $(top_builddir)/src/nodejs/src;			\
-	fi &&							\
-	cd $(top_builddir)/src/nodejs &&			\
-	    npm install
-else
-lib_LTLIBRARIES += libiot-nodejs.la
+nodejs_LTLIBRARIES = libiot-nodejs.la
+nodejsdir = $(NODE_PREFIX)/lib/node_modules/iot
 
 libiot_nodejs_la_SOURCES = nodejs/src/node-appfw.cpp
 
 libiot_nodejs_la_CXXFLAGS =		\
 		$(AM_CFLAGS)		\
 		$(NODE_CFLAGS)		\
-		$(NODE_CXXFLAGS)	\
-		-I/usr/include/node
+		$(NODE_CXXFLAGS)
 
 libiot_nodejs_la_LDFLAGS =
 
@@ -584,12 +568,24 @@ libiot_nodejs_la_LIBADD  = 		\
 		libiot-common.la	\
 		$(NODE_LIBS)
 
-nodejs-bindings:
+nodejs-post-build-hook:
 	cp $(top_builddir)/src/.libs/libiot-nodejs.so \
 	    $(top_builddir)/src/.libs/iot-appfw.node
+
+nodejs-install-hook:
+	cp $(DESTDIR)/$(nodejsdir)/libiot-nodejs.so \
+	    $(DESTDIR)/$(nodejsdir)/iot-appfw.node
+	rm -f $(DESTDIR)/$(nodejsdir)/libiot-nodejs.so*
+else
+nodejs-post-build-hook:
+nodejs-install-hook:
 endif
 
-endif
+# Extra local actions to perform after a build.
+all-local: nodejs-post-build-hook
+
+# Extra local eactions to perform after (binary) installation.
+install-exec-hook: agent-install-hook nodejs-install-hook
 
 # cleanup
 clean-local::
