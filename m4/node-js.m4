@@ -14,11 +14,9 @@ function node_config () {
         --cflags)
             $_node -e "var a = $_def.cflags, r = ''; for (i in a) \
                           r += ' ' + a[[i]]; \
-                       console.log(r.trim());"
-            $_node -e "var a = $_def.include_dirs; r = ''; for (i in a) \
+                       var a = $_def.include_dirs; for (i in a) \
                           r += ' -I' + a[[i]]; \
-                       console.log(r.trim());"
-            $_node -e "var a = $_def.defines; r = ''; for (i in a) \
+                       var a = $_def.defines; for (i in a) \
                            r += ' ' + a[[i]]; \
                        console.log(r.trim());"
             ;;
@@ -61,10 +59,16 @@ if test "$with_node" != "no"; then
     fi
 
     # Check if we have the necessary NodeJS headers.
+    saved_CXXFLAGS="$CXXFLAGS"
+    _NODE_CXXFLAGS=$(node_config --cflags)
+    CXXFLAGS="$CXXFLAGS $_NODE_CXXFLAGS"
+
     AC_LANG_PUSH([C++])
     AC_CHECK_HEADERS([$node_path/include/node/node.h],
                      [have_nodeh=yes], [have_nodeh=no])
     AC_LANG_POP([C++])
+
+    CXXFLAGS="$saved_CXXFLAGS"
 
     if test "$have_nodeh" = "no"; then
         AC_MSG_ERROR([NodeJS header ($node_path/include/node/node.h) not found.])
