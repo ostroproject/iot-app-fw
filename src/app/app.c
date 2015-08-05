@@ -61,6 +61,8 @@ typedef enum {
     REQUEST_UNKNOWN = 0,
     REQUEST_SEND,                        /* event send request */
     REQUEST_SUBSCRIBE,                   /* event subscribe request */
+    REQUEST_LIST_RUNNING,                /* list running applications */
+    REQUEST_LIST_ALL,                    /* list all applications */
 } request_type_t;
 
 typedef struct {
@@ -71,6 +73,7 @@ typedef struct {
     union {                              /* completion notification */
         iot_app_send_cb_t    send;       /*     for event sending */
         iot_app_status_cb_t  status;     /*     for other requests */
+        iot_app_list_cb_t    list;       /*     for list applications */
         void                *any;        /*     for any request */
     } notify;
 } pending_t;
@@ -391,6 +394,78 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
 }
 
 
+static int iot_app_list(iot_app_t *app, int what, iot_app_list_cb_t notify,
+                        void *user_data)
+{
+    iot_json_t *req;
+    pending_t  *pnd;
+    int         seq;
+    const char *type;
+
+    if (app->t == NULL) {
+        if (transport_connect(app, IOT_APPFW_ADDRESS) < 0)
+            return -1;
+    }
+
+    switch (what) {
+    case REQUEST_LIST_RUNNING:
+        type = "list-running";
+        break;
+    case REQUEST_LIST_ALL:
+        type = "list-all";
+        break;
+    default:
+        errno = EINVAL;
+        return 0;
+    }
+
+    req = iot_json_create(IOT_JSON_OBJECT);
+    pnd = NULL;
+
+    if (req == NULL)
+        goto fail;
+
+    if (!iot_json_add_string(req, "type", type))
+        goto fail;
+    if (!iot_json_add_integer(req, "seqno", seq = app->seqno++))
+        goto fail;
+
+    pnd = pending_create(what, seq, notify, user_data);
+
+    if (pnd == NULL)
+        goto fail;
+
+    if (!iot_transport_sendjson(app->t, req)) {
+        errno = EIO;
+        goto fail;
+    }
+
+    pending_enq(app, pnd);
+
+    return seq;
+
+ fail:
+    iot_json_unref(req);
+    pending_destroy(pnd);
+
+    return 0;
+}
+
+
+int iot_app_list_running(iot_app_t *app, iot_app_list_cb_t notify,
+                         void *user_data)
+{
+    return iot_app_list(app, REQUEST_LIST_RUNNING, notify, user_data);
+}
+
+
+int iot_app_list_all(iot_app_t *app, iot_app_list_cb_t notify,
+                     void *user_data)
+{
+    return iot_app_list(app, REQUEST_LIST_ALL, notify, user_data);
+}
+
+
 static void event_dispatch(iot_app_t *app, const char *event, iot_json_t *data)
 {
     if (app->event_cb == NULL)
@@ -516,11 +591,44 @@ static pending_t *pending_find(iot_app_t *app, int seqno)
 }
 
 
+static int get_app_info(iot_json_t *data, iot_app_info_t **appsp)
+{
+    iot_app_info_t *apps;
+    int             napp, i;
+
+    *appsp = NULL;
+    napp   = iot_json_array_length(data);
+
+    if (!napp)
+        return 0;
+
+    apps = iot_allocz_array(iot_app_info_t, napp);
+
+    if (apps == NULL)
+        return -1;
+
+    for (i = 0; i < napp; i++)
+        iot_json_array_get_string(data, i, &apps[i].appid);
+
+    *appsp = apps;
+    return napp;
+}
+
+
+static void free_app_info(int napp, iot_app_info_t *apps)
+{
+    IOT_UNUSED(napp);
+    iot_free(apps);
+}
+
+
 static void pending_notify(iot_app_t *app, int seqno, int status,
                            const char *msg, iot_json_t *data)
 {
     iot_list_hook_t *p, *n;
     pending_t       *pnd;
+    iot_app_info_t  *apps;
+    int              napp;
 
     iot_list_foreach(&app->pending, p, n) {
         pnd = iot_list_entry(p, typeof(*pnd), hook);
@@ -528,10 +636,33 @@ static void pending_notify(iot_app_t *app, int seqno, int status,
         if (seqno != -1 && seqno != pnd->seqno)
             continue;
 
-        if (pnd->notify.send != NULL) {
+        if (pnd->notify.any != NULL) {
             switch (pnd->type) {
             case REQUEST_SEND:
                 pnd->notify.send(app, pnd->seqno, status, msg, pnd->user_data);
+                break;
+
+            case REQUEST_LIST_ALL:
+            case REQUEST_LIST_RUNNING:
+                if (status == 0) {
+                    napp = get_app_info(data, &apps);
+
+                    if (napp < 0) {
+                        status = -napp;
+                        msg = "Failed to extract list of applications.";
+                        apps = NULL;
+                        napp = 0;
+                    }
+                }
+                else {
+                    napp = 0;
+                    apps = NULL;
+                }
+
+                pnd->notify.list(app, pnd->seqno, status, msg, napp, apps,
+                                 pnd->user_data);
+
+                free_app_info(napp, apps);
                 break;
 
             default:
