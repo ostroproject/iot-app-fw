@@ -191,6 +191,60 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
                        iot_app_id_t *target, iot_app_send_cb_t notify,
                        void *user_data);
 
+/**
+ * @brief Application information returned by listing applications.
+ */
+typedef struct {
+    char *appid;                         /**< application id */
+    char *desktop;                       /**< desktop file location */
+    /*
+     * XXX TODO:
+     *     Don't know yet... add as necessary once we figure out what
+     *     type of other information, if any, we need to provide about
+     *     applications.
+     */
+} iot_app_info_t;
+
+/**
+ * @brief IoT application listing notification callback type.
+ */
+typedef void (*iot_app_list_cb_t)(iot_app_t *app, int id, int status,
+                                  const char *msg, int napp,
+                                  iot_app_info_t *apps, void *user_data);
+
+/**
+ * @brief List running IoT applications.
+ *
+ * List the currently running IoT applications.
+ *
+ * @param [in] app        IoT application context
+ * @param [in] notify     callback to call with the list of applications
+ * @param [in] user_data  opaque data to pass to @notify
+ *
+ * @return Returns a non-zero request id on success, 0 upon synchronous
+ *         failure. Note that asynchronous errors are reported via the
+ *         @notify callback.
+ */
+int iot_app_list_running(iot_app_t *app, iot_app_list_cb_t notify,
+                         void *user_data);
+
+/**
+ * @brief List all installed IoT applications.
+ *
+ * List all installed IoT applications.
+ *
+ * @param [in] app        IoT application context
+ * @param [in] notify     callback to call with the list of applications
+ * @param [in] user_data  opaque data to pass to @notify
+ *
+ * @return Returns a non-zero request id on success, 0 upon synchronous
+ *         failure. Note that asynchronous errors are reported via the
+ *         @notify callback.
+ */
+int iot_app_list_all(iot_app_t *app, iot_app_list_cb_t notify,
+                     void *user_data);
+
+
 IOT_CDECL_END
 
 #endif /* __IOT_APP_H__ */
