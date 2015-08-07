@@ -546,6 +546,29 @@ iot_event_catch_LDFLAGS =		\
 		-rdynamic
 
 ###################################
+# iot-app-list
+#
+
+bin_PROGRAMS += iot-app-list
+
+iot_app_list_SOURCES =			\
+		app/tests/list-test.c
+
+iot_app_list_CFLAGS  =			\
+		$(AM_CFLAGS)		\
+		$(GLIB_CFLAGS)		\
+		$(UV_CFLAGS)
+
+iot_app_list_LDADD   =			\
+		libiot-app.la		\
+		$(IOT_GLIB)		\
+		$(IOT_UV)		\
+		libiot-common.la
+
+iot_app_list_LDFLAGS =			\
+		-rdynamic
+
+###################################
 # NodeJS bindings
 #
 
