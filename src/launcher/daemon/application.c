@@ -210,3 +210,75 @@ void application_register_handler(app_handler_t *h)
 {
     iot_list_append(&handlers, &h->hook);
 }
+
+
+static int list_running(client_t *c, list_req_t *req, reply_t *rpl)
+{
+    launcher_t      *l = c->l;
+    application_t   *app;
+    iot_list_hook_t *p, *n;
+    iot_json_t      *data;
+
+    data = iot_json_create(IOT_JSON_ARRAY);
+
+    if (data == NULL)
+        reply_set_status(rpl, req->seqno, ENOMEM, "Out of memory", NULL);
+
+    iot_list_foreach(&l->apps, p, n) {
+        app = iot_list_entry(p, typeof(*app), hook);
+
+         /* XXX TODO for now we add id.binary instead of unset id.appid */
+        if (!iot_json_array_append_string(data, app->id.binary))
+            goto fail;
+    }
+
+    reply_set_status(rpl, req->seqno, 0, "OK", data);
+
+    return 0;
+
+ fail:
+    iot_json_unref(data);
+    reply_set_status(rpl, req->seqno, errno, "Failed", NULL);
+
+    return -1;
+}
+
+
+static int list_all(client_t *c, list_req_t *req, reply_t *rpl)
+{
+    const char *apps[] = {
+        "/usr/bin/foo", "/usr/bin/bar", "/usr/bin/foobar", "/usr/bin/barfoo",
+        NULL
+    };
+    iot_json_t *data;
+    int         i;
+
+    data = iot_json_create(IOT_JSON_ARRAY);
+
+    if (data == NULL)
+        reply_set_status(rpl, req->seqno, ENOMEM, "Out of memory", NULL);
+
+    for (i = 0; apps[i] != NULL; i++) {
+        if (!iot_json_array_append_string(data, apps[i]))
+            goto fail;
+    }
+
+    reply_set_status(rpl, req->seqno, 0, "OK", data);
+
+    return 0;
+
+ fail:
+    iot_json_unref(data);
+    reply_set_status(rpl, req->seqno, errno, "Failed", NULL);
+
+    return -1;
+}
+
+
+int application_list(client_t *c, list_req_t *req, reply_t *rpl)
+{
+    if (req->type == REQUEST_LIST_RUNNING)
+        return list_running(c, req, rpl);
+    else
+        return list_all(c, req, rpl);
+}
