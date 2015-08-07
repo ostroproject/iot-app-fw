@@ -42,6 +42,8 @@ typedef enum {
     REQUEST_CLEANUP,                     /* application cleanup */
     REQUEST_SUBSCRIBE,                   /* subscribe to events */
     REQUEST_SEND,                        /* send an event */
+    REQUEST_LIST_RUNNING,                /* list running applications */
+    REQUEST_LIST_ALL                     /* list all installed applications */
 } req_type_t;
 
 
@@ -116,6 +118,14 @@ typedef struct {
 
 
 /*
+ * requet to list applications
+ */
+
+typedef struct {
+    COMMON_REQUEST_FIELDS;
+} list_req_t;
+
+/*
  * a request
  */
 
@@ -126,6 +136,7 @@ typedef union {
     cleanup_req_t    cleanup;            /* cleanup request */
     event_sub_req_t  subscribe;          /* event subscription request */
     event_send_req_t send;               /* event send request */
+    list_req_t       list;               /* application list request */
 } request_t;
 
 

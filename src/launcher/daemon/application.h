@@ -41,5 +41,6 @@ void application_register_handler(app_handler_t *h);
 
 int application_setup(client_t *c, setup_req_t *req, reply_t *rpl);
 int application_cleanup(client_t *c, cleanup_req_t *req, reply_t *rpl);
+int application_list(client_t *c, list_req_t *req, reply_t *rpl);
 
 #endif /* __IOT_LAUNCHER_APPLICATION_H__ */

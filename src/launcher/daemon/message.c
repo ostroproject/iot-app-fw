@@ -164,6 +164,22 @@ static int parse_send(event_send_req_t *req)
 }
 
 
+static int parse_list_running(list_req_t *req)
+{
+    req->type = REQUEST_LIST_RUNNING;
+
+    return 0;
+}
+
+
+static int parse_list_all(list_req_t *req)
+{
+    req->type = REQUEST_LIST_ALL;
+
+    return 0;
+}
+
+
 static void free_setup(setup_req_t *req)
 {
     iot_free(req->args);
@@ -190,6 +206,12 @@ static void free_send(event_send_req_t *req)
 }
 
 
+static void free_list(list_req_t *req)
+{
+    IOT_UNUSED(req);
+}
+
+
 void request_free(request_t *req)
 {
     if (req == NULL)
@@ -207,6 +229,10 @@ void request_free(request_t *req)
         break;
     case REQUEST_SEND:
         free_send(&req->send);
+        break;
+    case REQUEST_LIST_RUNNING:
+    case REQUEST_LIST_ALL:
+        free_list(&req->list);
         break;
     default:
         break;
@@ -267,6 +293,16 @@ request_t *request_parse(iot_transport_t *t, iot_json_t *msg)
         if (parse_send(&req->send) < 0)
             goto fail;
     }
+    else if (!strcmp(type, "list-running")) {
+        if (parse_list_running(&req->list) < 0)
+            goto fail;
+    }
+    else if (!strcmp(type, "list-all")) {
+        if (parse_list_all(&req->list) < 0)
+            goto fail;
+    }
+    else
+        goto fail;
 
     return req;
 
@@ -307,6 +343,11 @@ iot_json_t *reply_create(reply_t *rpl)
             msg = rpl->status.msg ? rpl->status.msg : "unknown error";
             iot_json_add_string(jrpl, "message" , msg);
         }
+        else {
+            if (rpl->status.data != NULL)
+                iot_json_add_object(jrpl, "data", rpl->status.data);
+        }
+
         return jrpl;
     default:
         return NULL;

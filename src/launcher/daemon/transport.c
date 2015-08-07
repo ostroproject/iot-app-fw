@@ -263,6 +263,16 @@ static void lnc_recv(iot_transport_t *t, iot_json_t *msg, void *user_data)
         reply_set_status(&rpl, req->any.seqno, 0, "OK", NULL);
         break;
 
+    case REQUEST_LIST_RUNNING:
+        iot_log_info("Received LIST_RUNNING request...");
+        application_list(c, &req->list, &rpl);
+        break;
+
+    case REQUEST_LIST_ALL:
+        iot_log_info("Received LIST_ALL request...");
+        application_list(c, &req->list, &rpl);
+        break;
+
     default:
         iot_log_error("Recevied an UNKNOWN request...");
         reply_set_status(&rpl, req->any.seqno, EINVAL, "Unknown request", NULL);
