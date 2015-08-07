@@ -18,7 +18,8 @@ using namespace v8;
 #if NODE_MODULE_VERSION <= 11
 #    define V8IOT_RETTYPE Handle<Value>
 #    define V8IOT_ARGTYPE const Arguments
-#    define V8IOT_RETURN_DEFAULT() return Undefined()
+#    define V8IOT_HANDLE_SCOPE() HandleScope scope
+#    define V8IOT_RETURN_DEFAULT() return scope.Close(Undefined())
 
 #    define V8IOT_THROW(_type, _msg) do {                               \
         v8::Local<v8::Value> e = Exception::_type(String::New(_msg));   \
@@ -58,6 +59,7 @@ using namespace v8;
 #else
 #    define V8IOT_RETTYPE void
 #    define V8IOT_ARGTYPE const FunctionCallbackInfo<Value>
+#    define V8IOT_HANDLE_SCOPE() HandleScope scope(Isolate::GetCurrent())
 #    define V8IOT_RETURN_DEFAULT() return
 
 #    define V8IOT_THROW(_type, _msg) do {                                 \
@@ -233,12 +235,13 @@ NodeIoTApp::NodeIoTApp(Handle<Object> &exports)
            JS_FunctionTemplate(JS_SubscribeEvents)->GetFunction());
     Export(exports, "SendEvent",
            JS_FunctionTemplate(JS_SendEvent)->GetFunction());
-
 }
 
 
 void NodeIoTApp::DispatchEvent(const char *event, Local<Value> &data)
 {
+    V8IOT_HANDLE_SCOPE();
+
     Handle<Value> js_argv[] = {
         Handle<Value>(JS_String(event)),
         data
@@ -800,6 +803,8 @@ static V8IOT_RETTYPE JS_SetDebug(V8IOT_ARGTYPE &args)
 {
     NodeIoTApp *app = NodeIoTApp::Get();
 
+    V8IOT_HANDLE_SCOPE();
+
     V8IOT_CHECK_ARGC(SetDebug, args, 1, "");
     V8IOT_CHECK_ARGV(SetDebug, args, 0, Array, NONULL, "");
 
@@ -826,6 +831,8 @@ static V8IOT_RETTYPE JS_BridgeSystemSignals(V8IOT_ARGTYPE &args)
 {
     NodeIoTApp *app = NodeIoTApp::Get();
 
+    V8IOT_HANDLE_SCOPE();
+
     V8IOT_CHECK_ARGC(BridgeSystemSignals, args, 0, "");
 
     iot_debug("setting up bridging of system signals (SIGHUP, SIGTERM)");
@@ -841,6 +848,8 @@ static V8IOT_RETTYPE JS_BridgeSystemSignals(V8IOT_ARGTYPE &args)
 static V8IOT_RETTYPE JS_SubscribeEvents(V8IOT_ARGTYPE &args)
 {
     NodeIoTApp *app = NodeIoTApp::Get();
+
+    V8IOT_HANDLE_SCOPE();
 
     V8IOT_CHECK_ARGC(SubscribeEvents, args, 1, "");
     V8IOT_CHECK_ARGV(SubscribeEvents, args, 0, Array, NONULL, "");
@@ -889,6 +898,8 @@ static V8IOT_RETTYPE JS_SendEvent(V8IOT_ARGTYPE &args)
 {
     NodeIoTApp *app = NodeIoTApp::Get();
     int argc = args.Length();
+
+    V8IOT_HANDLE_SCOPE();
 
     if (argc != 2 && argc != 3)
         V8IOT_THROW(TypeError, "SendEvent expects 2 or 3 arguments.");
