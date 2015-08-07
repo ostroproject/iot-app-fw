@@ -20,6 +20,7 @@ using namespace v8;
 #    define V8IOT_ARGTYPE const Arguments
 #    define V8IOT_HANDLE_SCOPE() HandleScope scope
 #    define V8IOT_RETURN_DEFAULT() return scope.Close(Undefined())
+#    define V8IOT_RETURN(_args, _v) return scope.Close(_v);
 
 #    define V8IOT_THROW(_type, _msg) do {                               \
         v8::Local<v8::Value> e = Exception::_type(String::New(_msg));   \
@@ -61,6 +62,7 @@ using namespace v8;
 #    define V8IOT_ARGTYPE const FunctionCallbackInfo<Value>
 #    define V8IOT_HANDLE_SCOPE() HandleScope scope(Isolate::GetCurrent())
 #    define V8IOT_RETURN_DEFAULT() return
+#    define V8IOT_RETURN(_args, _v) _args.GetReturnValue().Set(_v)
 
 #    define V8IOT_THROW(_type, _msg) do {                                 \
         v8::Isolate* iso = Isolate::GetCurrent();                         \
@@ -108,8 +110,12 @@ static V8IOT_RETTYPE JS_SetDebug(V8IOT_ARGTYPE &args);
 static V8IOT_RETTYPE JS_BridgeSystemSignals(V8IOT_ARGTYPE &args);
 static V8IOT_RETTYPE JS_SubscribeEvents(V8IOT_ARGTYPE &args);
 static V8IOT_RETTYPE JS_SendEvent(V8IOT_ARGTYPE &args);
+static V8IOT_RETTYPE JS_ListRunningApps(V8IOT_ARGTYPE &args);
+static V8IOT_RETTYPE JS_ListAllApps(V8IOT_ARGTYPE &args);
 
 static void dispatch_event(iot_app_t *iot, const char *event, iot_json_t *data);
+static void list_cb(iot_app_t *iot, int id, int status, const char *msg,
+                    int napp, iot_app_info_t *apps, void *user_data);
 
 /**
  * Our top-level IoT Application Framework NodeJS class.
@@ -205,10 +211,19 @@ public:
     bool JS_GetMember(Local<Object> &js_o, const char *key, double &d);
     bool JS_GetMember(Local<Object> &js_o, const char *key, bool &b);
 
+    // store/retrieve pending list requests
+    bool EnqListReq(int id, Handle<Function> &f);
+    bool GetListReq(int id, Persistent<Function> &f);
+    bool DeqListReq(int id);
+    void DispatchListReq(int id, int status, const char *msg, int napp,
+                         iot_app_info_t *apps);
+
 private:
     static NodeIoTApp *app_;             // singleton instance
     iot_app_t *iot_;                     // underlying C-lib context
     Persistent<Object>js_;               // JS extension object
+    int _list_id;
+    Persistent<Function> _list_cb;
 
     // private constructor
     NodeIoTApp(Handle<Object> &exports);
@@ -244,6 +259,10 @@ NodeIoTApp::NodeIoTApp(Handle<Object> &exports)
            JS_FunctionTemplate(JS_SubscribeEvents)->GetFunction());
     Export(exports, "SendEvent",
            JS_FunctionTemplate(JS_SendEvent)->GetFunction());
+    Export(exports, "ListRunningApplications",
+           JS_FunctionTemplate(JS_ListRunningApps)->GetFunction());
+    Export(exports, "ListAllApplications",
+           JS_FunctionTemplate(JS_ListAllApps)->GetFunction());
 }
 
 
@@ -945,6 +964,56 @@ static V8IOT_RETTYPE JS_SendEvent(V8IOT_ARGTYPE &args)
 }
 
 
+static V8IOT_RETTYPE JS_ListRunningApps(V8IOT_ARGTYPE &args)
+{
+    NodeIoTApp *app = NodeIoTApp::Get();
+
+    V8IOT_HANDLE_SCOPE();
+
+    V8IOT_CHECK_ARGC(ListRunningApplications, args, 1, "");
+    V8IOT_CHECK_ARGV(ListRunningApplications, args, 0, Function, NONULL, "");
+
+    Local<Object> js = args.This();
+    app->SetJsObj(js);
+
+    int id = iot_app_list_running(app->IoTApp(), list_cb, NULL);
+
+    if (id <= 0)
+        V8IOT_THROW(Error, "Failed to query running applications.");
+
+    Handle<Function> f = Handle<Function>::Cast(args[0]);
+    if (!app->EnqListReq(id, f))
+        V8IOT_THROW(Error, "Failed to queue application list request.");
+
+    V8IOT_RETURN(args, app->JS_Integer(id));
+}
+
+
+static V8IOT_RETTYPE JS_ListAllApps(V8IOT_ARGTYPE &args)
+{
+    NodeIoTApp *app = NodeIoTApp::Get();
+
+    V8IOT_HANDLE_SCOPE();
+
+    V8IOT_CHECK_ARGC(ListAllApplications, args, 1, "");
+    V8IOT_CHECK_ARGV(ListAllApplications, args, 0, Function, NONULL, "");
+
+    Local<Object> js = args.This();
+    app->SetJsObj(js);
+
+    int id = iot_app_list_all(app->IoTApp(), list_cb, NULL);
+
+    if (id <= 0)
+        V8IOT_THROW(Error, "Failed to query all installed applications.");
+
+    Handle<Function> f = Handle<Function>::Cast(args[0]);
+    if (!app->EnqListReq(id, f))
+        V8IOT_THROW(Error, "Failed to queue application list request.");
+
+    V8IOT_RETURN(args, app->JS_Integer(id));
+}
+
+
 /////////////////////////
 // event handler
 static void dispatch_event(iot_app_t *iot, const char *event, iot_json_t *data)
@@ -961,7 +1030,114 @@ static void dispatch_event(iot_app_t *iot, const char *event, iot_json_t *data)
 }
 
 
-// set up our extension and register with NodeJS
+/////////////////////////
+// application list request handling
+static void list_cb(iot_app_t *iot, int id, int status, const char *msg,
+                    int napp, iot_app_info_t *apps, void *user_data)
+{
+    NodeIoTApp *app = NodeIoTApp::Get();
+
+    IOT_UNUSED(iot);
+    IOT_UNUSED(user_data);
+
+    iot_debug("received %s reply (%d: %s) for list request %d",
+              status ? "failure" : "successful", status, msg, id);
+
+    app->DispatchListReq(id, status, msg, napp, apps);
+}
+
+
+bool NodeIoTApp::EnqListReq(int id, Handle<Function> &f)
+{
+    if (_list_id)
+        return false;
+
+    _list_id = id;
+    _list_cb = Persistent<Function>::New(f);
+
+    return true;
+}
+
+
+bool NodeIoTApp::GetListReq(int id, Persistent<Function> &f)
+{
+    if (id != _list_id)
+        return false;
+
+    f = _list_cb;
+
+    return true;
+}
+
+
+bool NodeIoTApp::DeqListReq(int id)
+{
+    if (id != _list_id)
+        return false;
+
+    _list_id = 0;
+#if NODE_MODULE_VERSION <= 11
+    _list_cb.Dispose();
+    _list_cb.Clear();
+#else
+    _list_cb.Reset();
+#endif
+
+    return true;
+}
+
+
+void NodeIoTApp::DispatchListReq(int id, int status, const char *msg, int napp,
+                                 iot_app_info_t *apps)
+{
+    V8IOT_HANDLE_SCOPE();
+
+    Persistent<Function> f;
+
+    if (!GetListReq(id, f)) {
+        iot_log_error("Failed to find JS callback for list request %d.", id);
+        return;
+    }
+
+    iot_json_t *json, *o;
+    int i;
+
+    json = iot_json_create(IOT_JSON_ARRAY);
+
+    for (i = 0; i < napp; i++) {
+        o = iot_json_create(IOT_JSON_OBJECT);
+
+        if (apps[i].appid != NULL)
+            iot_json_add_string(o, "appid", apps[i].appid);
+        if (apps[i].desktop != NULL)
+            iot_json_add_string(o, "desktop", apps[i].desktop);
+
+        iot_json_array_append(json, o);
+    }
+
+    Handle<Value>js_argv[] = {
+        Handle<Value>(JS_Integer(id)),
+        Handle<Value>(JS_Integer(status)),
+        Handle<Value>(JS_String(msg ? msg : (status ? "Failed" : "OK"))),
+        JsonToObject(json)
+    };
+    int js_argc = IOT_ARRAY_SIZE(js_argv);
+
+#if MODE_MODULE_VERSION <= 11
+    Local<Object> obj = *js_;
+#else
+    Local<Object> obj = Local<Object>::New(Isolate::GetCurrent(), js_);
+#endif
+
+    f->Call(obj, js_argc, js_argv);
+    iot_json_unref(json);
+
+    DeqListReq(id);
+}
+
+
+/////////////////////////
+// extension setup
 void setup(Handle<Object> exports, Handle<Object> module)
 {
     IOT_UNUSED(module);
