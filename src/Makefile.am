@@ -587,12 +587,13 @@ endif
 
 if PYTHON_ENABLED
 python-bindings-build:
+	if test ! -f python/python-app-fw-wrapper.cpp; then \
+		d=$$(cd $(top_srcdir); pwd); \
+		ln -sf $$d/src/python/python-app-fw-wrapper.cpp python; \
+		ln -sf $$d/src/python/appfw.py python; \
+	fi
 	cd python && \
-	if test ! -f python-app-fw-wrapper.cpp; then \
-		ln -s $(top_srcdir)/../src/python/python-app-fw-wrapper.cpp .; \
-		ln -s $(top_srcdir)/../src/python/appfw.py .; \
-	fi && \
-	python setup.py build
+		python setup.py build
 
 python-install-hook:
 	cd python && \
