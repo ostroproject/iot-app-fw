@@ -124,6 +124,15 @@ public:
     static NodeIoTApp *Get(Handle<Object> &exports);
     // get existing singleton instance
     static NodeIoTApp *Get();
+    // destructor
+    inline ~NodeIoTApp() {
+#if NODE_MODULE_VERSION <= 11
+        js_.Dispose();
+        js_.Clear();
+#else
+        js_.Reset();
+#endif
+    }
     // IoT app framework context getter
     inline iot_app_t *IoTApp() { return iot_; }
     // JS (extension) object getter
