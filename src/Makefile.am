@@ -593,20 +593,45 @@ python-bindings-build:
 		ln -sf $$d/src/python/appfw.py python; \
 	fi
 	cd python && \
-		python setup.py build
+		STAGING_INCDIR=$(PYTHON_STAGING_INCDIR) \
+		STAGING_LIBDIR=$(PYTHON_STAGING_LIBDIR) \
+		BUILD_SYS=$(PYTHON_BUILD_SYS) \
+		HOST_SYS=$(PYTHON_HOST_SYS) \
+		$(PYTHON_PYTHON_EXECUTABLE) setup.py build ;
 
 python-install-hook:
 	cd python && \
 	if test "x$(DESTDIR)" = "x"; then \
-		python setup.py install; \
+		PYTHONPATH=$(PYTHON_PYTHONPATH) \
+		BUILD_SYS=$(PYTHON_BUILD_SYS) \
+		HOST_SYS=$(PYTHON_HOST_SYS) \
+		STAGING_INCDIR=$(PYTHON_STAGING_INCDIR) \
+		STAGING_LIBDIR=$(PYTHON_STAGING_LIBDIR) \
+		$(PYTHON_PYTHON_EXECUTABLE) \
+		setup.py install \
+		--install-lib=$(PYTHON_INSTALL_LIB) \
+		--install-data=$(PYTHON_INSTALL_DATA); \
 	else \
-		python setup.py install --root $(DESTDIR); \
+		PYTHONPATH=$(PYTHON_PYTHONPATH) \
+		BUILD_SYS=$(PYTHON_BUILD_SYS) \
+		HOST_SYS=$(PYTHON_HOST_SYS) \
+		STAGING_INCDIR=$(PYTHON_STAGING_INCDIR) \
+		STAGING_LIBDIR=$(PYTHON_STAGING_LIBDIR) \
+		$(PYTHON_PYTHON_EXECUTABLE) \
+		setup.py install \
+		--install-lib=$(PYTHON_INSTALL_LIB) \
+		--install-data=$(PYTHON_INSTALL_DATA) --root $(DESTDIR); \
 	fi
+
 
 python-bindings-clean:
 	cd python && \
 	if test -f setup.py; then \
-	    python setup.py clean; \
+	    BUILD_SYS=$(PYTHON_BUILD_SYS) \
+	    HOST_SYS=$(PYTHON_HOST_SYS) \
+	    STAGING_INCDIR=$(PYTHON_STAGING_INCDIR) \
+	    STAGING_LIBDIR=$(PYTHON_STAGING_LIBDIR) \
+	    $(PYTHON_PYTHON_EXECUTABLE) setup.py clean ; \
 	else \
 	    :; \
 	fi

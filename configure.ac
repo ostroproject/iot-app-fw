@@ -281,6 +281,18 @@ fi
 AC_SUBST(GLIB_INCLUDES)
 AM_CONDITIONAL(PYTHON_ENABLED, [test "$enable_python" = "yes"])
 
+# Python build arguments for bitbake
+PYTHON_CONFIG([PYTHONPATH])
+PYTHON_CONFIG([BUILD_SYS])
+PYTHON_CONFIG([HOST_SYS])
+PYTHON_CONFIG([STAGING_INCDIR])
+PYTHON_CONFIG([STAGING_LIBDIR])
+PYTHON_CONFIG([INSTALL_LIB])
+PYTHON_CONFIG([INSTALL_DATA])
+
+PYTHON_EXECUTABLE=python
+PYTHON_CONFIG([PYTHON_EXECUTABLE])
+
 # Check if systemd socket-based activation was enabled.
 AC_ARG_ENABLE(systemd,
               [  --enable-systemd       enable systemd socket-based activation],
