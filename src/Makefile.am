@@ -568,7 +568,7 @@ libiot_nodejs_la_LIBADD  = 		\
 		libiot-common.la	\
 		$(NODE_LIBS)
 
-nodejs-post-build-hook:
+nodejs-post-build-hook: libiot-nodejs.la
 	cp $(top_builddir)/src/.libs/libiot-nodejs.so \
 	    $(top_builddir)/src/.libs/iot-appfw.node
 
