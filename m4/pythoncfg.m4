@@ -4,7 +4,7 @@ AC_DEFUN([PYTHON_CONFIG],
                 [  --with-python-$1           set $1 for Python],
                 [PYTHON_$1=$with_python_$1], [PYTHON_$1="$$1"])
 
-    if test "$enable_python" = "no" -a "PYTHON_$1" != "none"; then
+    if test "$enable_python" = "no" -a "PYTHON_$1" != "$$1"; then
         AC_MSG_ERROR([Python support is not enabled.])
     fi
 
