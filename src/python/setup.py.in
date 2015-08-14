@@ -4,11 +4,11 @@ setup(name='appfw', version='1.0', \
 	author='Topi Kuutela', \
 	author_email='topi.kuutela@intel.com', \
 	ext_modules=[Extension('_appfwwrapper',
-	                       library_dirs = ["@top_srcdir@/src/.libs"],
+	                       library_dirs = ["@top_srcdir@/src/.libs", "@top_builddir@/src/.libs"],
 						   extra_compile_args=['-std=c++11'],
-	                       libraries = ["iot-app", "iot-common", "iot-glib"],
+	                       libraries = ["iot-app", "iot-common", "iot-glib", "glib-2.0"],
 	                       runtime_library_dirs = [".libs"],
-	                       include_dirs = ["@top_srcdir@/", @GLIB_INCLUDES@],
+	                       include_dirs = ["@top_srcdir@/", "@top_srcdir@/src", "@top_builddir@/", "@top_builddir@/src", @GLIB_INCLUDES@],
 	                       sources = ["python-app-fw-wrapper.cpp"],
 	                       language = "c++")], \
 	py_modules=["appfw"])
