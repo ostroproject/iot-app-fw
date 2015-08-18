@@ -250,7 +250,7 @@ echo "UV_STANDALONE: $UV_STANDALONE"
 # Check for python
 AC_ARG_ENABLE(python,
               [ --enable-python   enable Python bindings],
-        [enable_python=yes], [enable_python=no])
+        [enable_python=$enableval], [enable_python=no])
 
 if test "$enable_python" = "yes"; then
     PKG_CHECK_MODULES(PYTHON, python,
