@@ -27,45 +27,23 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef __IOT_LAUNCHER_MSG_H__
+#define __IOT_LAUNCHER_MSG_H__
+
+#include <stdarg.h>
+
+#include <iot/config.h>
 #include <iot/common/macros.h>
-#include <iot/common/log.h>
-#include <iot/common/debug.h>
-#include <iot/common/list.h>
+#include <iot/common/json.h>
 
-#include "launcher.h"
-#include "application.h"
-
-
-static int nftables_init(void)
-{
-    return 0;
-}
+iot_json_t *msg_status_error(int code, const char *fmt, ...);
+iot_json_t *msg_status_ok(int code, iot_json_t *data, const char *fmt, ...);
+int msg_status_data(iot_json_t *hdr, const char **msg, iot_json_t **data);
+iot_json_t *msg_event(const char *name, iot_json_t *data);
+iot_json_t *msg_event_data(iot_json_t *hdr, const char **name);
+int msg_hdr(iot_json_t *hdr, const char **type, int *seqno);
+const char *msg_type(iot_json_t *hdr);
+int msg_seqno(iot_json_t *hdr);
 
 
-static void nftables_exit(void)
-{
-    return;
-}
-
-
-static int nftables_setup(application_t *a)
-{
-    iot_log_info("Setting nftables rules for process %u (%s)...",
-                 a->id.pid, a->id.argv[0]);
-
-    return 0;
-}
-
-
-static int nftables_cleanup(application_t *a)
-{
-    iot_log_info("Cleaning up nftables rules for process %u (%s)...",
-                 a->id.pid, a->id.argv[0]);
-
-    return 0;
-}
-
-
-IOT_REGISTER_APPHOOK(nftables, "nftables",
-                     nftables_init, nftables_exit,
-                     nftables_setup, nftables_cleanup);
+#endif /* __IOT_LAUNCHER_MSG_H__ */

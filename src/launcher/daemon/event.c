@@ -34,30 +34,29 @@
 #include <iot/common/mask.h>
 
 #include "launcher/daemon/launcher.h"
+#include "launcher/daemon/msg.h"
+#include "launcher/daemon/transport.h"
 #include "launcher/daemon/event.h"
-
-#define MAX_EVENTS 1024
 
 
 /*
- * an event definition
+ * a registered event
  */
 
 typedef struct {
     iot_list_hook_t  hook;               /* to list of known events */
-    char            *name;               /* event name */
-    int              id;                 /* event id */
-} event_def_t;
+    char            *name;               /* public event name */
+    int              id;                 /* internal event id */
+} event_t;
+
+static IOT_LIST_HOOK(events);            /* registered events */
+static int           nevent;             /* number of registered events */
 
 
-static IOT_LIST_HOOK(events);
-static int           nevent = 0;
-
-
-int event_id(const char *name, int add_missing)
+int event_id(const char *name, int register_missing)
 {
     iot_list_hook_t *p, *n;
-    event_def_t     *e;
+    event_t         *e;
 
     iot_list_foreach(&events, p, n) {
         e = iot_list_entry(p, typeof(*e), hook);
@@ -66,15 +65,20 @@ int event_id(const char *name, int add_missing)
             return e->id;
     }
 
-    if (!add_missing)
+    if (!register_missing) {
+        errno = ENOENT;
         return -1;
+    }
+
+    if (nevent >= MAX_EVENTS) {
+        errno = ENOSPC;
+        return -1;
+    }
 
     e = iot_allocz(sizeof(*e));
 
     if (e == NULL)
         return -1;
-
-    iot_list_init(&e->hook);
 
     e->name = iot_strdup(name);
 
@@ -83,7 +87,9 @@ int event_id(const char *name, int add_missing)
         return -1;
     }
 
+    iot_list_init(&e->hook);
     e->id = nevent++;
+
     iot_list_append(&events, &e->hook);
 
     return e->id;
@@ -93,7 +99,10 @@ int event_id(const char *name, int add_missing)
 const char *event_name(int id)
 {
     iot_list_hook_t *p, *n;
-    event_def_t     *e;
+    event_t         *e;
+
+    if (id < 0 || id >= nevent)
+        goto notfound;
 
     iot_list_foreach(&events, p, n) {
         e = iot_list_entry(p, typeof(*e), hook);
@@ -102,63 +111,68 @@ const char *event_name(int id)
             return e->name;
     }
 
+ notfound:
+    errno = ENOENT;
     return NULL;
 }
 
 
-int event_route(launcher_t *l, uid_t user, const char *binary, pid_t process,
-                const char *event, iot_json_t *data)
+iot_json_t *event_route(client_t *c, iot_json_t *req)
 {
-    iot_json_t      *msg = NULL;
-    client_t        *c;
-    iot_list_hook_t *cp, *cn;
-    int              id, n;
+    launcher_t      *l = c->l;
+    client_t        *t;
+    iot_list_hook_t *p, *n;
+    const char      *event;
+    identity_t       dst;
+    iot_json_t      *e, *data;
+    int              id, cnt;
 
-    n  = 0;
+    if (!iot_json_get_string(req, "event", &event))
+        return msg_status_error(EINVAL, "malformed request, missing 'event'");
+
     id = event_lookup(event);
 
-    if (id < 0) {
-        errno = ENOENT;
-        return -1;
-    }
+    if (id < 0)
+        return msg_status_error(EINVAL, "unknown event requested");
 
-    iot_list_foreach(&l->clients, cp, cn) {
-        c = iot_list_entry(cp, typeof(*c), hook);
+    iot_clear(&dst);
+    dst.uid = NO_UID;
+    dst.gid = NO_GID;
 
-        iot_log_info("user: %u, %u, binary: %s, %s, pid: %u, %u",
-                     user, c->id.user,
-                     binary ? binary : "<NULL>",
-                     c->id.binary ? c->id.binary : "<NULL>",
-                     process, c->id.process);
+    iot_json_get_string (req, "label"  , &dst.label);
+    iot_json_get_string (req, "appid"  , &dst.app);
+    iot_json_get_integer(req, "user"   , &dst.uid);
+    iot_json_get_integer(req, "group"  , &dst.gid);
+    iot_json_get_integer(req, "process", &dst.pid);
+    iot_json_get_object (req, "data"   , &data);
 
-        if (!((user == (uid_t)-1   || user == c->id.user) &&
-              (binary == NULL      || !strcmp(binary, c->id.binary)) &&
-              (process == (pid_t)0 || process == c->id.process)))
+    iot_log_info("Event data: %s", iot_json_object_to_string(data));
+
+    cnt = 0;
+    e   = NULL;
+
+    iot_list_foreach(&l->clients, p, n) {
+        t = iot_list_entry(p, typeof(*t), hook);
+
+        if (!iot_mask_test(&t->mask, id))
             continue;
 
-        if (!iot_mask_test(&c->mask, id))
+        if (!((dst.uid == NO_UID || dst.uid == t->id.uid) &&
+              (dst.gid == NO_GID || dst.gid == t->id.gid) &&
+              (dst.pid == NO_PID || dst.pid == t->id.pid)))
             continue;
 
-        if (msg == NULL) {
-            msg = iot_json_create(IOT_JSON_OBJECT);
+        if (e == NULL)
+            e = msg_event(event, data);
 
-            if (msg == NULL)
-                return -1;
+        if (e == NULL)
+            return msg_status_error(EINVAL, "failed to create event message");
 
-            iot_json_add_string (msg, "type" , "event");
-            iot_json_add_integer(msg, "seqno", 0);
-            iot_json_add_string (msg, "event", event);
-            iot_json_add        (msg, "data" , iot_json_ref(data));
-        }
-
-        iot_log_info("Sending message to pid %u: %s...", c->id.process,
-                     iot_json_object_to_string(msg));
-
-        iot_transport_sendjson(c->t, msg);
-        n++;
+        transport_send(t, e);
+        cnt++;
     }
 
-    iot_json_unref(msg);
+    iot_json_unref(e);
 
-    return n;
+    return msg_status_ok(0, NULL, "OK");
 }

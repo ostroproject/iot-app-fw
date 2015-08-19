@@ -33,17 +33,20 @@
 #include <unistd.h>
 #include <limits.h>
 
-#ifndef PATH_MAX
-#    define PATH_MAX 1024
-#endif
-
+#include <iot/config.h>
 #include <iot/common/macros.h>
 #include <iot/common/list.h>
 #include <iot/common/mainloop.h>
 #include <iot/common/transport.h>
 #include <iot/common/mask.h>
+#include <iot/utils/manifest.h>
 
-#include <iot/config.h>
+#ifndef PATH_MAX
+#    define PATH_MAX 1024
+#endif
+
+
+#define MAX_EVENTS 1024                  /* max. events to register */
 
 
 /*
@@ -56,6 +59,7 @@ typedef struct {
     iot_transport_t *app;                /* IoT app. transport */
     iot_list_hook_t  clients;            /* clients */
     iot_list_hook_t  apps;               /* launched/tracked applications */
+    iot_list_hook_t  hooks;              /* application hooks */
 
     const char      *lnc_addr;           /* launcher transport address */
     const char      *app_addr;           /* IoT app. transport address */
@@ -85,6 +89,21 @@ typedef struct {
 } appid_t;
 
 
+#define NO_UID ((uid_t)-1)
+#define NO_GID ((gid_t)-1)
+#define NO_PID ((pid_t) 0)
+
+typedef struct {
+    char   *label;                       /* SMACK label */
+    uid_t   uid;                         /* user id (-1 for none) */
+    gid_t   gid;                         /* group id (-1 for none) */
+    pid_t   pid;                         /* process id (0) */
+    char  **argv;                        /* command line arguments */
+    int     argc;                        /* argument count */
+    char   *cgrp;                        /* IoT cgroup (relative) path */
+    char   *app;                         /* <pkg>:<app> */
+} identity_t;
+
 /*
  * an IoT application or launcher client
  */
@@ -100,7 +119,7 @@ typedef struct {
     iot_list_hook_t  hook;               /* to list of clients */
     launcher_t      *l;                  /* launcher context */
     iot_transport_t *t;                  /* transport to this client */
-    appid_t          id;                 /* client identification data */
+    identity_t       id;                 /* client identity */
     iot_mask_t       mask;               /* mask of subscribed events */
 } client_t;
 
@@ -113,8 +132,9 @@ typedef struct {
     iot_list_hook_t  hook;               /* to list of applications */
     launcher_t      *l;                  /* launcher context */
     client_t        *c;                  /* launcher client, if any */
-    appid_t          id;                 /* application identification */
-    iot_list_hook_t  event;              /* event subscribers */
+    iot_manifest_t  *m;                  /* application manifest */
+    const char      *app;                /* application within manifest */
+    identity_t       id;                 /* application identity */
 } application_t;
 
 
@@ -130,37 +150,36 @@ typedef struct {
 
 
 /*
- * a registered application setup/cleanup handler
+ * application handling hooks
  */
 
 typedef struct {
-    iot_list_hook_t   hook;              /* to list of handlers */
-    /* optional handler setup and cleanup callbacks */
-    int             (*init)(void);
-    void            (*exit)(void);
-    /* mandatory application setup and optional cleanup callbacks */
-    int             (*setup)(application_t *app);
-    int             (*cleanup)(application_t *app);
-} app_handler_t;
+    iot_list_hook_t  hook;               /* to list of app-hooks */
+    const char      *name;               /* descriptive name */
+    /* optional hook setup and cleanup callbacks */
+    int            (*init)(void);
+    void           (*exit)(void);
+    /* mandatory application setup and cleanup callbacks */
+    int            (*setup)(application_t *app);
+    int            (*cleanup)(application_t *app);
+} app_hook_t;
 
 
-#define IOT_REGISTER_APPHANDLER(_prfx, _init, _exit, _setup, _cleanup)  \
+#define IOT_REGISTER_APPHOOK(_prfx, _descr, _init, _exit, _setup, _cleanup) \
     static void _prfx##_register(void) IOT_INIT;                        \
                                                                         \
     static void _prfx##_register(void) {                                \
-        static app_handler_t h = {                                      \
+        static app_hook_t h = {                                         \
+            .name    = _descr,                                          \
             .init    = _init,                                           \
             .exit    = _exit,                                           \
             .setup   = _setup,                                          \
             .cleanup = _cleanup,                                        \
         };                                                              \
                                                                         \
-        iot_list_init(&h.hook);                                         \
-                                                                        \
-        application_register_handler(&h);                               \
+        application_hook_register(&h);                                  \
     }                                                                   \
     struct __iot_allow_trailing_semicolon
-
 
 
 #endif /* __IOT_LAUNCHER_H__ */

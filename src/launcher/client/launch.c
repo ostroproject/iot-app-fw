@@ -31,8 +31,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
+#include <grp.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/capability.h>
 
 #define _GNU_SOURCE
 #include <getopt.h>
@@ -46,12 +49,53 @@
 #include <iot/common/transport.h>
 #include <iot/common/json.h>
 #include <iot/common/utils.h>
+#include <iot/utils/manifest.h>
+#include <iot/utils/identity.h>
+#include <iot/utils/appid.h>
 
 #include "launcher/iot-launch.h"
+#include "launcher/daemon/msg.h"
+
+#ifdef ENABLE_SECURITY_MANAGER
+#  include <sys/smack.h>
+#  include <security-manager/security-manager.h>
+#endif
 
 #ifndef PATH_MAX
 #    define PATH_MAX 1024
 #endif
+
+
+/*
+ * logging and debugging macros
+ */
+
+#define launch_info  iot_log_info
+#define launch_error iot_log_error
+#define launch_warn  iot_log_warning
+#define launch_debug iot_debug
+
+#define launch_fail(_l, _error, _usage, ...) do { \
+        if (_usage)                               \
+            print_usage(_l, _error, __VA_ARGS__); \
+        else {                                    \
+            iot_log_error(__VA_ARGS__);           \
+            exit(_error);                         \
+        }                                         \
+    } while (0)
+
+
+/*
+ * launcher modes
+ */
+
+typedef enum {
+    LAUNCHER_SETUP = 0,                  /* start application */
+    LAUNCHER_STOP,                       /* stop application */
+    LAUNCHER_CLEANUP,                    /* cleanup after application */
+    LAUNCHER_LIST_INSTALLED,             /* list installed applications */
+    LAUNCHER_LIST_RUNNING,               /* list running applications */
+} launcher_mode_t;
 
 
 /*
@@ -60,29 +104,106 @@
 
 typedef struct {
     iot_mainloop_t    *ml;               /* mainloop */
-    iot_transport_t   *t;                /* transport to privileged */
+    iot_transport_t   *t;                /* transport to daemon */
+    int                seqno;            /* next message sequence number */
     const char        *addr;             /* address we listen on */
+    const char        *argv0;            /* us, the launcher client */
+    launcher_mode_t    mode;             /* start/stop/cleanup */
+
+    /* application options */
     const char        *appid;            /* application id */
-    const char        *argv0;            /* us... */
-    int                argc;             /* number of arguments for exec */
-    char             **argv;             /* arguments for exec */
+    int                argc;             /* number of extra arguments */
+    char             **argv;             /* the extra arguments */
+    char              *cgroup;           /* cgroup path when in agent mode */
+
+    uid_t              uid;              /* resolved user */
+    gid_t             *gids;             /* resolved groups */
+    int                ngid;
+    iot_manifest_t    *m;                /* application manifest */
+    char             **app_argv;         /* (extra) application arguments */
+    int                app_argc;         /* number of application arguments */
+
+    const char        *pkg;              /* package name */
+    const char        *app;              /* application name (within manifest) */
+    const char        *fqai;             /* fully qualified application id */
+
+    /* development mode options */
+    const char        *label;            /* run with this SMACK label */
+    const char        *user;             /* run as this user */
+    const char        *groups;           /* run with this group */
+    const char        *privileges;       /* run with these privileges */
+    const char        *manifest;         /* run with this manifest */
+    int                shell : 1;        /* run a shell instead of the app */
+    int                bringup : 1;      /* run in SMACK bringup mode */
+    int                unconfined : 1;   /* run in SMACK unconfined mode */
 
     int                log_mask;         /* what to log */
-    const char        *log_target;       /* where to log it to */
-    int                agent;            /* running as cgroup release agent */
-    int                cleanup;          /* whether launching or cleaning up */
-    iot_sighandler_t  *sh_int;           /* SIGINT handler */
-    iot_sighandler_t  *sh_term;          /* SIGHUP handler */
+    const char        *log_target;       /* where to log it */
+
+    iot_sighandler_t  *sig_int;          /* SIGINT handler */
+    iot_sighandler_t  *sig_term;         /* SIGHUP handler */
 } launcher_t;
+
+
+/* XXX temporary hack */
+static bool iot_development_mode(void)
+{
+    return true;
+}
 
 
 /*
  * command line processing
  */
 
+static bool from_source_tree(const char *argv0, char *base, size_t size)
+{
+    char *e;
+    int   n;
+
+    if ((e = strstr(argv0, "/src/iot-launch")) == NULL &&
+        (e = strstr(argv0, "/src/.libs/lt-iot-launch")) == NULL)
+        return false;
+
+    if (base != NULL) {
+        n = e - argv0;
+
+        if (n >= (int)size)
+            n = size - 1;
+
+        snprintf(base, size, "%*.*s", n, n, argv0);
+    }
+
+    return true;
+}
+
+
+static bool is_cgroup_agent(const char *argv0)
+{
+    return strstr(argv0, "iot-launch-agent") != NULL;
+}
+
+
+static const char *launcher_base(const char *argv0)
+{
+    const char *base;
+
+    base = strrchr(argv0, '/');
+
+    if (base == NULL)
+        return argv0;
+
+    base++;
+    if (!strncmp(base, "lt-", 3))
+        return base + 3;
+    else
+        return base;
+}
+
+
 static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
 {
-    va_list ap;
+    va_list     ap;
     const char *base;
 
     if (fmt && *fmt) {
@@ -92,85 +213,121 @@ static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
         printf("\n");
     }
 
-    if ((base = strrchr(l->argv0, '/')) != NULL) {
-        base++;
-        if (!strncmp(base, "lt-", 3))
-            base += 3;
-    }
-    else
-        base = l->argv0;
+    base = launcher_base(l->argv0);
 
     printf("usage:\n");
-    printf("  %s [options] --appid <app> [-- args]\n", base);
+    printf("To start an application:\n");
+    printf("  %s [options] --app <pkg>[:<app>] [-- extra-args]\n", base);
+    printf("To stop an application:\n");
+    printf("  %s [options] --stop --app <pkg>[:<app>]\n", base);
+    printf("To clean up after an application has exited:\n");
     printf("  %s [options] [--cleanup] <cgroup-path>\n\n", base);
     printf("The possible options are:\n"
-           "  -s, --server=<SERVER>          server transport address\n"
-           "  -l, --log-level=<LEVELS>       logging level to use\n"
-           "      LEVELS is a comma separated list of info, error and warning\n"
-           "  -t, --log-target=<TARGET>      log target to use\n"
-           "      TARGET is one of stderr,stdout,syslog, or a logfile path\n"
-           "  -v, --verbose                  increase logging verbosity\n"
-           "  -d, --debug                    enable given debug configuration\n"
-           "  -h, --help                     show (this) help on usage\n\n");
+           "  -s, --server=<SERVER>        server transport address\n"
+           "  -a, --app=<APPID>            application to start\n"
+           "  -l, --log-level=<LEVELS>     what messages to log\n"
+           "    LEVELS is a comma-separated list of info, error and warning\n"
+           "  -t, --log-target=<TARGET>    where to log messages\n"
+           "    TARGET is one of stderr, stdout, syslog, or a logfile path\n"
+           "  -v, --verbose                increase logging verbosity\n"
+           "  -d, --debug=<SITE>           turn on debugging for the give site\n"
+           "    SITE can be of the form 'function', '@file-name', or '*'\n"
+           "  -h, --help                   show this help message\n");
 
-    printf("In first (--appid) mode, the application corresponding to the\n"
-           "given appid will be launched with the given arguments. In the\n"
-           "second (--cleanup) mode, the environment for the application\n"
-           "corresponding to the given cgroup path will be cleaned up.\n");
+    if (!iot_development_mode())
+        goto out;
 
+    printf("Development-mode options:\n");
+    printf("  -S, --shell                  start a shell, not the application\n"
+           "  -u, --unconfined             set the SMACK label to unconfined\n"
+           "  -B, --bringup                run in SMACK bringup mode\n"
+           "  -L, --label=<LABEL>          run with the given SMACK label\n"
+           "  -U, --user=<USER>            run with the given user ID\n"
+           "  -G, --group=<GROUP>          run with the given group ID\n"
+           "  -P, --privilege=<PRIVILEGES> run with the given privileges\n"
+           "  -M, --manifest=<PATH>        run with the given manifest\n");
+
+ out:
     if (exit_code < 0)
         return;
     else
         exit(exit_code);
 }
 
-static void config_set_defaults(launcher_t *l, char *argv0)
+
+static void config_set_defaults(launcher_t *l, const char *argv0)
 {
-    l->argv0 = argv0;
-    l->addr  = IOT_LAUNCH_ADDRESS;
+    char common[PATH_MAX], user[PATH_MAX], base[PATH_MAX];
 
-    if (strstr(argv0, "/src/iot-launch") != NULL ||
-        strstr(argv0, "/src/.libs/lt-iot-launch") != NULL) {
-        iot_log_mask_t saved = iot_log_set_mask(IOT_LOG_MASK_WARNING);
-        iot_log_warning("*** Setting defaults for running from source tree...");
-        iot_log_set_mask(saved);
+    l->argv0      = argv0;
+    l->addr       = IOT_LAUNCH_ADDRESS;
+    l->mode       = is_cgroup_agent(argv0) ? LAUNCHER_CLEANUP : LAUNCHER_SETUP;
+    l->log_mask   = IOT_LOG_UPTO(IOT_LOG_WARNING);
+    l->log_target = "stderr";
 
-        l->log_mask   = IOT_LOG_UPTO(IOT_LOG_INFO);
-        l->log_target = IOT_LOG_TO_STDERR;
+    iot_log_set_mask(l->log_mask);
+    iot_log_set_target(l->log_target);
+
+    if (from_source_tree(argv0, base, sizeof(base))) {
+        iot_log_warning("*** Setting up defaults for a source tree run.");
+        l->log_mask = IOT_LOG_UPTO(IOT_LOG_INFO);
+        iot_log_set_mask(l->log_mask);
+
+        snprintf(common, sizeof(common), "%s/manifests/common", base);
+        snprintf(user, sizeof(user), "%s/manifests/user", base);
+        iot_log_warning("common manifest directory set to '%s'", common);
+        iot_log_warning("user manifest directory set to '%s'", user);
+
+        iot_manifest_set_directories(common, user);
     }
-    else {
-        l->log_mask   = IOT_LOG_MASK_ERROR;
-        l->log_target = IOT_LOG_TO_STDERR;
-    }
-
-    l->agent = strstr(argv0, "iot-launch-agent") == NULL ? FALSE : TRUE;
 }
 
 
 static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 {
-#   define OPTIONS "s:a:cl:t:vd:h"
-    struct option options[] = {
-        { "server"           , required_argument, NULL, 's' },
-        { "appid"            , required_argument, NULL, 'a' },
-        { "cleanup"          , no_argument      , NULL, 'c' },
-        { "log-level"        , required_argument, NULL, 'l' },
-        { "log-target"       , required_argument, NULL, 't' },
-        { "verbose"          , optional_argument, NULL, 'v' },
-        { "debug"            , required_argument, NULL, 'd' },
-        { "help"             , no_argument      , NULL, 'h' },
-        { NULL, 0, NULL, 0 }
-    };
+#   define STDOPTS "s:a:k:cl:t:v::d:h"
+#   define DEVOPTS "SUBL:U:G:P:M:"
+#   define STDOPTIONS                                                   \
+        { "server"           , required_argument, NULL, 's' },          \
+        { "app"              , required_argument, NULL, 'a' },          \
+        { "stop"             , no_argument      , NULL, 'k' },          \
+        { "cleanup"          , no_argument      , NULL, 'c' },          \
+        { "log-level"        , required_argument, NULL, 'l' },          \
+        { "log-target"       , required_argument, NULL, 't' },          \
+        { "verbose"          , optional_argument, NULL, 'v' },          \
+        { "debug"            , required_argument, NULL, 'd' },          \
+        { "help"             , no_argument      , NULL, 'h' }
+#   define DEVOPTIONS                                                   \
+        { "shell"            , no_argument      , NULL, 'S' },          \
+        { "unconfined"       , no_argument      , NULL, 'u' },          \
+        { "bringup"          , no_argument      , NULL, 'B' },          \
+        { "label"            , required_argument, NULL, 'L' },          \
+        { "uid"              , required_argument, NULL, 'U' },          \
+        { "gid"              , required_argument, NULL, 'G' },          \
+        { "privilege"        , required_argument, NULL, 'P' },          \
+        { "manifest"         , required_argument, NULL, 'M' }
+#   define ENDOPTIONS { NULL , 0, NULL, 0 }
+
+    struct option stdopts[] = { STDOPTIONS, ENDOPTIONS };
+    struct option devopts[] = { STDOPTIONS, DEVOPTIONS, ENDOPTIONS };
+
+    const char    *OPTIONS;
+    struct option *options;
 
     int opt, help;
 
     IOT_UNUSED(envp);
 
-    config_set_defaults(l, argv[0]);
-    iot_log_set_mask(l->log_mask);
-    iot_log_set_target(l->log_target);
-
     help = FALSE;
+
+    if (!iot_development_mode()) {
+        OPTIONS = STDOPTS;
+        options = stdopts;
+    }
+    else {
+        OPTIONS = STDOPTS""DEVOPTS;
+        options = devopts;
+    }
 
     while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
         switch (opt) {
@@ -179,28 +336,27 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
             break;
 
         case 'a':
-            if (l->agent)
-                print_usage(l, EINVAL,
-                            "appid (%s) given in release agent mode", optarg);
             l->appid = optarg;
             break;
 
+        case 'k':
+            l->mode = LAUNCHER_STOP;
+            break;
+
         case 'c':
-            l->cleanup = TRUE;
+            l->mode = LAUNCHER_CLEANUP;
+            break;
+
+            /*
+             * logging, debugging and help
+             */
+        case 'l':
+            l->log_mask = iot_log_parse_levels(optarg);
             break;
 
         case 'v':
             l->log_mask <<= 1;
             l->log_mask  |= 1;
-            iot_log_set_mask(l->log_mask);
-            break;
-
-        case 'l':
-            l->log_mask = iot_log_parse_levels(optarg);
-            if (l->log_mask < 0)
-                print_usage(l, EINVAL, "invalid log level '%s'", optarg);
-            else
-                iot_log_set_mask(l->log_mask);
             break;
 
         case 't':
@@ -209,12 +365,48 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 
         case 'd':
             l->log_mask |= IOT_LOG_MASK_DEBUG;
+            iot_log_set_mask(l->log_mask);
             iot_debug_set_config(optarg);
             iot_debug_enable(TRUE);
             break;
 
         case 'h':
             help++;
+            break;
+
+            /*
+             * development mode options
+             */
+        case 'S':
+            l->shell = 1;
+            break;
+
+        case 'u':
+            l->unconfined = 1;
+            break;
+
+        case 'B':
+            l->bringup = 1;
+            break;
+
+        case 'L':
+            l->label = optarg;
+            break;
+
+        case 'U':
+            l->user = optarg;
+            break;
+
+        case 'G':
+            l->groups = optarg;
+            break;
+
+        case 'P':
+            l->privileges = optarg;
+            break;
+
+        case 'M':
+            l->manifest = optarg;
             break;
 
         default:
@@ -232,19 +424,6 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 }
 
 
-static void setup_logging(launcher_t *l)
-{
-    const char *target;
-
-    target = iot_log_parse_target(l->log_target);
-
-    if (!target)
-        iot_log_error("invalid log target: '%s'", l->log_target);
-    else
-        iot_log_set_target(target);
-}
-
-
 static void set_linebuffered(FILE *stream)
 {
     fflush(stream);
@@ -256,6 +435,26 @@ static void set_nonbuffered(FILE *stream)
 {
     fflush(stream);
     setvbuf(stream, NULL, _IONBF, 0);
+}
+
+
+static void setup_logging(launcher_t *l)
+{
+    const char *target;
+
+    if (l->log_mask < 0)
+        print_usage(l, EINVAL, "invalid log level '%s'", optarg);
+
+    target = iot_log_parse_target(l->log_target);
+
+    if (!target)
+        print_usage(l, EINVAL, "invalid log target '%s'", l->log_target);
+
+    iot_log_set_mask(l->log_mask);
+    iot_log_set_target(target);
+
+    set_linebuffered(stdout);
+    set_nonbuffered(stderr);
 }
 
 
@@ -289,30 +488,156 @@ static void run_mainloop(launcher_t *l)
 }
 
 
-static void setup_signals(launcher_t *l)
+static void install_signal_handlers(launcher_t *l)
 {
-    l->sh_int  = iot_add_sighandler(l->ml, SIGINT , signal_handler, l);
-    l->sh_term = iot_add_sighandler(l->ml, SIGTERM, signal_handler, l);
+    l->sig_int  = iot_add_sighandler(l->ml, SIGINT , signal_handler, l);
+    l->sig_term = iot_add_sighandler(l->ml, SIGTERM, signal_handler, l);
+
+    if (l->sig_int == NULL || l->sig_term == NULL)
+        launch_fail(l, EINVAL, false, "Failed to install signal handlers.");
 }
 
 
-static void clear_signals(launcher_t *l)
+static void remove_signal_handlers(launcher_t *l)
 {
-    iot_del_sighandler(l->sh_int);
-    iot_del_sighandler(l->sh_term);
+    iot_del_sighandler(l->sig_int);
+    iot_del_sighandler(l->sig_term);
 
-    l->sh_int  = NULL;
-    l->sh_term = NULL;
+    l->sig_int  = NULL;
+    l->sig_term = NULL;
 }
 
+
+int set_user(launcher_t *l)
+{
+    return setreuid(l->uid, l->uid);
+}
+
+
+int set_groups(launcher_t *l)
+{
+    gid_t gids[64];
+    int   ngid, saved_errno;
+
+    saved_errno = errno;
+    if (setgroups(l->ngid, l->gids) < 0) {
+        if (errno == EPERM) {
+            ngid    = getgroups(IOT_ARRAY_SIZE(gids) - 1, gids + 1);
+            gids[0] = getgid();
+            ngid++;
+
+            if (ngid == l->ngid) {
+                if (!memcmp(gids, l->gids, ngid * sizeof(gids[0]))) {
+                    errno = saved_errno;
+                    return 0;
+                }
+            }
+        }
+
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int drop_privileges(launcher_t *l)
+{
+    cap_t c;
+
+    IOT_UNUSED(l);
+
+    if ((c = cap_init()) == NULL)
+        return -1;
+
+    if (cap_clear(c) < 0)
+        return -1;
+
+    if (cap_set_proc(c) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+#ifdef ENABLE_SECURITY_MANAGER
+
+int set_smack_label(launcher_t *l)
+{
+    return smack_set_label_for_self(l->fqai);
+}
+
+
+static void security_setup(launcher_t *l)
+{
+    if (l->label || l->user || l->groups || l->privileges) {
+        if (!iot_development_mode())
+            launch_fail(l, EINVAL, false, "Hmm... not in development mode.");
+
+        if (set_smack_label(l) < 0)
+            launch_fail(l, errno, false, "Failed to set SMACK label (%d: %s).",
+                        errno, strerror(errno));
+
+        if (set_groups(l) < 0)
+            launch_fail(l, errno, false, "Failed to set groups (%d: %s).",
+                        errno, strerror(errno));
+
+        if (set_user(l) < 0)
+            launch_fail(l, errno, false, "Failed to set user id (%d: %s).",
+                        errno, strerror(errno));
+
+        if (drop_privileges(l) < 0)
+            launch_fail(l, errno, false, "Failed to drop privileges (%d: %s).",
+                        errno, strerror(errno));
+    }
+    else {
+        if (security_manager_set_process_label_from_appid(l->fqai) != 0)
+            launch_fail(l, 1, false, "Failed to set SMACK label.");
+
+        if (security_manager_set_process_groups_from_appid(l->fqai) != 0)
+            launch_fail(l, 1, false, "Failed to set groups.");
+
+        if (security_manager_drop_process_privileges() != 0)
+            launch_fail(l, 1, false, "Failed to drop privileges.");
+    }
+}
+
+#else
+
+static void security_setup(launcher_t *l)
+{
+    launch_warn("Support for Security-Manager is disabled.");
+
+    if (set_groups(l) < 0)
+        launch_fail(l, errno, false, "Failed to set groups (%d: %s).",
+                    errno, strerror(errno));
+
+    if (set_user(l) < 0)
+        launch_fail(l, errno, false, "Failed to switch user id (%d: %s).",
+                    errno, strerror(errno));
+
+    if (drop_privileges(l) < 0)
+        launch_fail(l, errno, false, "Failed to drop privileges (%d: %s).",
+                    errno, strerror(errno));
+}
+
+#endif
 
 static int launch_process(launcher_t *l)
 {
-    char *argv[l->argc + 1];
+    char *argv[l->app_argc + 1];
 
-    memcpy(argv, l->argv, sizeof(l->argv[0]) * l->argc);
-    argv[l->argc] = NULL;
-    clear_signals(l);
+    if (l->shell) {
+        launch_warn("Launching debug/development shell...");
+        argv[0] = "/bin/bash";
+        argv[1] = NULL;
+    }
+    else {
+        memcpy(argv, l->app_argv, sizeof(l->app_argv[0]) * l->app_argc);
+        argv[l->app_argc] = NULL;
+    }
+
+    remove_signal_handlers(l);
 
     return execv(argv[0], argv);
 }
@@ -333,68 +658,53 @@ static void closed_cb(iot_transport_t *t, int error, void *user_data)
     IOT_UNUSED(t);
 
     if (error != 0)
-        iot_log_error("Connection closed with error %d (%s).",
-                      error, strerror(error));
+        launch_fail(l, error, false, "Connection to closed with error %d: %s.",
+                    error, strerror(error));
     else
-        iot_log_info("Connection closed.");
+        launch_info("Connection closed.");
 
     close_connection(l);
 }
 
 
-static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
+static void recv_cb(iot_transport_t *t, iot_json_t *rpl, void *user_data)
 {
-    launcher_t  *l = (launcher_t *)user_data;
-    const char  *type, *error, *sep;
-    int          status;
-    char         cmd[1024], *p;
-    int          i, n, len;
+    launcher_t *l = (launcher_t *)user_data;
+    int         status;
+    const char *message;
+    iot_json_t *data;
 
     IOT_UNUSED(t);
 
-    iot_debug("received message: %s", iot_json_object_to_string(msg));
+    launch_debug("received message: %s", iot_json_object_to_string(rpl));
 
-    if (!iot_json_get_string(msg, "type", &type) || strcmp(type, "status") != 0)
-        goto malformed;
-    if (!iot_json_get_integer(msg, "status", &status))
-        goto malformed;
+    status = msg_status_data(rpl, &message, &data);
 
-    if (status != 0) {
-        if (!iot_json_get_string(msg, "message", &error))
-            error = NULL;
-        iot_log_error("%s request failed with error %d (%s).",
-                      l->cleanup ? "Cleanup" : "Launch",  status,
-                      error ? error : "unknown error");
-        exit(status);
-    }
+    if (status != 0)
+        launch_fail(l, status, false,
+                    "Request failed (%d: %s).", status, message);
 
-    if (!l->cleanup) {
-        len = sizeof(cmd) - 1;
-        sep = "";
-        p   = cmd;
-        for (i = 0; i < l->argc; i++) {
-            n = snprintf(p, len, "%s%s", sep, l->argv[i]);
-
-            if (n < 0 || n >= len)
-                break;
-
-            p   += n;
-            len -= n;
-            sep  = " ";
-        }
-
-        iot_log_info("Launching %s (as '%s')...", l->argv[0], cmd);
+    switch (l->mode) {
+    case LAUNCHER_SETUP:
+        security_setup(l);
         exit(launch_process(l));
-    }
-    else {
-        iot_log_info("Cleaning up '%s' done.", l->argv[0]);
-        exit(0);
-    }
+        break;
 
- malformed:
-    iot_log_error("Received unknown/malformed reply from the server (%s).",
-                  iot_json_object_to_string(msg));
-    exit(1);
+    case LAUNCHER_STOP:
+        exit(0);
+        break;
+
+    case LAUNCHER_CLEANUP:
+        exit(0);
+        break;
+
+    case LAUNCHER_LIST_INSTALLED:
+    case LAUNCHER_LIST_RUNNING:
+        break;
+
+    default:
+        break;
+    }
 }
 
 
@@ -413,124 +723,390 @@ static void setup_transport(launcher_t *l)
 
     len = iot_transport_resolve(NULL, l->addr, &addr, sizeof(addr), &type);
 
-    if (len <= 0) {
-        iot_log_error("Failed to resolve transport address for '%s'.", l->addr);
-
-        exit(1);
-    }
+    if (len <= 0)
+        launch_fail(l, EINVAL, false,
+                    "Failed to resolve trasnport address '%s'.", l->addr);
 
     flags = IOT_TRANSPORT_MODE_JSON;
-    l->t = iot_transport_create(l->ml, type, &evt, l, flags);
+    l->t  = iot_transport_create(l->ml, type, &evt, l, flags);
 
-    if (l->t == NULL) {
-        iot_log_error("Failed to create transport for address '%s'.", l->addr);
+    if (l->t == NULL)
+        launch_fail(l, EINVAL, false,
+                    "Failed to create transport for address '%s'.", l->addr);
 
-        exit(1);
-    }
-
-    if (!iot_transport_connect(l->t, &addr, len)) {
-        iot_log_error("Failed to connect to transport '%s'.", l->addr);
-        iot_transport_destroy(l->t);
-        l->t = NULL;
-
-        exit(1);
-    }
+    if (!iot_transport_connect(l->t, &addr, len))
+        launch_fail(l, EINVAL, false,
+                    "Failed to connect to transport address '%s'.", l->addr);
 }
 
 
-static int send_request(launcher_t *l)
+static int send_request(launcher_t *l, iot_json_t *req)
 {
-    iot_json_t *msg = iot_json_create(IOT_JSON_OBJECT);
-    int         status;
+    int status;
 
-    if (!l->cleanup) {
-        iot_json_add_string      (msg, "type"   , "setup");
-        iot_json_add_integer     (msg, "seqno"  , 1);
-        iot_json_add_string      (msg, "appid"  , l->appid);
-        iot_json_add_string_array(msg, "command", l->argv, l->argc);
-    }
-    else {
-        iot_json_add_string (msg, "type" , "cleanup");
-        iot_json_add_integer(msg, "seqno", 1);
-        iot_json_add_string (msg, "path" , l->argv[0]);
-    }
-
-    status = iot_transport_sendjson(l->t, msg);
-    iot_json_unref(msg);
-
-    if (!status) {
+    if (!iot_transport_sendjson(l->t, req)) {
         errno = EIO;
-        return -1;
+        status = -1;
     }
     else
-        return 0;
+        status = 0;
+
+    iot_json_unref(req);
+
+    return status;
 }
 
 
-void resolve_binary(launcher_t *l)
+static void resolve_identities(launcher_t *l)
 {
-    if (l->appid == NULL) {
-        if (l->argc == 0)
-            print_usage(l, EINVAL, "neither appid nor binary given to launch");
+    static gid_t gids[64];
+    int          ngid;
 
-        l->appid = "unknown";
+    /*
+     * Notes:
+     *   Resolve potentially textual user and group identities to unique
+     *   numeric ones.
+     *
+     *   In development mode one can override the identity the application
+     *   is started under. We check here if the user or group identities
+     *   were overridden and if so resolve the given ones to unique numeric
+     *   identities.
+     *
+     *   If we're not in development mode (or no overrides were given), we
+     *   use the default identities inherited from the user.
+     */
+
+    if (l->user != NULL) {
+        if ((l->uid = iot_get_userid(l->user)) == (uid_t)-1)
+            print_usage(l, EINVAL, "invalid user/user ID '%s'", l->user);
+    }
+    else
+        l->uid = getuid();
+
+    if (l->groups != NULL) {
+        ngid = iot_get_groups(l->groups, gids, IOT_ARRAY_SIZE(gids));
+
+        if (ngid < 0 || ngid >= (int)IOT_ARRAY_SIZE(gids))
+            print_usage(l, EINVAL, "invalid group/group list '%s'", l->groups);
     }
     else {
-        if (l->argc == 0) {
-        nobinary:
-            iot_log_error("Can't resolve appid (%s) to binary path. This "
-                          "feature has not been", l->appid);
-            iot_log_error("implemented yet. Please supply the absoute path to "
-                          "the binary as the");
-            iot_log_error("first argument for the time being...\n");
-            exit(1);
-        }
+        ngid = getgroups(IOT_ARRAY_SIZE(gids) - 1, gids + 1);
 
-        if (*l->argv[0] != '/')
-            goto nobinary;
+        if (ngid < 0)
+            print_usage(l, EINVAL, "failed to get supplementary group list");
+
+        gids[0] = getgid();
+        ngid++;
+    }
+
+    l->ngid = ngid;
+    l->gids = gids;
+}
+
+
+static void resolve_manifest(launcher_t *l)
+{
+    static char app[128];
+    char pkg[128];
+
+    /*
+     * Notes:
+     *   Resolve, validate and load manifest.
+     *
+     *   On the normal startup path (no manifest override, parse the given
+     *   application identifier (<pkg>, or <pkg>:<app>), then use <pkg> to
+     *   resolve the manifest from the normal per-user or common manifest
+     *   directories.
+     */
+
+    if (iot_appid_parse(l->appid, NULL, 0,
+                        pkg, sizeof(pkg), app, sizeof(app)) < 0)
+        print_usage(l, EINVAL, "failed to parse appid '%s'", l->appid);
+
+    l->app = app;
+    l->m   = iot_manifest_get(l->uid, pkg);
+
+    if (l->m == NULL)
+        print_usage(l, EINVAL, "failed to load manifest for user %d", l->uid);
+}
+
+
+static void override_manifest(launcher_t *l)
+{
+    static char app[128];
+    char pkg[128], *apps[1];
+    int  n;
+
+    /*
+     * Notes:
+     *   Validate and load an overridden manifest.
+     *
+     *   In development mode if a manifest was given validate and load it
+     *   here. Also if the application was omitted, pick the first one we
+     *   find in the loaded manifest (which is not guaranteed to be the
+     *   first one in the actual manifest file).
+     */
+
+    l->m = iot_manifest_read(l->manifest);
+
+    if (l->m == NULL)
+        print_usage(l, errno ? errno : EINVAL,
+                    "failed to read/load manifest '%s'", l->manifest);
+
+    *pkg = *app = '\0';
+
+    if (l->appid != NULL) {
+        iot_appid_parse(l->appid, NULL, 0, pkg, sizeof(pkg), app, sizeof(app));
+
+        if (!*app)
+            print_usage(l, EINVAL, "failed to parse appid '%s'", l->appid);
+
+        l->app = app;
+    }
+    else {
+        n = iot_manifest_applications(l->m, apps, sizeof(apps));
+
+        if (n < 1)
+            print_usage(l, EINVAL, "failed to pick default application");
+
+        l->app = apps[0];
     }
 }
 
 
-void resolve_cgroup(launcher_t *l)
+static void resolve_appid(launcher_t *l)
 {
-    l->cleanup = TRUE;
+    static char fqai[1024];
+    int         n;
 
-    if (l->argc != 1) {
-        iot_log_error("In cleanup/agent mode, a single cgroup path expected, "
-                      "(got %d arguments).", l->argc);
-        exit(1);
+    l->pkg = iot_manifest_package(l->m);
+
+    n = snprintf(fqai, sizeof(fqai), "%d:%s:%s", l->uid, l->pkg, l->app);
+
+    if (n < 0 || n >= (int)sizeof(fqai))
+        launch_fail(l, EINVAL, false, "Fully-qualified appid %d:%s:%s too long",
+                    l->uid, l->pkg, l->app);
+
+    l->fqai = fqai;
+}
+
+
+void resolve_cgroup_path(launcher_t *l)
+{
+    if (l->argc != 1)
+        launch_fail(l, EINVAL, false, "Agent expects a single cgroup path.");
+
+    if (*l->argv[0] != '/')
+        launch_fail(l, EINVAL, false, "Agent expects an absolute cgroup path.");
+
+    l->cgroup = l->argv[0];
+}
+
+
+static void launcher_init(launcher_t *l, const char *argv0, char **envp)
+{
+    IOT_UNUSED(envp);
+
+    iot_clear(l);
+
+    l->ml = iot_mainloop_create();
+
+    if (l->ml == NULL)
+        launch_fail(l, EINVAL, false, "Failed to create launcher mainloop.");
+
+    l->sig_int  = iot_add_sighandler(l->ml, SIGINT , signal_handler, l);
+    l->sig_term = iot_add_sighandler(l->ml, SIGTERM, signal_handler, l);
+
+    if (l->sig_int == NULL || l->sig_term == NULL)
+        launch_fail(l, EINVAL, false, "Failed to install signal handlers.");
+
+    l->seqno = 1;
+
+    install_signal_handlers(l);
+    config_set_defaults(l, argv0);
+}
+
+
+static iot_json_t *debug_options(launcher_t *l)
+{
+    iot_json_t *dbg;
+
+    if (l->label || l->user || l->groups || l->privileges || l->manifest ||
+        l->shell || l->bringup || l->unconfined) {
+        dbg = iot_json_create(IOT_JSON_OBJECT);
+
+        if (dbg == NULL)
+            launch_fail(l, EINVAL, false, "Failed to create debug submessage.");
+
+        if (l->label)
+            iot_json_add_string(dbg, "label", l->label);
+
+        if (l->user)
+            iot_json_add_integer(dbg, "user", l->uid);
+        if (l->groups)
+            iot_json_add_integer(dbg, "group", l->gids[0]);
+
+        if (l->privileges)
+            iot_json_add_string(dbg, "privileges", l->privileges);
+
+        if (l->manifest)
+            iot_json_add_string(dbg, "manifest", l->manifest);
+
+        if (l->shell)
+            iot_json_add_boolean(dbg, "shell", true);
+        if (l->bringup)
+            iot_json_add_boolean(dbg, "bringup", true);
+        if (l->unconfined)
+            iot_json_add_boolean(dbg, "unconfined", true);
+
+        return dbg;
+    }
+    else
+        return NULL;
+}
+
+
+static iot_json_t *create_request(launcher_t *l, const char *type, iot_json_t *r)
+{
+    iot_json_t *msg = iot_json_create(IOT_JSON_OBJECT);
+
+    if (msg == NULL) {
+        iot_json_unref(r);
+        return NULL;
     }
 
-    if (*l->argv[0] != '/') {
-        iot_log_error("In cleanup/agent mode, expecting a cgroup path (got %s).",
-                      l->argv[0]);
-        exit(1);
-    }
+    iot_json_add_string (msg, "type" , type);
+    iot_json_add_integer(msg, "seqno", l->seqno++);
+    iot_json_add_object (msg, type   , r);
+
+    return msg;
+}
+
+
+static iot_json_t *create_setup_request(launcher_t *l)
+{
+    static char *argv[128];
+    int          argc, i;
+    size_t       size;
+    iot_json_t  *req, *dbg;
+
+    size = IOT_ARRAY_SIZE(argv);
+    argc = iot_manifest_arguments(l->m, l->app, argv, size);
+
+    if (argc < 0)
+        launch_fail(l, EINVAL, false, "Failed to determine launch arguments.");
+
+    l->app_argv = argv;
+    l->app_argc = argc + l->argc;
+
+    if (l->app_argc > (int)size)
+        launch_fail(l, EINVAL, false, "Too many launch arguments (%d > %d).",
+                    l->app_argc, (int)size);
+
+    for (i = 0; i < l->argc; i++)
+        argv[argc + i] = l->argv[i];
+
+    req = iot_json_create(IOT_JSON_OBJECT);
+
+    if (req == NULL)
+        launch_fail(l, ENOMEM, false, "Failed to create setup request.");
+
+    iot_json_add_integer(req, "user"     , l->uid);
+    iot_json_add_integer(req, "group"    , l->gids[0]);
+    iot_json_add_string (req, "manifest" , iot_manifest_path(l->m));
+    iot_json_add_string (req, "app"      , l->app);
+
+    iot_json_add_string_array(req, "exec", l->app_argv, l->app_argc);
+
+    if ((dbg = debug_options(l)) != NULL)
+        iot_json_add(req, "debug", dbg);
+
+    return create_request(l, "setup", req);
+}
+
+
+static iot_json_t *create_stop_request(launcher_t *l)
+{
+    IOT_UNUSED(l);
+
+    launch_fail(l, EOPNOTSUPP, false, "Stop request not implemented... yet.");
+}
+
+
+static iot_json_t *create_cleanup_request(launcher_t *l)
+{
+    iot_json_t *req = iot_json_create(IOT_JSON_OBJECT);
+
+    if (req == NULL)
+        launch_fail(l, ENOMEM, false, "Failed to create cleanup request.");
+
+    iot_json_add_string(req, "cgroup", l->cgroup);
+
+    return create_request(l, "cleanup", req);
+}
+
+
+static iot_json_t *create_list_request(launcher_t *l)
+{
+    iot_json_t *req = iot_json_create(IOT_JSON_OBJECT);
+    const char *type;
+
+    if (req == NULL)
+        launch_fail(l, ENOMEM, false, "Failed to create list request.");
+
+    type = (l->mode == LAUNCHER_LIST_INSTALLED ? "installed" : "running");
+
+    iot_json_add_string(req, "type", type);
+
+    return create_request(l, "list", req);
 }
 
 
 int main(int argc, char *argv[], char **envp)
 {
-    launcher_t l;
+    launcher_t  l;
+    iot_json_t *req;
 
-    iot_clear(&l);
-    l.ml = iot_mainloop_create();
-
+    launcher_init(&l, argv[0], envp);
     parse_cmdline(&l, argc, argv, envp);
-
-    if (!l.agent && !l.cleanup)
-        resolve_binary(&l);
-    else
-        resolve_cgroup(&l);
-
-    setup_signals(&l);
     setup_logging(&l);
-    set_linebuffered(stdout);
-    set_nonbuffered(stderr);
+
+    if (l.mode == LAUNCHER_SETUP || l.mode == LAUNCHER_STOP) {
+        resolve_identities(&l);
+
+        if (l.manifest == NULL)
+            resolve_manifest(&l);
+        else
+            override_manifest(&l);
+
+        resolve_appid(&l);
+    }
+
+    switch (l.mode) {
+    case LAUNCHER_SETUP:
+        req = create_setup_request(&l);
+        break;
+
+    case LAUNCHER_STOP:
+        req = create_stop_request(&l);
+        break;
+
+    case LAUNCHER_CLEANUP:
+        req = create_cleanup_request(&l);
+        break;
+
+    case LAUNCHER_LIST_INSTALLED:
+    case LAUNCHER_LIST_RUNNING:
+        req = create_list_request(&l);
+        break;
+
+    default:
+        print_usage(&l, EINVAL, "Hmm... don't know what to do.");
+        exit(1);
+    }
 
     setup_transport(&l);
-    send_request(&l);
+    send_request(&l, req);
 
     run_mainloop(&l);
 

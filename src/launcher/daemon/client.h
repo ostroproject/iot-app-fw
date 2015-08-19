@@ -32,13 +32,13 @@
 
 #include <iot/common/macros.h>
 #include <iot/common/transport.h>
+#include <iot/common/json.h>
 
 #include "launcher/daemon/launcher.h"
-#include "launcher/daemon/message.h"
 
 client_t *client_create(launcher_t *l, iot_transport_t *t);
 void client_destroy(client_t *c);
 
-int client_subscribe(client_t *c, event_sub_req_t *req, reply_t *rpl);
+iot_json_t *client_subscribe(client_t *c, iot_json_t *req);
 
 #endif /* __IOT_LAUNCHER_CLIENT_H__ */

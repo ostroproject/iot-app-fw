@@ -38,8 +38,7 @@ const char *event_name(int id);
 #define event_lookup(name)   event_id(name, FALSE)
 #define event_register(name) event_id(name, TRUE)
 
-int event_route(launcher_t *l, uid_t user, const char *binary, pid_t pid,
-                const char *event, iot_json_t *data);
+iot_json_t *event_route(client_t *c, iot_json_t *req);
 
 
 #endif /* __IOT_LAUNCHER_EVENT_H__ */

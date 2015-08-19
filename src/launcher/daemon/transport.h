@@ -33,6 +33,6 @@
 #include "launcher/daemon/launcher.h"
 
 void transport_init(launcher_t *l);
-
+int transport_send(client_t *c, iot_json_t *msg);
 
 #endif /* __IOT_LAUNCHER_TRANSPORT_H__ */

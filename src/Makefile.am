@@ -495,6 +495,7 @@ iot_launch_daemon_SOURCES =				\
 		launcher/daemon/transport.c		\
 		launcher/daemon/cgroup.c		\
 		launcher/daemon/application.c		\
+		launcher/daemon/msg.c			\
 		launcher/daemon/nftables.c		\
 		launcher/daemon/security-manager.c	\
 		launcher/daemon/event.c			\
@@ -511,6 +512,7 @@ iot_launch_daemon_CFLAGS  =		\
 
 iot_launch_daemon_LDADD   =		\
 		libiot-common.la	\
+		libiot-utils.la		\
 		$(JSON_LIBS)		\
 		$(SYSTEMD_LIBS)
 
@@ -527,14 +529,21 @@ install-data-hook::
 
 bin_PROGRAMS += iot-launch
 
-iot_launch_SOURCES =			\
-		launcher/client/launch.c
+iot_launch_SOURCES =			 \
+		launcher/client/launch.c \
+		launcher/daemon/msg.c
+
 
 iot_launch_CFLAGS  =			\
-		$(AM_CFLAGS)
+		$(AM_CFLAGS)		\
+		$(LIBCAP_CFLAGS)	\
+		$(SECURITY_CFLAGS)
 
 iot_launch_LDADD   =			\
-		libiot-common.la
+		libiot-utils.la		\
+		libiot-common.la	\
+		$(LIBCAP_LIBS)		\
+		$(SECURITY_LIBS)
 
 iot_launch_LDFLAGS =			\
 		-rdynamic

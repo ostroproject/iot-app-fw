@@ -48,22 +48,24 @@ static void sm_exit(void)
 }
 
 
-static int sm_setup(application_t *app)
+static int sm_setup(application_t *a)
 {
     iot_log_info("Setting security manager rules for process %u (%s)...",
-                 app->id.process, app->id.binary);
+                 a->id.pid, a->id.argv[0]);
 
     return 0;
 }
 
 
-static int sm_cleanup(application_t *app)
+static int sm_cleanup(application_t *a)
 {
     iot_log_info("Cleaning up security manager rules for process %u (%s)...",
-                 app->id.process, app->id.binary);
+                 a->id.pid, a->id.argv[0]);
 
     return 0;
 }
 
 
-IOT_REGISTER_APPHANDLER(sm, sm_init, sm_exit, sm_setup, sm_cleanup);
+IOT_REGISTER_APPHOOK(sm, "security-manager",
+                     sm_init, sm_exit,
+                     sm_setup, sm_cleanup);
