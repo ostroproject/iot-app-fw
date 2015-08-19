@@ -49,6 +49,10 @@
 
 #include "launcher/iot-launch.h"
 
+#ifdef ENABLE_SECURITY_MANAGER
+#  include <security-manager/security-manager.h>
+#endif
+
 #ifndef PATH_MAX
 #    define PATH_MAX 1024
 #endif
@@ -306,6 +310,32 @@ static void clear_signals(launcher_t *l)
 }
 
 
+static void security_setup(launcher_t *l)
+{
+#ifdef ENABLE_SECURITY_MANAGER
+    int status;
+
+    if (l->appid == NULL) {
+        iot_log_error("missing application id for launch");
+        exit(1);
+    }
+
+    iot_log_info("preparing security framework...");
+
+    status = security_manager_prepare_app(l->appid);
+
+    iot_log_info("security-manager returned status %d:", status);
+
+    if (status != SECURITY_MANAGER_SUCCESS) {
+        iot_log_error("security framework preparation failed");
+        exit(1);
+    }
+#else
+    iot_log_info("security framework disabled!");
+#endif
+}
+
+
 static int launch_process(launcher_t *l)
 {
     char *argv[l->argc + 1];
@@ -369,6 +399,8 @@ static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
     }
 
     if (!l->cleanup) {
+        security_setup(l);
+
         len = sizeof(cmd) - 1;
         sep = "";
         p   = cmd;

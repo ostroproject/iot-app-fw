@@ -456,10 +456,12 @@ iot_launch_SOURCES =			\
 		launcher/client/launch.c
 
 iot_launch_CFLAGS  =			\
-		$(AM_CFLAGS)
+		$(AM_CFLAGS)		\
+		$(SECURITY_CFLAGS)
 
 iot_launch_LDADD   =			\
-		libiot-common.la
+		libiot-common.la	\
+		$(SECURITY_LIBS)
 
 iot_launch_LDFLAGS =			\
 		-rdynamic

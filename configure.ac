@@ -371,6 +371,28 @@ if test "$have_json_tokener_get_error" = "yes"; then
     AC_DEFINE([HAVE_JSON_TOKENER_GET_ERROR], 1, [json_tokener_get_error ?])
 fi
 
+# Check if support for Security Framework is enabled.
+AC_ARG_ENABLE(security,
+              [  --enable-security        enable support for Security Framework],
+	      [enable_security=$enableval], [enable_security=yes])
+
+if test "$enable_security" = "yes"; then
+    PKG_CHECK_MODULES(SECURITY, security-manager,
+                      [have_security=yes], [have_security=no])
+    if test "$have_security" = "no"; then
+        AC_MSG_ERROR([security-manager development libraries not found.])
+    fi
+else
+    AC_MSG_NOTICE([Security Framework support is disabled.])
+fi
+
+if test "$enable_security" = "yes"; then
+    AC_DEFINE([ENABLE_SECURITY_MANAGER], 1, [Enable Security Framework support ?])
+fi
+AM_CONDITIONAL(ENABLE_SECURITY_MANAGER, [test "$enable_security" = "yes"])
+
+
+
 # Set up IoT CFLAGS and LIBS.
 IOT_CFLAGS=""
 IOT_LIBS=""
