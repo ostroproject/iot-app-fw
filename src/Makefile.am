@@ -586,7 +586,7 @@ endif
 #
 
 if PYTHON_ENABLED
-python-bindings-build:
+python-bindings-build: libiot-glib.la libiot-common.la libiot-app.la
 	if test ! -f python/python-app-fw-wrapper.cpp; then \
 		d=$$(cd $(top_srcdir); pwd); \
 		ln -sf $$d/src/python/python-app-fw-wrapper.cpp python; \
