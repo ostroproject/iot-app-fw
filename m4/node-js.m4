@@ -35,6 +35,13 @@ AC_ARG_WITH(node,
             [  --with-node              enable NodeJS support],
             [node=$with_node], [node=none])
 
+# Make the old --enable-nodejs be an alias for --with-node.
+if test -z "$with_node"; then
+    AC_ARG_ENABLE(nodejs,
+                [  --enable-nodejs          enable default NodeJS support],
+                [with_node=$enableval; node=$with_node], [node=none])
+fi
+
 if test -z "$with_node"; then
     with_node="no"
 fi
