@@ -77,10 +77,10 @@ class IotApp(object):
                           self._status_handler, self._send_handler)
         # has to be called after initialization!
         self.subscriptions = set()
-        # dictionaries and counter for send_callbacks
-        self._send_callbacks = {}
-        self._send_arguments = {}
-        self._send_id = 0
+        # dictionaries and counter for 'send' and 'list' callbacks
+        self._callbacks = {}
+        self._arguments = {}
+        self._callback_id = 0
 
     def __del__(self):
         _logger.debug("__del__ IotApp")
@@ -135,15 +135,15 @@ class IotApp(object):
 
         if (callback != None):
             _verify_signature(callback, "Send callback", 4)
-            self._send_callbacks[self._send_id] = callback
-            self._send_arguments[self._send_id] = callback_data
+            self._callbacks[self._callback_id] = callback
+            self._arguments[self._callback_id] = callback_data
 
         if ('user' in target and target['user']):
             target['user'] = pwd.getpwnam(target['user']).pw_uid
 
         appfwwrapper.send_event(event=event, json_string=string_data,
-                                send_id=self._send_id, **target)
-        self._send_id += 1
+                                send_id=self._callback_id, **target)
+        self._callback_id += 1
 
     def update_subscriptions(self):
         """(None) -> None
@@ -155,6 +155,21 @@ class IotApp(object):
             modified in place.
         """
         appfwwrapper.subscribe_events(list(self.subscriptions))
+
+    def list_running(self, callback, callback_data=None):
+        _logger.debug("appfw, list_running")
+        _verify_signature(callback, "List callback", 4)
+        self._callbacks[self._callback_id] = callback
+        self._arguments[self._callback_id] = callback_data
+
+        appfwwrapper.list_running(self.callback_id)
+        
+        self.callback_id += 1
+
+
+    def list_all(self, callback, callback_data=None):
+        _logger.debug("appfw, list_all")
+        pass
 
     def _enable_debug(self, debug=["*"]):
         logging.basicConfig()
@@ -195,13 +210,29 @@ class IotApp(object):
     def _send_handler(self, callback_id, id, status, msg):
         _logger.debug("Python internal send callback")
         try:
-            if (callback_id in self._send_callbacks):
-                self._send_callbacks[callback_id](
-                    id, status, msg, self._send_arguments[callback_id])
-                del self._send_callbacks[callback_id]
+            if (callback_id in self._callbacks):
+                self._callbacks[callback_id](
+                    id, status, msg, self._arguments[callback_id])
+                del self._callbacks[callback_id]
+                del self._arguments[callback_id]
         except Exception as e:
             traceback.print_exc()
             print("Send handler threw an exception after receiving a " +
+                  "callback. Aborting:")
+            print(e.message)
+            sys.exit(1)
+
+    def _list_handler(self, callback_id, status, msg, apps):
+        _logger.debug("Python internal list callback")
+        try:
+            if (callback_id in self._callbacks):
+                self_callbacks[callback_id](
+                    apps, self._arguments[callback_id])
+                del self._callbacks[callback_id]
+                del self._arguments[callback_id]
+        except Exception as e:
+            traceback.print_exc()
+            print("List handler threw an exception after receiving a " +
                   "callback. Aborting:")
             print(e.message)
             sys.exit(1)

@@ -42,6 +42,7 @@ struct python_iot_app {
     PyObject* event_handler = NULL;
     PyObject* status_handler = NULL;
     PyObject* send_handler = NULL;
+    PyObject* list_handler = NULL;
     PyObject* AppfwError = NULL;
     std::unordered_set<int> send_ids;
 };
@@ -459,7 +460,7 @@ static PyObject* iot_py_app_send_event(PyObject* self, PyObject* args,
     return NULL;
 }
 
-static PyObject* iot_py_app_list_all(PyObject* self, PyObject* args)
+static PyObject* iot_py_app_list_running(PyObject* self, PyObject* args)
 {
     (void) (self);
     (void) (args);
