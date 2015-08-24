@@ -459,6 +459,22 @@ static PyObject* iot_py_app_send_event(PyObject* self, PyObject* args,
     return NULL;
 }
 
+static PyObject* iot_py_app_list_all(PyObject* self, PyObject* args)
+{
+    (void) (self);
+    (void) (args);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject* iot_py_app_list_all(PyObject* self, PyObject* args)
+{
+    (void) (self);
+    (void) (args);
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 /**
  * @brief Enable debugging messages of the IoT application framework.
  * @details Enable the IoT debugging and attach a list of debug sites to it.
@@ -541,6 +557,18 @@ static PyMethodDef appFwMethods[] = {
         (PyCFunction)iot_py_app_send_event,
         METH_VARARGS | METH_KEYWORDS,
         "Send event."
+    },
+    {
+        "list_running",
+        iot_py_app_list_running,
+        METH_VARARGS,
+        "List running IoT applications."
+    },
+    {
+        "list_all",
+        iot_py_app_list_all,
+        METH_VARARGS,
+        "List all installed IoT applications."
     },
     {
         "enable_debug",
