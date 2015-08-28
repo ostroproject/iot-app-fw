@@ -52,6 +52,7 @@ libiot_common_la_HEADERS =		\
 		common/mainloop.h	\
 		common/utils.h		\
 		common/socket-utils.h	\
+		common/file-utils.h	\
 		common/refcnt.h		\
 		common/fragbuf.h	\
 		common/json.h		\
@@ -67,6 +68,7 @@ libiot_common_la_REGULAR_SOURCES =		\
 		common/mainloop.c		\
 		common/utils.c			\
 		common/socket-utils.c		\
+		common/file-utils.c		\
 		common/fragbuf.c		\
 		common/json.c			\
 		common/transport.c		\
