@@ -160,6 +160,75 @@ $(top_srcdir)/linker-script.app: $(libiot_app_la_HEADERS)
 clean-linker-script::
 	-rm -f $(top_srcdir)/linker-script.app
 
+###################################
+# IoT utilities library
+
+lib_LTLIBRARIES += libiot-utils.la
+EXTRA_DIST      += utils/iot-utils.pc
+pkgconfig_DATA  += utils/iot-utils.pc
+
+libiot_utils_ladir      =						\
+		$(includedir)/iot/utils
+
+libiot_utils_la_HEADERS =						\
+		utils/manifest.h					\
+		utils/identity.h					\
+		utils/appid.h
+
+libiot_utils_la_REGULAR_SOURCES =					\
+		utils/manifest.c					\
+		utils/identity.c					\
+		utils/appid.c
+
+libiot_utils_la_SOURCES =						\
+		$(libiot_utils_la_REGULAR_SOURCES)
+
+libiot_utils_la_CFLAGS  =						\
+		$(AM_CFLAGS)						\
+		$(JSON_CFLAGS)
+
+libiot_utils_la_LDFLAGS =						\
+		-Wl,-version-script=$(top_srcdir)/linker-script.utils	\
+		-version-info @IOT_VERSION_INFO@
+
+libiot_utils_la_LIBADD  = 				\
+		libiot-common.la			\
+		$(JSON_LIBS)				\
+		-lrt
+
+libiot_utils_la_DEPENDENCIES =	\
+		$(top_srcdir)/linker-script.utils	\
+		$(filter %.la, $(libiot_utils_la_LIBADD))
+
+# linker script generation
+$(top_srcdir)/linker-script.utils: $(libiot_utils_la_HEADERS)
+	$(QUIET_GEN)$(GEN_LINKERSCRIPT) -q \
+		-P "$(CC)" -c "$(libiot_utils_la_CFLAGS)" \
+		-p '^iot_|^_iot_|^mrp_|^_mrp_' -o $@ $^
+
+clean-linker-script::
+	-rm -f $(top_srcdir)/linker-script.utils
+
+
+###################################
+# iot-manifest-test
+#
+
+bin_PROGRAMS += iot-manifest-test
+
+iot_manifest_test_SOURCES =		\
+		utils/tests/manifest-test.c
+
+iot_manifest_test_CFLAGS  =		\
+		$(AM_CFLAGS)
+
+iot_manifest_test_LDADD   =		\
+		libiot-utils.la		\
+		libiot-common.la
+
+iot_manifest_test_LDFLAGS =		\
+		-rdynamic
+
 
 ###################################
 # IoT pulse glue library

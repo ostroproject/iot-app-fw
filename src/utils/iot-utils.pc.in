@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: iot-utils
+Description: IoT Application Framework utility library.
+Requires: iot-common json-c
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -liot-utils -liot-common @JSON_LIBS@
+Cflags: -I${includedir} @JSON_CFLAGS@
