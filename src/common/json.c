@@ -351,6 +351,17 @@ void iot_json_del_member(iot_json_t *o, const char *key)
 }
 
 
+int iot_json_object_length(iot_json_t *o)
+{
+    int type;
+
+    if ((type = iot_json_get_type(o)) == IOT_JSON_OBJECT)
+        return json_object_object_length(o);
+    else
+        return type == IOT_JSON_NULL ? 0 : -1;
+}
+
+
 int iot_json_array_length(iot_json_t *a)
 {
     return json_object_array_length(a);
