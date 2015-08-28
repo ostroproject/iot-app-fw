@@ -63,6 +63,7 @@ typedef json_object iot_json_t;
 
 /** JSON object/member types. */
 typedef enum {
+    IOT_JSON_NULL    = json_type_null,
     IOT_JSON_STRING  = json_type_string,
     IOT_JSON_BOOLEAN = json_type_boolean,
     IOT_JSON_INTEGER = json_type_int,
@@ -181,6 +182,9 @@ int iot_json_get_member(iot_json_t *o, const char *key,
 
 /** Delete a member of a JSON object. */
 void iot_json_del_member(iot_json_t *o, const char *key);
+
+/** Get the number of fields of an object. */
+int iot_json_object_length(iot_json_t *o);
 
 /** Get the length of a JSON array object. */
 int iot_json_array_length(iot_json_t *a);
