@@ -258,6 +258,48 @@ iot_json_t *iot_manifest_data(iot_manifest_t *m, const char *app);
  */
 const char *iot_manifest_desktop_path(iot_manifest_t *m, const char *app);
 
+/**
+ * @brief Bitmasks describing manifest validation results.
+ */
+typedef enum {
+    IOT_MANIFEST_OK                = 0x000,
+    IOT_MANIFEST_FAILED            = 0x001,
+    IOT_MANIFEST_MISNAMED          = 0x002,
+    IOT_MANIFEST_UNLOADABLE        = 0x004,
+    IOT_MANIFEST_MALFORMED         = 0x008,
+    IOT_MANIFEST_MISSING_FIELD     = 0x010,
+    IOT_MANIFEST_INVALID_FIELD     = 0x020,
+    IOT_MANIFEST_INVALID_BINARY    = 0x040,
+    IOT_MANIFEST_INVALID_PRIVILEGE = 0x080,
+    IOT_MANIFEST_INVALID_DESKTOP   = 0x100,
+} iot_manifest_status_t;
+
+/**
+ * @brief Validate the given manifest file.
+ *
+ * Load temporarily the given manifest file and perform a number
+ * of sanity checks on it, then unload it.
+ *
+ * @param [in] usr   user for this manifest, or -1
+ * @param [in] path  path to manifest file
+ *
+ * @return Returns IOT_MANIFEST_OK (0) if the manifest passed all tests,
+ *         or a bitwise or indicating which tests the manifest failed.
+ */
+int iot_manifest_validate_file(uid_t usr, const char *path);
+
+/**
+ * @brief Validate the given loaded manifest.
+ *
+ * Perform a number of sanity checks on the given manifest.
+ *
+ * @param [in] m  manifest to validate.
+ *
+ * @return Returns IOT_MANIFEST_OK (0) if the manifest passed all tests,
+ *         or a bitwise or indicating which tests the manifest failed.
+ */
+int iot_manifest_validate(iot_manifest_t *m);
+
 
 #if 0
 /**

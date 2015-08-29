@@ -512,6 +512,190 @@ const char *iot_manifest_desktop_path(iot_manifest_t *m, const char *app)
 }
 
 
+static int validate_manifest_data(const char *pkg, iot_json_t *data,
+                                  bool needs_appid)
+{
+    iot_json_iter_t  it;
+    const char      *key;
+    iot_json_t      *val, *o;
+    const char      *s;
+    int              status, fldmask, i;
+
+    status  = 0;
+    fldmask = 0;
+
+    if (iot_json_get_type(data) != IOT_JSON_OBJECT)
+        return IOT_MANIFEST_MALFORMED;
+
+    iot_json_foreach_member(data, key, val, it) {
+        iot_debug("validating field '%s'... (status: 0x%x)", key, status);
+
+        if (!strcmp(key, "application")) {
+            fldmask |= 0x1;
+
+            if ((s = iot_json_string_value(val)) == NULL) {
+                status |= IOT_MANIFEST_INVALID_FIELD;
+                continue;
+            }
+
+            if (!needs_appid) {
+                if (strcmp(pkg, s)) {
+                    status |= IOT_MANIFEST_INVALID_FIELD;
+                }
+            }
+
+            continue;
+        }
+
+        if (!strcmp(key, "description")) {
+            fldmask |= 0x2;
+
+            if (iot_json_get_type(val) != IOT_JSON_STRING)
+                status |= IOT_MANIFEST_INVALID_FIELD;
+
+            continue;
+        }
+
+        if (!strcmp(key, "privileges")) {
+            fldmask |= 0x4;
+
+            if (iot_json_get_type(val) != IOT_JSON_ARRAY) {
+                status |= IOT_MANIFEST_INVALID_FIELD;
+                continue;
+            }
+
+            for (i = 0; i < iot_json_array_length(val); i++) {
+                if (!iot_json_array_get_string(val, i, &o))
+                    status |= IOT_MANIFEST_INVALID_FIELD;
+                break;
+            }
+
+            continue;
+        }
+
+        if (!strcmp(key, "execute")) {
+            fldmask |= 0x8;
+
+            if (iot_json_get_type(val) != IOT_JSON_ARRAY) {
+                status |= IOT_MANIFEST_INVALID_FIELD;
+                continue;
+            }
+
+            for (i = 0; i < iot_json_array_length(val); i++) {
+                if (!iot_json_array_get_string(val, i, &s))
+                    status |= IOT_MANIFEST_INVALID_FIELD;
+                else {
+                    struct stat st;
+
+                    if (stat(s, &st) < 0 && errno != EACCES)
+                        status |= IOT_MANIFEST_INVALID_BINARY;
+                    else {
+                        /* Hmm... maybe with SMACK this is not a good idea... */
+                        if (!S_ISREG(st.st_mode) ||
+                            !(st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
+                            status |= IOT_MANIFEST_INVALID_BINARY;
+                    }
+                }
+
+                break;
+            }
+
+            continue;
+        }
+
+        if (!strcmp(key, "desktop")) {
+            struct stat st;
+
+            if ((s = iot_json_string_value(val)) == NULL) {
+                status |= IOT_MANIFEST_INVALID_FIELD;
+                continue;
+            }
+
+            if (stat(s, &st) < 0 && errno != EACCES)
+                status |= IOT_MANIFEST_INVALID_DESKTOP;
+
+            if (!S_ISREG(st.st_mode))
+                status |= IOT_MANIFEST_INVALID_DESKTOP;
+
+            continue;
+        }
+
+        status |= IOT_MANIFEST_INVALID_FIELD;
+    }
+
+    if (((!needs_appid ? 0x1 : 0x0) | fldmask) != 0xf)
+        status |= IOT_MANIFEST_MISSING_FIELD;
+
+    return status;
+}
+
+
+static int manifest_validate(iot_manifest_t *m)
+{
+    iot_json_t *o;
+    int         status, i, n;
+
+    status = 0;
+
+    switch (iot_json_get_type(m->data)) {
+    case IOT_JSON_OBJECT:
+        status = validate_manifest_data(m->pkg, m->data, false);
+        break;
+
+    case IOT_JSON_ARRAY:
+        n = iot_json_array_length(m->data);
+        for (i = 0; i < n; i++) {
+            if (!iot_json_array_get_object(m->data, i, &o))
+                status |= IOT_MANIFEST_MALFORMED;
+            else
+                status |= validate_manifest_data(m->pkg, o, true);
+        }
+        break;
+
+    default:
+        status = IOT_MANIFEST_MALFORMED;
+        break;
+    }
+
+    return status;
+}
+
+
+int iot_manifest_validate(iot_manifest_t *m)
+{
+    return manifest_validate(m);
+}
+
+
+int iot_manifest_validate_file(uid_t usr, const char *path)
+{
+    iot_manifest_t *m;
+    char            pkg[128];
+    int             status;
+
+    status = 0;
+
+    if (manifest_pkg(path, pkg, sizeof(pkg)) == NULL)
+        return IOT_MANIFEST_MISNAMED;
+
+    m = manifest_alloc(usr, pkg, path);
+
+    if (m == NULL)
+        return IOT_MANIFEST_FAILED;
+
+    if (manifest_read(m) < 0) {
+        status = IOT_MANIFEST_UNLOADABLE;
+        goto out;
+    }
+
+    status = manifest_validate(m);
+
+ out:
+    manifest_free(m);
+    return status;
+}
+
+
 static uint32_t entry_hash(const void *key)
 {
     iot_manifest_t *m = (iot_manifest_t *)key;
