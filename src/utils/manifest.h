@@ -262,16 +262,16 @@ const char *iot_manifest_desktop_path(iot_manifest_t *m, const char *app);
  * @brief Bitmasks describing manifest validation results.
  */
 typedef enum {
-    IOT_MANIFEST_OK                = 0x000,
-    IOT_MANIFEST_FAILED            = 0x001,
-    IOT_MANIFEST_MISNAMED          = 0x002,
-    IOT_MANIFEST_UNLOADABLE        = 0x004,
-    IOT_MANIFEST_MALFORMED         = 0x008,
-    IOT_MANIFEST_MISSING_FIELD     = 0x010,
-    IOT_MANIFEST_INVALID_FIELD     = 0x020,
-    IOT_MANIFEST_INVALID_BINARY    = 0x040,
-    IOT_MANIFEST_INVALID_PRIVILEGE = 0x080,
-    IOT_MANIFEST_INVALID_DESKTOP   = 0x100,
+    IOT_MANIFEST_OK                = 0x000,  /**< checks OK */
+    IOT_MANIFEST_FAILED            = 0x001,  /**< unknown error */
+    IOT_MANIFEST_MISNAMED          = 0x002,  /**< not named *.manifest */
+    IOT_MANIFEST_UNLOADABLE        = 0x004,  /**< failed to load manifet */
+    IOT_MANIFEST_MALFORMED         = 0x008,  /**< not an array or object */
+    IOT_MANIFEST_MISSING_FIELD     = 0x010,  /**< missing mandatory field */
+    IOT_MANIFEST_INVALID_FIELD     = 0x020,  /**< field with invalid type */
+    IOT_MANIFEST_INVALID_BINARY    = 0x040,  /**< invalid/unexecutable binary */
+    IOT_MANIFEST_INVALID_PRIVILEGE = 0x080,  /**< invalid/unknown privilege */
+    IOT_MANIFEST_INVALID_DESKTOP   = 0x100,  /**< invalid desktop file */
 } iot_manifest_status_t;
 
 /**
