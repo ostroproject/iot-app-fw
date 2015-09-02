@@ -167,10 +167,14 @@ libiot_utils_ladir      =						\
 		$(includedir)/iot/utils
 
 libiot_utils_la_HEADERS =						\
-		utils/manifest.h
+		utils/manifest.h					\
+		utils/identity.h					\
+		utils/appid.h
 
 libiot_utils_la_REGULAR_SOURCES =					\
-		utils/manifest.c
+		utils/manifest.c					\
+		utils/identity.c					\
+		utils/appid.c
 
 libiot_utils_la_SOURCES =						\
 		$(libiot_utils_la_REGULAR_SOURCES)
