@@ -31,6 +31,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -46,6 +47,9 @@
 #include <iot/common/transport.h>
 #include <iot/common/json.h>
 #include <iot/common/utils.h>
+#include <iot/utils/manifest.h>
+#include <iot/utils/identity.h>
+#include <iot/utils/appid.h>
 
 #include "launcher/iot-launch.h"
 
@@ -64,17 +68,33 @@
 
 typedef struct {
     iot_mainloop_t    *ml;               /* mainloop */
-    iot_transport_t   *t;                /* transport to privileged */
+    iot_transport_t   *t;                /* transport to daemon */
     const char        *addr;             /* address we listen on */
-    const char        *appid;            /* application id */
-    const char        *argv0;            /* us... */
-    int                argc;             /* number of arguments for exec */
-    char             **argv;             /* arguments for exec */
-
     int                log_mask;         /* what to log */
-    const char        *log_target;       /* where to log it to */
-    int                agent;            /* running as cgroup release agent */
-    int                cleanup;          /* whether launching or cleaning up */
+    const char        *log_target;       /* where to log it */
+    const char        *argv0;            /* us, the launcher client */
+    /* application options */
+    const char        *app;              /* application to start/stop */
+    int                argc;             /* number of extra arguments */
+    char             **argv;             /* the extra arguments */
+    int                agent : 1;        /* running as cgroup release agent */
+    int                cleanup : 1;      /* cleaning up instead of launching */
+    /* special options for development mode */
+    const char        *label;            /* run with this SMACK label */
+    const char        *user;             /* run as this user */
+    const char        *group;            /* run with this group */
+    const char        *privileges;       /* run with these privilege */
+    const char        *manifest;         /* run with this manifest */
+    int                shell : 1;        /* run a shell instead of the app */
+    int                bringup : 1;      /* run in SMACK bringup mode */
+    int                unconfined : 1;   /* run in SMACK unconfined mode */
+
+    const char        *appid;            /* application id */
+
+    uid_t              uid;              /* resolved user */
+    gid_t              gid;              /* resolved group */
+    iot_manifest_t    *m;                /* application manifest */
+
     iot_sighandler_t  *sh_int;           /* SIGINT handler */
     iot_sighandler_t  *sh_term;          /* SIGHUP handler */
 } launcher_t;
@@ -84,9 +104,61 @@ typedef struct {
  * command line processing
  */
 
+/* XXX temporary hack */
+static bool iot_development_mode(void)
+{
+    return true;
+}
+
+
+static bool from_source_tree(const char *argv0, char *base, size_t size)
+{
+    char *e;
+    int   n;
+
+    if ((e = strstr(argv0, "/src/iot-launch")) == NULL &&
+        (e = strstr(argv0, "/src/.libs/lt-iot-launch")) == NULL)
+        return false;
+
+    if (base != NULL) {
+        n = e - argv0;
+
+        if (n >= (int)size)
+            n = size - 1;
+
+        snprintf(base, size, "%*.*s", n, n, argv0);
+    }
+
+    return true;
+}
+
+
+static bool is_cgroup_agent(const char *argv0)
+{
+    return strstr(argv0, "iot-launch-agent") != NULL;
+}
+
+
+static const char *launcher_base(const char *argv0)
+{
+    const char *base;
+
+    base = strrchr(argv0, '/');
+
+    if (base == NULL)
+        return argv0;
+
+    base++;
+    if (!strncmp(base, "lt-", 3))
+        return base + 3;
+    else
+        return base;
+}
+
+
 static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
 {
-    va_list ap;
+    va_list     ap;
     const char *base;
 
     if (fmt && *fmt) {
@@ -96,85 +168,120 @@ static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
         printf("\n");
     }
 
-    if ((base = strrchr(l->argv0, '/')) != NULL) {
-        base++;
-        if (!strncmp(base, "lt-", 3))
-            base += 3;
-    }
-    else
-        base = l->argv0;
+    base = launcher_base(l->argv0);
 
     printf("usage:\n");
-    printf("  %s [options] --appid <app> [-- args]\n", base);
+    printf("To start an application:\n");
+    printf("  %s [options] --app <pkg>[:<app>] [-- extra-args]\n", base);
+    printf("To clean up after an application has exited:\n");
     printf("  %s [options] [--cleanup] <cgroup-path>\n\n", base);
     printf("The possible options are:\n"
-           "  -s, --server=<SERVER>          server transport address\n"
-           "  -l, --log-level=<LEVELS>       logging level to use\n"
-           "      LEVELS is a comma separated list of info, error and warning\n"
-           "  -t, --log-target=<TARGET>      log target to use\n"
-           "      TARGET is one of stderr,stdout,syslog, or a logfile path\n"
-           "  -v, --verbose                  increase logging verbosity\n"
-           "  -d, --debug                    enable given debug configuration\n"
-           "  -h, --help                     show (this) help on usage\n\n");
+           "  -s, --server=<SERVER>        server transport address\n"
+           "  -a, --app=<APPID>            application to start\n"
+           "  -l, --log-level=<LEVELS>     what messages to log\n"
+           "    LEVELS is a comma-separated list of info, error and warning\n"
+           "  -t, --log-target=<TARGET>    where to log messages\n"
+           "    TARGET is one of stderr, stdout, syslog, or a logfile path\n"
+           "  -v, --verbose                increase logging verbosity\n"
+           "  -d, --debug=<SITE>           turn on debugging for the give site\n"
+           "    SITE can be of the form 'function', '@file-name', or '*'\n"
+           "  -h, --help                   show this help message\n");
 
-    printf("In first (--appid) mode, the application corresponding to the\n"
-           "given appid will be launched with the given arguments. In the\n"
-           "second (--cleanup) mode, the environment for the application\n"
-           "corresponding to the given cgroup path will be cleaned up.\n");
+    if (!iot_development_mode())
+        goto out;
 
+    printf("Development-mode options:\n");
+    printf("  -S, --shell                  start a shell, not the application\n"
+           "  -u, --unconfined             set the SMACK label to unconfined\n"
+           "  -B, --bringup                run in SMACK bringup mode\n"
+           "  -L, --label=<LABEL>          run with the given SMACK label\n"
+           "  -U, --user=<USER>            run with the given user ID\n"
+           "  -G, --group=<GROUP>          run with the given group ID\n"
+           "  -P, --privilege=<PRIVILEGES> run with the given privileges\n"
+           "  -M, --manifest=<PATH>        run with the given manifest\n");
+
+ out:
     if (exit_code < 0)
         return;
     else
         exit(exit_code);
 }
 
+
 static void config_set_defaults(launcher_t *l, char *argv0)
 {
+    char common[PATH_MAX], user[PATH_MAX], base[PATH_MAX];
+
     l->argv0 = argv0;
     l->addr  = IOT_LAUNCH_ADDRESS;
+    l->agent = is_cgroup_agent(argv0) ? 1 : 0;
 
-    if (strstr(argv0, "/src/iot-launch") != NULL ||
-        strstr(argv0, "/src/.libs/lt-iot-launch") != NULL) {
-        iot_log_mask_t saved = iot_log_set_mask(IOT_LOG_MASK_WARNING);
-        iot_log_warning("*** Setting defaults for running from source tree...");
-        iot_log_set_mask(saved);
+    l->log_mask   = IOT_LOG_UPTO(IOT_LOG_WARNING);
+    l->log_target = "stderr";
 
-        l->log_mask   = IOT_LOG_UPTO(IOT_LOG_INFO);
-        l->log_target = IOT_LOG_TO_STDERR;
+    iot_log_set_mask(l->log_mask);
+    iot_log_set_target(l->log_target);
+
+    if (from_source_tree(argv0, base, sizeof(base))) {
+        iot_log_warning("*** Setting up defaults for a source tree run.");
+        l->log_mask = IOT_LOG_UPTO(IOT_LOG_INFO);
+        iot_log_set_mask(l->log_mask);
+
+        snprintf(common, sizeof(common), "%s/manifests/common", base);
+        snprintf(user, sizeof(user), "%s/manifests/user", base);
+        iot_log_warning("common manifest directory set to '%s'", common);
+        iot_log_warning("user manifest directory set to '%s'", user);
+
+        iot_manifest_set_directories(common, user);
     }
-    else {
-        l->log_mask   = IOT_LOG_MASK_ERROR;
-        l->log_target = IOT_LOG_TO_STDERR;
-    }
-
-    l->agent = strstr(argv0, "iot-launch-agent") == NULL ? FALSE : TRUE;
 }
 
 
 static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 {
-#   define OPTIONS "s:a:cl:t:vd:h"
-    struct option options[] = {
-        { "server"           , required_argument, NULL, 's' },
-        { "appid"            , required_argument, NULL, 'a' },
-        { "cleanup"          , no_argument      , NULL, 'c' },
-        { "log-level"        , required_argument, NULL, 'l' },
-        { "log-target"       , required_argument, NULL, 't' },
-        { "verbose"          , optional_argument, NULL, 'v' },
-        { "debug"            , required_argument, NULL, 'd' },
-        { "help"             , no_argument      , NULL, 'h' },
-        { NULL, 0, NULL, 0 }
-    };
+#   define STDOPTS "s:a:cl:t:v::d:h"
+#   define DEVOPTS "SUBL:U:G:P:M:"
+#   define STDOPTIONS                                                   \
+        { "server"           , required_argument, NULL, 's' },          \
+        { "app"              , required_argument, NULL, 'a' },          \
+        { "cleanup"          , no_argument      , NULL, 'c' },          \
+        { "log-level"        , required_argument, NULL, 'l' },          \
+        { "log-target"       , required_argument, NULL, 't' },          \
+        { "verbose"          , optional_argument, NULL, 'v' },          \
+        { "debug"            , required_argument, NULL, 'd' },          \
+        { "help"             , no_argument      , NULL, 'h' }
+#   define DEVOPTIONS                                                   \
+        { "shell"            , no_argument      , NULL, 'S' },          \
+        { "unconfined"       , no_argument      , NULL, 'u' },          \
+        { "bringup"          , no_argument      , NULL, 'B' },          \
+        { "label"            , required_argument, NULL, 'L' },          \
+        { "uid"              , required_argument, NULL, 'U' },          \
+        { "gid"              , required_argument, NULL, 'G' },          \
+        { "privilege"        , required_argument, NULL, 'P' },          \
+        { "manifest"         , required_argument, NULL, 'M' }
+#   define ENDOPTIONS { NULL , 0, NULL, 0 }
+
+    struct option stdopts[] = { STDOPTIONS, ENDOPTIONS };
+    struct option devopts[] = { STDOPTIONS, DEVOPTIONS, ENDOPTIONS };
+
+    const char    *OPTIONS;
+    struct option *options;
 
     int opt, help;
 
     IOT_UNUSED(envp);
 
-    config_set_defaults(l, argv[0]);
-    iot_log_set_mask(l->log_mask);
-    iot_log_set_target(l->log_target);
-
     help = FALSE;
+    config_set_defaults(l, argv[0]);
+
+    if (!iot_development_mode()) {
+        OPTIONS = STDOPTS;
+        options = stdopts;
+    }
+    else {
+        OPTIONS = STDOPTS""DEVOPTS;
+        options = devopts;
+    }
 
     while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
         switch (opt) {
@@ -183,28 +290,23 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
             break;
 
         case 'a':
-            if (l->agent)
-                print_usage(l, EINVAL,
-                            "appid (%s) given in release agent mode", optarg);
             l->appid = optarg;
             break;
 
         case 'c':
-            l->cleanup = TRUE;
+            l->cleanup = 1;
+            break;
+
+            /*
+             * logging, debugging and help
+             */
+        case 'l':
+            l->log_mask = iot_log_parse_levels(optarg);
             break;
 
         case 'v':
             l->log_mask <<= 1;
             l->log_mask  |= 1;
-            iot_log_set_mask(l->log_mask);
-            break;
-
-        case 'l':
-            l->log_mask = iot_log_parse_levels(optarg);
-            if (l->log_mask < 0)
-                print_usage(l, EINVAL, "invalid log level '%s'", optarg);
-            else
-                iot_log_set_mask(l->log_mask);
             break;
 
         case 't':
@@ -213,12 +315,48 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 
         case 'd':
             l->log_mask |= IOT_LOG_MASK_DEBUG;
+            iot_log_set_mask(l->log_mask);
             iot_debug_set_config(optarg);
             iot_debug_enable(TRUE);
             break;
 
         case 'h':
             help++;
+            break;
+
+            /*
+             * special debugging mode options
+             */
+        case 'S':
+            l->shell = 1;
+            break;
+
+        case 'u':
+            l->unconfined = 1;
+            break;
+
+        case 'B':
+            l->bringup = 1;
+            break;
+
+        case 'L':
+            l->label = optarg;
+            break;
+
+        case 'U':
+            l->user = optarg;
+            break;
+
+        case 'G':
+            l->group = optarg;
+            break;
+
+        case 'P':
+            l->privileges = optarg;
+            break;
+
+        case 'M':
+            l->manifest = optarg;
             break;
 
         default:
@@ -236,19 +374,6 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 }
 
 
-static void setup_logging(launcher_t *l)
-{
-    const char *target;
-
-    target = iot_log_parse_target(l->log_target);
-
-    if (!target)
-        iot_log_error("invalid log target: '%s'", l->log_target);
-    else
-        iot_log_set_target(target);
-}
-
-
 static void set_linebuffered(FILE *stream)
 {
     fflush(stream);
@@ -260,6 +385,26 @@ static void set_nonbuffered(FILE *stream)
 {
     fflush(stream);
     setvbuf(stream, NULL, _IONBF, 0);
+}
+
+
+static void setup_logging(launcher_t *l)
+{
+    const char *target;
+
+    if (l->log_mask < 0)
+        print_usage(l, EINVAL, "invalid log level '%s'", optarg);
+
+    target = iot_log_parse_target(l->log_target);
+
+    if (!target)
+        print_usage(l, EINVAL, "invalid log target '%s'", l->log_target);
+
+    iot_log_set_mask(l->log_mask);
+    iot_log_set_target(target);
+
+    set_linebuffered(stdout);
+    set_nonbuffered(stderr);
 }
 
 
@@ -331,6 +476,7 @@ static void security_setup(launcher_t *l)
         exit(1);
     }
 #else
+    IOT_UNUSED(l);
     iot_log_info("security framework disabled!");
 #endif
 }
@@ -542,6 +688,124 @@ void resolve_cgroup(launcher_t *l)
 }
 
 
+static void resolve_identities(launcher_t *l)
+{
+    /*
+     * resolve user and/or group if given (in development mode)
+     */
+    if (l->user != NULL) {
+        if ((l->uid = iot_get_userid(l->user)) == (uid_t)-1)
+            print_usage(l, EINVAL, "invalid user/user ID '%s'", l->user);
+    }
+    else
+        l->uid = (uid_t)-1;
+
+    if (l->group != NULL) {
+        if ((l->gid = iot_get_groupid(l->group)) == (gid_t)-1)
+            print_usage(l, EINVAL, "invalid group/group ID '%s'", l->group);
+    }
+    else
+        l->gid = (gid_t)-1;
+}
+
+
+static void resolve_application(launcher_t *l)
+{
+    static char app[128];
+    char  pkg[128];
+    uid_t uid;
+
+    if (iot_appid_parse(l->appid, NULL, 0,
+                        pkg, sizeof(pkg), app, sizeof(app)) < 0)
+        print_usage(l, EINVAL, "failed to parse appid '%s'", l->appid);
+
+    l->app = app;
+
+    uid  = l->uid != (uid_t)-1 ? l->uid : getuid();
+    l->m = iot_manifest_get(uid, pkg);
+
+    if (l->m == NULL)
+        print_usage(l, EINVAL, "failed to find/load manifest for user %d", uid);
+}
+
+
+static void override_manifest(launcher_t *l)
+{
+    static char app[128];
+    char pkg[128], *apps[1];
+    int  n;
+
+    l->m = iot_manifest_read(l->manifest);
+
+    if (l->m == NULL)
+        print_usage(l, errno ? errno : EINVAL,
+                    "failed to read/load manifest '%s'", l->manifest);
+
+    *pkg = *app = '\0';
+
+    if (l->appid != NULL) {
+        iot_appid_parse(l->appid, NULL, 0, pkg, sizeof(pkg), app, sizeof(app));
+
+        if (!*app)
+            print_usage(l, EINVAL, "failed to parse appid '%s'", l->appid);
+
+        l->app = app;
+    }
+    else {
+        n = iot_manifest_applications(l->m, apps, sizeof(apps));
+
+        if (n < 1)
+            print_usage(l, EINVAL, "failed to pick default application");
+
+        l->app = apps[0];
+    }
+}
+
+
+static void resolve_startup_options(launcher_t *l)
+{
+    char *argv[128];
+    int   argc, i;
+
+    resolve_identities(l);
+
+    if (l->manifest == NULL)
+        resolve_application(l);
+    else
+        override_manifest(l);
+
+    argc = iot_manifest_arguments(l->m, l->app, argv, sizeof(argv));
+
+    if (argc < 0 || argc > (int)sizeof(argv))
+        print_usage(l, EINVAL, "invalid manifest, too many exec arguments");
+
+    if (argc + l->argc > (int)sizeof(argv))
+        print_usage(l, EINVAL, "invalid usage, too many exec arguments");
+
+    for (i = 0; i < l->argc; i++)
+        argv[argc++ + i] = l->argv[i];
+
+    for (i = 0; i < argc; i++)
+        printf("argv[%d] = '%s'\n", i, argv[i]);
+}
+
+
+
+static void send_cleanup_request(launcher_t *l)
+{
+    exit(0);
+}
+
+
+static void send_startup_request(launcher_t *l)
+{
+    /*setup_transport(l);*/
+    resolve_startup_options(l);
+
+    exit(0);
+}
+
+
 int main(int argc, char *argv[], char **envp)
 {
     launcher_t l;
@@ -551,15 +815,15 @@ int main(int argc, char *argv[], char **envp)
 
     parse_cmdline(&l, argc, argv, envp);
 
-    if (!l.agent && !l.cleanup)
-        resolve_binary(&l);
-    else
-        resolve_cgroup(&l);
-
     setup_signals(&l);
     setup_logging(&l);
-    set_linebuffered(stdout);
-    set_nonbuffered(stderr);
+
+    if (l.agent || l.cleanup) {
+        resolve_cgroup(&l);
+        send_cleanup_request(&l);
+    }
+    else
+        send_startup_request(&l);
 
     setup_transport(&l);
     send_request(&l);

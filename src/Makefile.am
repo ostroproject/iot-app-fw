@@ -531,6 +531,7 @@ iot_launch_CFLAGS  =			\
 		$(SECURITY_CFLAGS)
 
 iot_launch_LDADD   =			\
+		libiot-utils.la		\
 		libiot-common.la	\
 		$(SECURITY_LIBS)
 
