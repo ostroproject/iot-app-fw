@@ -41,6 +41,12 @@
 IOT_CDECL_BEGIN
 
 /**
+ * \addtogroup IoTCommonIfra
+ *
+ * @{
+ */
+
+/**
  * @brief Default location for commonly accessible/installed manifests.
  */
 #ifndef IOT_MANIFEST_COMMON_PATH
@@ -300,6 +306,11 @@ int iot_manifest_validate_file(uid_t usr, const char *path);
  */
 int iot_manifest_validate(iot_manifest_t *m);
 
+/**
+ * @brief Read the given manifest file.
+ */
+iot_manifest_t *iot_manifest_read(const char *path);
+
 
 #if 0
 /**
@@ -336,6 +347,9 @@ iot_manifest_cache_mode_t iot_manifest_cache(iot_manifest_cache_mode_t m);
 
 #endif
 
+/**
+ * @}
+ */
 
 IOT_CDECL_END
 
