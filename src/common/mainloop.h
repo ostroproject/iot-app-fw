@@ -40,7 +40,7 @@
 IOT_CDECL_BEGIN
 
 /**
- * \addtogroup MurphCommonInfra
+ * \addtogroup IoTCommonInfra
  * @{
  *
  * @file mainloop.h
