@@ -320,6 +320,30 @@ iot_manifest_t *iot_manifest_get(uid_t usr, const char *pkg)
 }
 
 
+iot_manifest_t *iot_manifest_read(const char *path)
+{
+    iot_manifest_t *m;
+    char            pkg[128];
+
+    if (manifest_pkg(path, pkg, sizeof(pkg)) == NULL) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    m = manifest_alloc(-1, pkg, path);
+
+    if (m == NULL)
+        return NULL;
+
+    if (manifest_read(m) < 0) {
+        manifest_free(m);
+        return NULL;
+    }
+
+    return manifest_ref(m);
+}
+
+
 void iot_manifest_unref(iot_manifest_t *m)
 {
     manifest_unref(m);
