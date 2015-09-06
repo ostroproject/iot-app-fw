@@ -154,6 +154,26 @@ static inline void iot_list_move(iot_list_hook_t *new_hook,
     iot_list_init(old_hook);
 }
 
+/** Append the tail to head, reinitialize tail to be empty. */
+static inline void iot_list_join(iot_list_hook_t *head,
+                                 iot_list_hook_t *tail)
+{
+    if (iot_list_empty(tail))
+        return;
+
+    if (iot_list_empty(head)) {
+        iot_list_move(head, tail);
+        return;
+    }
+
+    head->prev->next = tail->next;
+    tail->next->prev = head->prev;
+
+    tail->prev->next = head;
+    head->prev = tail->prev;
+
+    iot_list_init(tail);
+}
 
 /** Update a list when the address of a hook has changed (eg. by realloc). */
 static inline void iot_list_update_address(iot_list_hook_t *new_addr,
