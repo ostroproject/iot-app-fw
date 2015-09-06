@@ -97,17 +97,17 @@ client_t *client_create(launcher_t *l, iot_transport_t *t)
     }
 
     c->l = l;
-    c->id.process = uc.pid;
-    c->id.user    = uc.uid;
-    c->id.group   = uc.gid;
+    c->id.uid = uc.uid;
+    c->id.gid = uc.gid;
+    c->id.pid = uc.pid;
 
     if (t == l->lnc)
         c->type = CLIENT_LAUNCHER;
     else {
         c->type = CLIENT_IOTAPP;
 
-        if (!cgroup_path(cgpath, sizeof(cgpath), CGROUP_DIR, c->id.process) ||
-            !(c->id.cgroup = iot_strdup(cgpath))) {
+        if (!cgroup_path(cgpath, sizeof(cgpath), CGROUP_DIR, c->id.pid) ||
+            !(c->id.cgrp = iot_strdup(cgpath))) {
             client_destroy(c);
 
             return NULL;
@@ -130,10 +130,8 @@ void client_destroy(client_t *c)
     iot_transport_disconnect(c->t);
     iot_transport_destroy(c->t);
 
-    iot_free(c->id.cgroup);
     iot_free(c->id.label);
-    iot_free(c->id.binary);
-    iot_free(c->id.appid);
+    iot_free(c->id.cgrp);
 
     iot_free(c);
 }

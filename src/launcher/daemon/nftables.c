@@ -48,24 +48,24 @@ static void nftables_exit(void)
 }
 
 
-static int nftables_setup(application_t *app)
+static int nftables_setup(application_t *a)
 {
     iot_log_info("Setting nftables rules for process %u (%s)...",
-                 app->id.process, app->id.binary);
+                 a->id.pid, a->id.argv[0]);
 
     return 0;
 }
 
 
-static int nftables_cleanup(application_t *app)
+static int nftables_cleanup(application_t *a)
 {
     iot_log_info("Cleaning up nftables rules for process %u (%s)...",
-                 app->id.process, app->id.binary);
+                 a->id.pid, a->id.argv[0]);
 
     return 0;
 }
 
 
-IOT_REGISTER_APPHANDLER(nftables,
-                        nftables_init, nftables_exit,
-                        nftables_setup, nftables_cleanup);
+IOT_REGISTER_APPHOOK(nftables, "nftables",
+                     nftables_init, nftables_exit,
+                     nftables_setup, nftables_cleanup);

@@ -43,6 +43,9 @@
 #include "launcher/daemon/application.h"
 #include "launcher/daemon/event.h"
 
+
+typedef iot_json_t *(*handler_t)(client_t *c, iot_json_t *req);
+
 static void lnc_connect(iot_transport_t *lt, void *user_data);
 static void lnc_closed(iot_transport_t *t, int error, void *user_data);
 static void lnc_recv(iot_transport_t *t, iot_json_t *req, void *user_data);
@@ -52,14 +55,14 @@ void transport_init(launcher_t *l)
 {
     static iot_transport_evt_t lnc_evt = {
         { .recvjson     = lnc_recv },
-        { .recvjsonfrom = NULL    },
+        { .recvjsonfrom = NULL     },
         .connection     = lnc_connect,
         .closed         = lnc_closed,
     };
 
     static iot_transport_evt_t app_evt = {
         { .recvjson     = lnc_recv },
-        { .recvjsonfrom = NULL    },
+        { .recvjsonfrom = NULL     },
         .connection     = lnc_connect,
         .closed         = lnc_closed,
     };
@@ -77,7 +80,7 @@ void transport_init(launcher_t *l)
         exit(1);
     }
 
-    flags  = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_NONBLOCK | \
+    flags = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_NONBLOCK |  \
         IOT_TRANSPORT_MODE_JSON;
 
     if (l->lnc_fd < 0) {
@@ -171,6 +174,12 @@ int transport_reply(iot_transport_t *t, reply_t *rpl)
 }
 
 
+static inline const char *client_type(client_t *c)
+{
+    return c->type == CLIENT_LAUNCHER ? "launcher" : "IoT-app";
+}
+
+
 static inline int allowed_request(client_t *c, request_t *req)
 {
     if (c->type == CLIENT_LAUNCHER)
@@ -195,7 +204,7 @@ static void lnc_connect(iot_transport_t *lt, void *user_data)
     }
     else
         iot_log_info("Accepted launcher connection from process %u.",
-                     c->id.process);
+                     c->id.pid);
 }
 
 
@@ -215,6 +224,106 @@ static void lnc_closed(iot_transport_t *t, int error, void *user_data)
 }
 
 
+static inline void dump_message(iot_json_t *msg, const char *fmt, ...)
+{
+    va_list ap;
+    char    buf[4096], *p;
+    int     l, n, line;
+
+    if (!iot_debug_check(__func__, __FILE__, line=__LINE__))
+        return;
+
+    p = buf;
+    n = sizeof(buf);
+
+    va_start(ap, fmt);
+    l = vsnprintf(p, (size_t)n, fmt, ap);
+    va_end(ap);
+
+    if (l < 0 || l >= n)
+        return;
+
+    p += l;
+    n -= l;
+
+    l = snprintf(p, n, "%s", iot_json_object_to_string(msg));
+
+    if (l < 0 || l >= n)
+        return;
+
+    iot_log_msg(IOT_LOG_DEBUG, __FILE__, line, __func__, "%s", buf);
+}
+
+
+static handler_t request_handler(const char *type)
+{
+    static struct {
+        const char        *type;
+        handler_t  fn;
+    } handlers[] = {
+        { "setup"           , application_setup   },
+        { "cleanup"         , application_cleanup },
+        { "list"            , application_list    },
+#if 0
+        { "stop"            , application_stop    },
+        { "query"           , application_query   },
+        { "subscribe-events", client_subscribe    },
+        { "send-event"      , event_route         },
+#endif
+        { NULL, NULL },
+    }, *h;
+
+    for (h = handlers; h->type != NULL; h++)
+        if (!strcmp(h->type, type))
+            return h->fn;
+
+    return NULL;
+}
+
+
+static void lnc_recv(iot_transport_t *t, iot_json_t *msg, void *user_data)
+{
+    client_t   *c = (client_t *)user_data;
+    handler_t   h;
+    const char *f, *type;
+    iot_json_t *req, *rpl, *s;
+    int         seq;
+
+    dump_message(msg, "Received %s message: ", client_type(c));
+
+    if (!iot_json_get_string (msg, f="type" , &type) ||
+        !iot_json_get_integer(msg, f="seqno", &seq ) ||
+        !iot_json_get_object (msg, f=type   , &req )) {
+        iot_log_error("Malformed request from %s, missing field '%s'.",
+                      client_type(c), f);
+        return;
+    }
+
+    if ((h = request_handler(type)) == NULL) {
+        iot_log_error("Unknown request of type '%s' from %s.", type,
+                      client_type(c));
+        return;
+    }
+
+    if ((s = h(c, req)) == NULL)
+        return;
+
+    if ((rpl = iot_json_create(IOT_JSON_OBJECT)) == NULL) {
+        iot_json_unref(s);
+        return;
+    }
+
+    iot_json_add_string (rpl, "type"  , "status");
+    iot_json_add_integer(rpl, "seqno" , seq     );
+    iot_json_add_object (rpl, "status", s       );
+
+    iot_transport_sendjson(t, rpl);
+
+    iot_json_unref(rpl);
+}
+
+
+#if 0
 static void lnc_recv(iot_transport_t *t, iot_json_t *msg, void *user_data)
 {
     client_t   *c = (client_t *)user_data;
@@ -283,4 +392,4 @@ static void lnc_recv(iot_transport_t *t, iot_json_t *msg, void *user_data)
     transport_reply(c->t, &rpl);
     request_free(req);
 }
-
+#endif

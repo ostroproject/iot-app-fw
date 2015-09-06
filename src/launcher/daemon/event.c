@@ -126,14 +126,14 @@ int event_route(launcher_t *l, uid_t user, const char *binary, pid_t process,
         c = iot_list_entry(cp, typeof(*c), hook);
 
         iot_log_info("user: %u, %u, binary: %s, %s, pid: %u, %u",
-                     user, c->id.user,
+                     user, c->id.uid,
                      binary ? binary : "<NULL>",
-                     c->id.binary ? c->id.binary : "<NULL>",
-                     process, c->id.process);
+                     c->id.argv[0] ? c->id.argv[0] : "<NULL>",
+                     process, c->id.pid);
 
-        if (!((user == (uid_t)-1   || user == c->id.user) &&
-              (binary == NULL      || !strcmp(binary, c->id.binary)) &&
-              (process == (pid_t)0 || process == c->id.process)))
+        if (!((user == (uid_t)-1   || user == c->id.uid) &&
+              (binary == NULL      || !strcmp(binary, c->id.argv[0])) &&
+              (process == (pid_t)0 || process == c->id.pid)))
             continue;
 
         if (!iot_mask_test(&c->mask, id))
@@ -151,7 +151,7 @@ int event_route(launcher_t *l, uid_t user, const char *binary, pid_t process,
             iot_json_add        (msg, "data" , iot_json_ref(data));
         }
 
-        iot_log_info("Sending message to pid %u: %s...", c->id.process,
+        iot_log_info("Sending message to pid %u: %s...", c->id.pid,
                      iot_json_object_to_string(msg));
 
         iot_transport_sendjson(c->t, msg);

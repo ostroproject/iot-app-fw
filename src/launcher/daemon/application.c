@@ -35,15 +35,263 @@
 
 #include "launcher/daemon/launcher.h"
 #include "launcher/daemon/transport.h"
+#include "launcher/daemon/msg.h"
 #include "launcher/daemon/message.h"
 #include "launcher/daemon/cgroup.h"
 
-#ifndef PATH_MAX
-#    define PATH_MAX 1024
-#endif
 
-static IOT_LIST_HOOK(handlers);
+/* list for collecting auto-registered application-handling hooks */
+static IOT_LIST_HOOK(hooks);
 
+typedef enum {
+    HOOK_INIT = 0,
+    HOOK_EXIT,
+    HOOK_STARTUP,
+    HOOK_CLEANUP
+} hook_event_t;
+
+
+void application_hook_register(app_hook_t *h)
+{
+    iot_list_init(&h->hook);
+    iot_list_append(&hooks, &h->hook);
+}
+
+
+static int hook_trigger(launcher_t *l, application_t *a, hook_event_t e)
+{
+    iot_list_hook_t *p, *n;
+    app_hook_t      *h;
+
+    iot_list_join(&l->hooks, &hooks);
+
+    iot_list_foreach(&l->hooks, p, n) {
+        h = iot_list_entry(p, typeof(*h), hook);
+
+        switch (e) {
+        case HOOK_INIT:
+            if (h->init && h->init() < 0)
+                return -1;
+            break;
+        case HOOK_EXIT:
+            if (h->exit)
+                h->exit();
+            break;
+        case HOOK_STARTUP:
+            if (h->setup(a) < 0)
+                return -1;
+            break;
+        case HOOK_CLEANUP:
+            if (h->cleanup(a) < 0)
+                return -1;
+            break;
+        default:
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+int application_init(launcher_t *l)
+{
+    iot_list_move(&l->hooks, &hooks);
+
+    if (hook_trigger(l, NULL, HOOK_INIT) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+void application_exit(launcher_t *l)
+{
+    hook_trigger(l, NULL, HOOK_EXIT);
+
+    iot_list_init(&hooks);
+    iot_list_init(&l->hooks);
+}
+
+
+static int copy_arguments(iot_json_t *args, char ***argvp)
+{
+    char **argv;
+    int    argc, i;
+
+    if (args == NULL || (argc = iot_json_array_length(args)) < 0)
+        return -1;
+
+    if (argc == 0) {
+        *argvp = NULL;
+        return 0;
+    }
+
+    if ((argv = iot_allocz_array(char *, argc)) == NULL)
+        return -1;
+
+    for (i = 0; i < argc; i++) {
+        if (!iot_json_array_get_string(args, i, argv + i))
+            goto fail;
+        argv[i] = iot_strdup(argv[i]);
+        if (argv[i] == NULL)
+            goto fail;
+    }
+
+    *argvp = argv;
+    return argc;
+
+ fail:
+    for (i = 0; i < argc; i++)
+        iot_free(argv[i]);
+    return -1;
+}
+
+
+iot_json_t *application_setup(client_t *c, iot_json_t *req)
+{
+    launcher_t     *l = c->l;
+    iot_json_t     *s;
+    application_t  *a;
+    iot_manifest_t *m;
+    const char     *f, *manifest, *app, *base;
+    uid_t           uid;
+    gid_t           gid;
+    iot_json_t     *exec, *dbg;
+    char            dir[PATH_MAX];
+
+    if (!iot_json_get_string (req, f="manifest", &manifest) ||
+        !iot_json_get_string (req, f="app"     , &app     ) ||
+        !iot_json_get_integer(req, f="user"    , &uid     ) ||
+        !iot_json_get_integer(req, f="group"   , &gid     ) ||
+        !iot_json_get_array  (req, f="exec"    , &exec    )) {
+        s = status_error(EINVAL, "malformed message, missing field %s", f);
+        goto fail;
+    }
+
+    m = iot_manifest_read(manifest);
+
+    if (m == NULL) {
+        s = status_error(EINVAL, "failed to load manifest '%s'", manifest);
+        goto fail;
+    }
+
+    a = iot_allocz(sizeof(*a));
+
+    if (a == NULL)
+        return NULL;
+
+    iot_list_init(&a->hook);
+    a->l = l;
+    a->c = c;
+    a->m = m;
+
+    a->app     = iot_strdup(app);
+    a->id.argc = copy_arguments(exec, &a->id.argv);
+
+    if (a->app == NULL || a->id.argc < 0) {
+        s = NULL;
+        goto fail;
+    }
+
+    /* XXX TODO: should handle identity from dbg here... */
+    iot_json_get_object(req, "dbg", &dbg);
+
+    a->id.uid = (uid != NO_UID ? uid : c->id.uid);
+    a->id.gid = (gid != NO_GID ? gid : c->id.gid);
+    a->id.pid = c->id.pid;
+
+    if ((base = strrchr(a->id.argv[0], '/')) != NULL)
+        base++;
+    else
+        base = a->id.argv[0];
+
+    if (cgroup_mkdir(l, a->id.uid, base, a->id.pid, dir, sizeof(dir)) < 0) {
+        s = status_error(errno, "failed to create cgroup directory");
+        goto fail;
+    }
+
+    a->id.cgrp = iot_strdup(dir);
+
+    if (a->id.cgrp == NULL) {
+        s = NULL;
+        goto fail;
+    }
+
+    if (hook_trigger(l, a, HOOK_STARTUP) < 0) {
+        s = status_error(errno, "startup hook failed");
+        goto fail;
+    }
+
+    iot_list_append(&l->apps, &a->hook);
+
+    return status_ok(0, NULL, "OK");
+
+ fail:
+    if (a) {
+        iot_free(a);
+    }
+
+    return s;
+}
+
+
+static application_t *application_for_cgroup(launcher_t *l, const char *cgrp)
+{
+    iot_list_hook_t *p, *n;
+    application_t   *a;
+
+    iot_list_foreach(&l->apps, p, n) {
+        a = iot_list_entry(p, typeof(*a), hook);
+
+        if (!strcmp(a->id.cgrp, cgrp))
+            return a;
+    }
+
+    return NULL;
+}
+
+
+iot_json_t *application_cleanup(client_t *c, iot_json_t *req)
+{
+    launcher_t    *l = c->l;
+    application_t *a;
+    const char    *f;
+    const char    *cgrp;
+
+    if (!iot_json_get_string(req, f="cgroup", &cgrp))
+        return status_error(EINVAL, "malformed request, missing field %s", f);
+    else
+        cgrp++;
+
+    a = application_for_cgroup(l, cgrp);
+
+    if (a == NULL)
+        return status_ok(0, NULL, "already gone");
+
+    iot_list_delete(&a->hook);
+    hook_trigger(l, a, HOOK_CLEANUP);
+
+    cgroup_rmdir(l, cgrp);
+
+    return status_ok(0, NULL, "OK");
+}
+
+
+iot_json_t *application_list(client_t *c, iot_json_t *req)
+{
+    IOT_UNUSED(c);
+    IOT_UNUSED(req);
+
+    return status_error(EOPNOTSUPP, "not implemented");
+}
+
+
+
+
+
+
+#if 0
 int application_init(launcher_t *l)
 {
     app_handler_t   *h;
@@ -98,7 +346,7 @@ application_t *application_find_by_cgroup(launcher_t *l, const char *path)
 }
 
 
-int application_setup(client_t *c, setup_req_t *req, reply_t *rpl)
+iot_json_t *application_setup(client_t *c, iot_json_t *req)
 {
     launcher_t      *l = c->l;
     application_t   *app;
@@ -282,3 +530,4 @@ int application_list(client_t *c, list_req_t *req, reply_t *rpl)
     else
         return list_all(c, req, rpl);
 }
+#endif
