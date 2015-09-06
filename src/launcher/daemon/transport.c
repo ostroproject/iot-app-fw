@@ -39,7 +39,6 @@
 
 #include "launcher/daemon/launcher.h"
 #include "launcher/daemon/client.h"
-#include "launcher/daemon/message.h"
 #include "launcher/daemon/application.h"
 #include "launcher/daemon/event.h"
 #include "launcher/daemon/transport.h"
@@ -155,38 +154,9 @@ void transport_init(launcher_t *l)
 }
 
 
-int transport_reply(iot_transport_t *t, reply_t *rpl)
-{
-    iot_json_t *jrpl;
-    int         r;
-
-    jrpl = reply_create(rpl);
-
-    r = iot_transport_sendjson(t, jrpl);
-
-    iot_json_unref(jrpl);
-
-    if (r)
-        return 0;
-    else {
-        errno = EIO;
-        return -1;
-    }
-}
-
-
 static inline const char *client_type(client_t *c)
 {
     return c->type == CLIENT_LAUNCHER ? "launcher" : "IoT-app";
-}
-
-
-static inline int allowed_request(client_t *c, request_t *req)
-{
-    if (c->type == CLIENT_LAUNCHER)
-        return (req->type == REQUEST_SETUP || req->type == REQUEST_CLEANUP);
-    else
-        return (req->type != REQUEST_SETUP && req->type != REQUEST_CLEANUP);
 }
 
 
@@ -340,73 +310,3 @@ int transport_send(client_t *c, iot_json_t *msg)
 }
 
 
-#if 0
-static void lnc_recv(iot_transport_t *t, iot_json_t *msg, void *user_data)
-{
-    client_t   *c = (client_t *)user_data;
-    const char *json;
-    request_t  *req;
-    reply_t     rpl;
-
-    json = iot_json_object_to_string(msg);
-
-    iot_log_info("Received client JSON message:");
-    iot_log_info("  %s", json);
-
-    req = request_parse(t, msg);
-
-    if (req == NULL) {
-        iot_log_error("Failed to parse client request.");
-        return;
-    }
-
-    if (!allowed_request(c,req)) {
-        reply_set_status(&rpl, req->any.seqno,
-                         EPERM, "Permission denied", NULL);
-        goto send_reply;
-    }
-
-    switch (req->type) {
-    case REQUEST_SETUP:
-        iot_log_info("Received an SETUP request...");
-        application_setup(c, &req->setup, &rpl);
-        break;
-
-    case REQUEST_CLEANUP:
-        iot_log_info("Received an CLEANUP request...");
-        application_cleanup(c, &req->cleanup, &rpl);
-        break;
-
-    case REQUEST_SUBSCRIBE:
-        iot_log_info("Received an event SUBSCRIBE request...");
-        client_subscribe(c, &req->subscribe, &rpl);
-        break;
-
-    case REQUEST_SEND:
-        iot_log_info("Received event SEND request...");
-        event_route(c->l, req->send.target.user, NULL, req->send.target.process,
-                    req->send.event, req->send.data);
-        reply_set_status(&rpl, req->any.seqno, 0, "OK", NULL);
-        break;
-
-    case REQUEST_LIST_RUNNING:
-        iot_log_info("Received LIST_RUNNING request...");
-        application_list(c, &req->list, &rpl);
-        break;
-
-    case REQUEST_LIST_ALL:
-        iot_log_info("Received LIST_ALL request...");
-        application_list(c, &req->list, &rpl);
-        break;
-
-    default:
-        iot_log_error("Recevied an UNKNOWN request...");
-        reply_set_status(&rpl, req->any.seqno, EINVAL, "Unknown request", NULL);
-        break;
-    }
-
- send_reply:
-    transport_reply(c->t, &rpl);
-    request_free(req);
-}
-#endif
