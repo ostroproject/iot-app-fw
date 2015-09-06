@@ -201,7 +201,7 @@ iot_app_event_cb_t iot_app_event_set_handler(iot_app_t *app,
 int iot_app_event_subscribe(iot_app_t *app, char **events,
                             iot_app_status_cb_t cb, void *user_data)
 {
-    iot_json_t *req;
+    iot_json_t *req, *o;
     pending_t  *pnd;
     int         seq, cnt;
 
@@ -239,7 +239,10 @@ int iot_app_event_subscribe(iot_app_t *app, char **events,
         }
     }
 
-    if (!iot_json_add_string_array(req, "events", events, cnt))
+    if ((o = iot_json_create(IOT_JSON_OBJECT)) == NULL)
+        goto fail;
+    iot_json_add_object(req, "subscribe-events", o);
+    if (!iot_json_add_string_array(o, "events", events, cnt))
         goto fail;
 
     pnd = pending_create(REQUEST_SUBSCRIBE, seq, cb, user_data);
@@ -319,7 +322,7 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
                        iot_app_id_t *target, iot_app_send_cb_t cb,
                        void *user_data)
 {
-    iot_json_t *req;
+    iot_json_t *req, *o;
     pending_t  *pnd;
     int         seq;
 
@@ -345,7 +348,10 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
         goto fail;
     if (!iot_json_add_integer(req, "seqno", seq = app->seqno++))
         goto fail;
-    if (!iot_json_add_string(req, "event", event))
+    if ((o = iot_json_create(IOT_JSON_OBJECT)) == NULL)
+        goto fail;
+    iot_json_add_object(req, "send-event", o);
+    if (!iot_json_add_string(o, "event", event))
         goto fail;
 
     /*
@@ -354,22 +360,22 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
      * data as well unless the caller has added an extra reference.
      */
     if (data)
-        iot_json_add_object(req, "data", data);
+        iot_json_add_object(o, "data", data);
 
     if (target->label)
-        if (!iot_json_add_string(req, "label", target->label))
+        if (!iot_json_add_string(o, "label", target->label))
             goto fail;
     if (target->appid)
-        if (!iot_json_add_string(req, "appid", target->appid))
+        if (!iot_json_add_string(o, "appid", target->appid))
             goto fail;
     if (target->binary)
-        if (!iot_json_add_string(req, "binary", target->binary))
+        if (!iot_json_add_string(o, "binary", target->binary))
             goto fail;
     if (target->user != (uid_t)-1)
-        if (!iot_json_add_integer(req, "user", target->user))
+        if (!iot_json_add_integer(o, "user", target->user))
             goto fail;
     if (target->process != 0)
-        if (!iot_json_add_integer(req, "process", target->process))
+        if (!iot_json_add_integer(o, "process", target->process))
             goto fail;
 
     pnd = pending_create(REQUEST_SEND, seq, cb, user_data);
@@ -493,7 +499,7 @@ static void closed_cb(iot_transport_t *t, int error, void *user_data)
 static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
 {
     iot_app_t  *app = (iot_app_t *)user_data;
-    iot_json_t *data;
+    iot_json_t *o, *data;
     const char *type, *message, *event;
     int         seqno, status;
 
@@ -517,10 +523,12 @@ static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
         pending_notify(app, seqno, status, message, data);
     }
     else if (!strcmp(type, "event")) {
-        if (!iot_json_get_string(msg, "event", &event))
+        if (!iot_json_get_object(msg, "event", &o))
+            return;
+        if (!iot_json_get_string(o, "event", &event))
             return;
 
-        data = iot_json_get(msg, "data");
+        data = iot_json_get(o, "data");
 
         event_dispatch(app, event, data);
     }
