@@ -130,7 +130,8 @@ libiot_app_la_HEADERS =					\
 		app/app.h
 
 libiot_app_la_REGULAR_SOURCES =				\
-		app/app.c
+		app/app.c                               \
+		launcher/daemon/msg.c
 
 libiot_app_la_SOURCES =					\
 		$(libiot_app_la_REGULAR_SOURCES)
