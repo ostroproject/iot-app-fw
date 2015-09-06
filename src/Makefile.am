@@ -501,7 +501,6 @@ iot_launch_daemon_SOURCES =				\
 		launcher/daemon/security-manager.c	\
 		launcher/daemon/event.c			\
 		launcher/daemon/client.c		\
-		launcher/daemon/message.c		\
 		launcher/daemon/valgrind.c
 
 iot_launch_daemon_CFLAGS  =		\
