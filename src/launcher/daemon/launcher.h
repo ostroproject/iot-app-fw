@@ -46,6 +46,9 @@
 #endif
 
 
+#define MAX_EVENTS 1024                  /* max. events to register */
+
+
 /*
  * launcher daemon runtime context
  */
@@ -98,6 +101,7 @@ typedef struct {
     char  **argv;                        /* command line arguments */
     int     argc;                        /* argument count */
     char   *cgrp;                        /* IoT cgroup (relative) path */
+    char   *app;                         /* <pkg>:<app> */
 } identity_t;
 
 /*

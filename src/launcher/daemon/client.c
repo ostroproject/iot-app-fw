@@ -28,96 +28,64 @@
  */
 
 #include <stdio.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #define __USE_GNU
 #include <sys/socket.h>
 
 #include <iot/common/macros.h>
+#include <iot/common/mm.h>
 #include <iot/common/log.h>
 #include <iot/common/transport.h>
 
 #include "launcher/daemon/launcher.h"
+#include "launcher/daemon/msg.h"
 #include "launcher/daemon/cgroup.h"
 #include "launcher/daemon/event.h"
 #include "launcher/daemon/client.h"
 
 
-static void reject_connection(iot_transport_t *lt)
-{
-    iot_transport_t *t;
-
-    t = iot_transport_accept(lt, NULL, IOT_TRANSPORT_REUSEADDR);
-
-    iot_transport_disconnect(t);
-    iot_transport_destroy(t);
-}
+static int get_credentials(client_t *c);
 
 
 client_t *client_create(launcher_t *l, iot_transport_t *t)
 {
-    client_t     *c;
-    struct ucred  uc;
-    socklen_t     len;
-    char          label[256], cgpath[PATH_MAX];
+    client_t *c     = iot_allocz(sizeof(*c));
+    int       flags = IOT_TRANSPORT_REUSEADDR | IOT_TRANSPORT_CLOEXEC;
 
-    c = iot_allocz(sizeof(*c));
-
-    if (c == NULL) {
-        reject_connection(t);
-        return NULL;
-    }
+    if (c == NULL)
+        goto reject;
 
     iot_list_init(&c->hook);
-    c->t = iot_transport_accept(t, c, IOT_TRANSPORT_REUSEADDR);
-
-    if (c->t == NULL) {
-        iot_free(c);
-
-        return NULL;
-    }
-
-    len = sizeof(uc);
-    if (!iot_transport_getopt(c->t, "peer-cred", &uc, &len)) {
-        client_destroy(c);
-
-        return NULL;
-    }
-
-    len = sizeof(label) - 1;
-    if (iot_transport_getopt(c->t, "peer-sec", label, &len)) {
-        label[len] = '\0';
-        c->id.label = iot_strdup(label);
-
-        if (c->id.label == NULL) {
-            client_destroy(c);
-
-            return NULL;
-        }
-    }
-
     c->l = l;
-    c->id.uid = uc.uid;
-    c->id.gid = uc.gid;
-    c->id.pid = uc.pid;
+    c->t = iot_transport_accept(t, c, flags);
 
-    if (t == l->lnc)
-        c->type = CLIENT_LAUNCHER;
-    else {
-        c->type = CLIENT_IOTAPP;
+    if (c->t == NULL)
+        goto fail;
 
-        if (!cgroup_path(cgpath, sizeof(cgpath), CGROUP_DIR, c->id.pid) ||
-            !(c->id.cgrp = iot_strdup(cgpath))) {
-            client_destroy(c);
+    c->type = (c->t == l->lnc ? CLIENT_LAUNCHER : CLIENT_IOTAPP);
 
-            return NULL;
-        }
-    }
+    if (get_credentials(c) < 0)
+        goto fail;
 
     iot_mask_init(&c->mask);
     iot_list_append(&l->clients, &c->hook);
 
     return c;
+
+ reject: {
+        iot_transport_t *rt;
+
+        rt = iot_transport_accept(t, NULL, IOT_TRANSPORT_REUSEADDR);
+        iot_transport_disconnect(rt);
+        iot_transport_destroy(rt);
+    }
+
+ fail:
+    client_destroy(c);
+
+    return NULL;
 }
 
 
@@ -127,6 +95,7 @@ void client_destroy(client_t *c)
         return;
 
     iot_list_delete(&c->hook);
+
     iot_transport_disconnect(c->t);
     iot_transport_destroy(c->t);
 
@@ -137,20 +106,62 @@ void client_destroy(client_t *c)
 }
 
 
-int client_subscribe(client_t *c, event_sub_req_t *req, reply_t *rpl)
+iot_json_t *client_subscribe(client_t *c, iot_json_t *req)
 {
-    char *e;
-    int   i;
+    iot_json_t *events;
+    const char *e;
+    int         i, n;
 
-    for (i = 0; (e = req->events[i]) != NULL; i++) {
-        if (!iot_mask_set(&c->mask, event_register(e))) {
-            reply_set_status(rpl, req->seqno, EINVAL, "Subscribe failed", NULL);
-            return -1;
-        }
-        else
-            iot_log_info("Subscribed for event '%s'...", e);
+    if (!iot_json_get_array(req, "events", &events))
+        return status_error(EINVAL, "malformed request, missing 'events'");
+
+    n = iot_json_array_length(events);
+    for (i = 0; i < n; i++) {
+        if (!iot_json_array_get_string(events, i, &e))
+            return status_error(EINVAL, "failed to get list of events");
+
+        if (!iot_mask_set(&c->mask, event_register(e)))
+            return status_error(EINVAL, "failed to subscribe for '%s'", e);
     }
 
-    reply_set_status(rpl, req->seqno, 0, "OK", NULL);
+    return status_ok(0, NULL, "OK");
+}
+
+
+static int get_credentials(client_t *c)
+{
+    struct ucred creds;
+    socklen_t    size;
+    char         label[256], dir[PATH_MAX];
+
+    size = sizeof(label) - 1;
+    if (iot_transport_getopt(c->t, "peer-sec", label, &size)) {
+        label[size] = '\0';
+
+        c->id.label = iot_strdup(label);
+
+        if (c->id.label == NULL)
+            return -1;
+    }
+
+    size = sizeof(creds);
+    if (!iot_transport_getopt(c->t, "peer-cred", &creds, &size))
+        return -1;
+
+    c->id.uid = creds.uid;
+    c->id.gid = creds.gid;
+    c->id.pid = creds.pid;
+
+    if (c->type == CLIENT_IOTAPP) {
+        if (cgroup_path(dir, sizeof(dir), CGROUP_DIR, c->id.pid) == NULL)
+            return -1;
+
+        c->id.cgrp = iot_strdup(dir);
+
+        if (c->id.cgrp == NULL)
+            return -1;
+    }
+
     return 0;
 }
+

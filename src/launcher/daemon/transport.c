@@ -42,6 +42,7 @@
 #include "launcher/daemon/message.h"
 #include "launcher/daemon/application.h"
 #include "launcher/daemon/event.h"
+#include "launcher/daemon/transport.h"
 
 
 typedef iot_json_t *(*handler_t)(client_t *c, iot_json_t *req);
@@ -267,9 +268,10 @@ static handler_t request_handler(const char *type)
 #if 0
         { "stop"            , application_stop    },
         { "query"           , application_query   },
-        { "subscribe-events", client_subscribe    },
-        { "send-event"      , event_route         },
 #endif
+        { "send-event"      , event_route         },
+        { "subscribe-events", client_subscribe    },
+
         { NULL, NULL },
     }, *h;
 
@@ -288,6 +290,8 @@ static void lnc_recv(iot_transport_t *t, iot_json_t *msg, void *user_data)
     const char *f, *type;
     iot_json_t *req, *rpl, *s;
     int         seq;
+
+    IOT_UNUSED(t);
 
     dump_message(msg, "Received %s message: ", client_type(c));
 
@@ -317,9 +321,22 @@ static void lnc_recv(iot_transport_t *t, iot_json_t *msg, void *user_data)
     iot_json_add_integer(rpl, "seqno" , seq     );
     iot_json_add_object (rpl, "status", s       );
 
-    iot_transport_sendjson(t, rpl);
+    transport_send(c, rpl);
 
     iot_json_unref(rpl);
+}
+
+
+int transport_send(client_t *c, iot_json_t *msg)
+{
+    dump_message(msg, "Sending %s message: ", client_type(c));
+
+    if (!iot_transport_sendjson(c->t, msg)) {
+        errno = EIO;
+        return -1;
+    }
+
+    return 0;
 }
 
 
