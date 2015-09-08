@@ -156,20 +156,29 @@ class IotApp(object):
         """
         appfwwrapper.subscribe_events(list(self.subscriptions))
 
+    def __list(self, list_function, callback, callback_data=None):
+        try:
+            _logger.debug("appfw, __list")
+            _verify_signature(callback, "List callback", 4)
+            self._callbacks[self._callback_id] = callback
+            self._arguments[self._callback_id] = callback_data
+
+            list_function(self.callback_id)
+
+            self.callback_id += 1
+        except Exception as e:
+            traceback.print_exc()
+            print("Zero status was returned from iot_app_list_* C-API")
+            print(e.message)
+            sys.exit(1)
+
     def list_running(self, callback, callback_data=None):
         _logger.debug("appfw, list_running")
-        _verify_signature(callback, "List callback", 4)
-        self._callbacks[self._callback_id] = callback
-        self._arguments[self._callback_id] = callback_data
-
-        appfwwrapper.list_running(self.callback_id)
-        
-        self.callback_id += 1
-
+        self.__list(appfwwrapper.list_running, callback, callback_data)
 
     def list_all(self, callback, callback_data=None):
-        _logger.debug("appfw, list_all")
-        pass
+        _logger.debug("appfw, list_running")
+        self.__list(appfwwrapper.list_all, callback, callback_data)
 
     def _enable_debug(self, debug=["*"]):
         logging.basicConfig()
