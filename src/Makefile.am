@@ -646,6 +646,35 @@ iot_app_list_LDFLAGS =			\
 		-rdynamic
 
 ###################################
+# package-manager
+#
+bin_PROGRAMS += iotpm
+
+iotpm_SOURCES =			 							\
+		package-manager/iotpm.c						\
+		package-manager/options.c					\
+		package-manager/pkginfo.c					\
+		package-manager/@BACKEND_TYPE@-backend.c
+
+iotpm_CFLAGS =										\
+		$(AM_CFLAGS)
+
+iotpm_LDADD =										\
+		libiot-common.la
+
+if BACKEND_RPM5
+iotpm_CFLAGS +=	$(LIBRPM_CFLAGS) $(POPT_CFLAGS)
+iotpm_LDADD += $(LIBRPM_LIBS) $(POPT_LIBS) -lpcreposix
+endif
+if BACKEND_RPM4
+iotpm_CFLAGS +=	$(LIBRPM_CFLAGS) $(POPT_CFLAGS)
+iotpm_LDADD += $(LIBRPM_LIBS) $(POPT_LIBS)
+endif
+
+iotpm_LDFLAGS =	-rdynamic
+
+
+###################################
 # NodeJS bindings
 #
 
