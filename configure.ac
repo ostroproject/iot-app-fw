@@ -426,6 +426,36 @@ if test "$enable_security" = "yes"; then
 fi
 AM_CONDITIONAL(ENABLE_SECURITY_MANAGER, [test "$enable_security" = "yes"])
 
+# Check for package manager backend
+AC_ARG_WITH(backend,
+            [  --with-backend           backend to use in package manager, eg. rpm4, rpm5],
+            [backend=$with_backend], [backend=none])            
+case $backend in
+     rpm4)
+        backend_type="rpm4"
+        PKG_CHECK_MODULES(LIBRPM, [rpm < 5.0])
+        PKG_CHECK_MODULES(POPT, popt)
+        AC_SUBST(LIBRPM_CFLAGS)
+        AC_SUBST(POPT_CFLAGS)
+        AC_SUBST(LIBRPM_LIBS)
+        AC_SUBST(POPT_LIBS)
+        ;;
+     rpm5)
+        backend_type="rpm5"
+        PKG_CHECK_MODULES(LIBRPM, [rpm >= 5.0])
+        PKG_CHECK_MODULES(POPT, popt)
+        AC_SUBST(LIBRPM_CFLAGS)
+        AC_SUBST(POPT_CFLAGS)
+        AC_SUBST(LIBRPM_LIBS)
+        AC_SUBST(POPT_LIBS)
+        ;;
+     *)
+        AC_MSG_ERROR([invalid or missing package manager backend])
+        ;;
+esac
+AM_CONDITIONAL(BACKEND_RPM5, test "$backend_type" = "rpm5")
+AM_CONDITIONAL(BACKEND_RPM4, test "$backend_type" = "rpm4")
+AC_SUBST(BACKEND_TYPE, $backend_type)
 
 
 # Set up IoT CFLAGS and LIBS.
@@ -480,6 +510,7 @@ if test "$UV_STANDALONE" = "yes"; then
     echo "    * libuv CFLAGS: $UV_CFLAGS"
     echo "    * libuv LIBS: $UV_LIBS"
 fi
+echo "package manager backend: ${BACKEND_TYPE}"
 echo "NodeJS bindings: ${NODEJS_ENABLED:-no}"
 if test "$NODEJS_ENABLED" = "yes"; then
     echo "    * NodeJS prefix: $NODE_PREFIX"
