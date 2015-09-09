@@ -1,20 +1,20 @@
 """IoT application framework interface
 
-This module provides an interface to the IoT application framework. The 
-framework provides a simple inter application communication framework and 
+This module provides an interface to the IoT application framework. The
+framework provides a simple inter application communication framework and
 event system.
 
 The main feature of this module is the IotApp class, which provides bindings
 to the IoT application framework C-library. IotApp interfaces with a wrapper
-library which implements the actual communication with the IoT application 
+library which implements the actual communication with the IoT application
 framework library.
 
 Special types used in documentation:
     U: type of user_data field of IotApp. Can be anything.
     W: type of data provided to the send_event callback.
-    Json: anything compatible with Pythons json.loads() and json.dumps() 
+    Json: anything compatible with Pythons json.loads() and json.dumps()
         methods and json-c library (eg. dict, list or string)
-        NOTE: the data format may be restricted to Python dictionaries 
+        NOTE: the data format may be restricted to Python dictionaries
             in the future.
 """
 
@@ -42,14 +42,14 @@ class IotApp(object):
     """Bindings to the application framework wrapper library.
 
     NOTE:
-        In case an exception is raised during the execution of any callback 
-        function, the IotApp aborts the execution of Python and prints 
+        In case an exception is raised during the execution of any callback
+        function, the IotApp aborts the execution of Python and prints
         the exception.
         If the user wants to terminate the program after receiving an event,
         the correct method is the quit the mainloop.
 
     Attributes:
-        user_data (U): a reference to user defined data which is 
+        user_data (U): a reference to user defined data which is
         delivered to the status callback.
     """
 
@@ -58,7 +58,7 @@ class IotApp(object):
         """(event_callback, status_callback, U) -> IotApp
         IotApp constructor
 
-        The constructor is responsible of establishing a connection to the 
+        The constructor is responsible of establishing a connection to the
         application framework and initializing the wrapper library.
 
         Args:
@@ -66,15 +66,16 @@ class IotApp(object):
                 function which is called when an event is received.
             status_handler (status_handler_callback): callback
                 function called when the event subscriptions are updated.
-            user_data (U): initial user defined data which is provided to 
-                status callback invocations. 
+            user_data (U): initial user defined data which is provided to
+                status callback invocations.
         """
         _logger.debug("__init__ IotApp")
         self.event_handler = event_handler
         self.status_handler = status_handler
         self.user_data = user_data
         appfwwrapper.init(self, self._event_handler,
-                          self._status_handler, self._send_handler)
+                          self._status_handler, self._send_handler,
+                          self._list_handler)
         # has to be called after initialization!
         self.subscriptions = set()
         # dictionaries and counter for 'send' and 'list' callbacks
@@ -90,7 +91,7 @@ class IotApp(object):
         """(None) -> None
         Request the delivery of certain signals as IoT events.
 
-        Request the delivery of SIGHUP and SIGTERM signals as IoT events. 
+        Request the delivery of SIGHUP and SIGTERM signals as IoT events.
         The events are delivered to the 'event_handler'.
         """
         appfwwrapper.enable_signals()
@@ -102,9 +103,9 @@ class IotApp(object):
 
         args:
             event (str): the name of event.
-            data (Json): data attached to the event. 
-            callback (func(id, status, msg, callback_data) -> None): A 
-                callback function which is invoked after the emitting the 
+            data (Json): data attached to the event.
+            callback (func(id, status, msg, callback_data) -> None): A
+                callback function which is invoked after the emitting the
                 events has finished. Signature specification below.
             callback_data (W): Data supplied to the callback function.
             **target: Keywords used to specify the target application(s).
@@ -114,9 +115,9 @@ class IotApp(object):
                     - binary (str): executed binary
                     - user (str): the name of the (linux) user of the target
                     - process (int): the process id.
-                    NOTE: default values are interpreted as 
+                    NOTE: default values are interpreted as
                         broadcasting.
-                    NOTE: at least one keyword argument must be 
+                    NOTE: at least one keyword argument must be
                         specified.
 
         Send callback specification:
@@ -147,7 +148,7 @@ class IotApp(object):
 
     def update_subscriptions(self):
         """(None) -> None
-        Send the current set of subscriptions to the application 
+        Send the current set of subscriptions to the application
         framework.
 
         NOTE:
@@ -157,15 +158,27 @@ class IotApp(object):
         appfwwrapper.subscribe_events(list(self.subscriptions))
 
     def __list(self, list_function, callback, callback_data=None):
+        """(list_function, list_callback, W) -> None
+        Helper function for list_running and list_all. Contains the common
+        functionality in order to avoid code duplication.
+
+        args:
+            list_function (func(callback_id))
+                actual framework function to be called
+            callback (func(app_list, id, status, msg, callback_data) -> None):
+                Callback function. See list_all or list_running for
+                documentation
+            callback_data (W): Data supplied to the callback function.
+        """
         try:
             _logger.debug("appfw, __list")
-            _verify_signature(callback, "List callback", 4)
+            _verify_signature(callback, "List callback", 5)
             self._callbacks[self._callback_id] = callback
             self._arguments[self._callback_id] = callback_data
 
-            list_function(self.callback_id)
+            list_function(self._callback_id)
 
-            self.callback_id += 1
+            self._callback_id += 1
         except Exception as e:
             traceback.print_exc()
             print("Zero status was returned from iot_app_list_* C-API")
@@ -173,10 +186,50 @@ class IotApp(object):
             sys.exit(1)
 
     def list_running(self, callback, callback_data=None):
+        """Send a request for the list of running applications to the
+        application framework. Callback argument count is verified.
+
+        args:
+            callback (func(app_list, id, status, msg, callback_data) -> None)
+                A callback function which is invoked eventually. See
+                specification below.
+            callback_data (W): Data supplied to the callback function.
+
+         List callback specification:
+            func(app_list, id, status, msg, callback_data) -> None
+            app_list: List of applications. List contains dictionaries with
+                strings 'appid' and 'desktop' as keys and associated values
+                which are either string or None
+            id (int): Internal application framework message ID
+            status (int): ???
+            msg (str): ???
+            callback_data (W): Data provided to the 'list_running' function as
+                callback_data
+        """
         _logger.debug("appfw, list_running")
         self.__list(appfwwrapper.list_running, callback, callback_data)
 
     def list_all(self, callback, callback_data=None):
+        """Send a request for the list of running applications to the
+        application framework. Callback argument count is verified.
+
+        args:
+            callback (func(app_list, id, status, msg, callback_data) -> None)
+                A callback function which is invoked eventually. See
+                specification below.
+            callback_data (W): Data supplied to the callback function.
+
+         List callback specification:
+            func(app_list, id, status, msg, callback_data) -> None
+            app_list: List of applications. List contains dictionaries with
+                strings 'appid' and 'desktop' as keys and associated values
+                which are either string or None
+            id (int): Internal application framework message ID
+            status (int): ???
+            msg (str): ???
+            callback_data (W): Data provided to the 'list_all' function as
+                callback_data
+        """
         _logger.debug("appfw, list_running")
         self.__list(appfwwrapper.list_all, callback, callback_data)
 
@@ -231,14 +284,15 @@ class IotApp(object):
             print(e.message)
             sys.exit(1)
 
-    def _list_handler(self, callback_id, status, msg, apps):
+    def _list_handler(self, callback_id, id, status, msg, apps):
         _logger.debug("Python internal list callback")
         try:
             if (callback_id in self._callbacks):
-                self_callbacks[callback_id](
-                    apps, self._arguments[callback_id])
+                self._callbacks[callback_id](
+                    apps, id, status, msg, self._arguments[callback_id])
                 del self._callbacks[callback_id]
                 del self._arguments[callback_id]
+
         except Exception as e:
             traceback.print_exc()
             print("List handler threw an exception after receiving a " +
@@ -248,7 +302,7 @@ class IotApp(object):
 
     @property
     def event_handler(self):
-        """func(event, data) -> None: a callback function which is invoked 
+        """func(event, data) -> None: a callback function which is invoked
             when an event is received.
 
         Event callback specification:
@@ -265,7 +319,7 @@ class IotApp(object):
 
     @property
     def status_handler(self):
-        """func(seqno, status, msg, data, user_data) -> None: a callback 
+        """func(seqno, status, msg, data, user_data) -> None: a callback
             function which is invoked after event subscriptions.
 
         Status callback specification:
@@ -287,19 +341,19 @@ class IotApp(object):
 
     @property
     def subscriptions(self):
-        """iterable: the set of events this IotApp instance is subscribed 
+        """iterable: the set of events this IotApp instance is subscribed
             to.
 
         There are two ways to modify the subscriptions of an IotApp.
-            -1 By assigning manually a list of event names to the 
-                'subscriptions' field, the 'IotApp' automatically updates 
-                the subscriptions on the application framework server. 
+            -1 By assigning manually a list of event names to the
+                'subscriptions' field, the 'IotApp' automatically updates
+                the subscriptions on the application framework server.
                 A single string is also accepted as a valid assignment.
-            -2 By modifying the 'subscriptions' in place, the application 
-                framework server only updates the subscriptions after 
+            -2 By modifying the 'subscriptions' in place, the application
+                framework server only updates the subscriptions after
                 update_subscriptions call.
 
-        NOTE: If a new list of events is assigned, a call to the 
+        NOTE: If a new list of events is assigned, a call to the
             status_callback will occur.
 
         Examples:

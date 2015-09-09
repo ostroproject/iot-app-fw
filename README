@@ -56,3 +56,40 @@ exit. The client in terminal three will subscribe for 'tock' and 'ka-boom'
 events. It will emit an initial 'tick' and emit further ones whenever it
 receives a 'tock'. Once it receives a 'tock' with an attached count <= 0,
 it will emit a 'ka-boom' event and finally exit when it receives a 'ka-boom'.
+
+
+Testing Python Bindings
+-----------------------
+
+# Events
+
+In a terminal, run
+sudo ./src/iot-launch-daemon -f -vvv
+
+In another terminal, run
+cd src/python/tests
+python event-test.py -s -e hi,hello,greetings -vvv -d
+
+In a third terminal, run
+cd src/python/tests
+python event-test.py -e hi,hello,greetings -vvv -d -I 1000 -n 2 -u YOUR_USER_NAME_HERE
+
+In this setup, the client running in terminal two will subscribe for events
+'hi' 'hello' and 'greetings'. It prints debug data whenever it receives an event
+The client in terminal three will send two sets of three events
+'hi' 'hello' and 'greetings' with some dummy data.
+
+
+# Listing
+
+In a terminal, run
+sudo ./src/iot-launch-daemon -f -vvv
+
+In another terminal, run
+
+cd src/python/tests
+python list-apps.py
+python list-apps.py -r
+
+The first run lists all applications, whereas the second run lists only running
+applications
