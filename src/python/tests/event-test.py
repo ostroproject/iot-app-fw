@@ -16,10 +16,10 @@ def event_handler(event, data):
 		ml.quit() #This is the proper way to quit
 	elif (event == 'system::reload'):
 		print "Received SIGHUP, doing nothing..."
-	
+
 def status_handler(seqno, status, msg, data, user_data):
 	logger.debug("Received a status message with status = " + str(status) + \
-	             ", msg = " + str(msg) + ", data = " + str(data) + 
+	             ", msg = " + str(msg) + ", data = " + str(data) +
 	             ", user_data " + str(user_data))
 	if (status == 0):
 		print "Succesfully set new event subscriptions."
@@ -65,16 +65,16 @@ def be_server(app, args):
 def be_client(app, args):
 	#Create timed event sender glib timeouts
 	for event in args.events:
-		sender_func = event_sender_factory(event, {"timed" : "event"}, send_handler_timed, 
+		sender_func = event_sender_factory(event, {"timed" : "event"}, send_handler_timed,
 		                                   "timed event callback_data", \
 										   label=args.label, appid=args.appid, \
 										   binary=args.binary, user=args.user, \
 										   process=args.process)
-		glib.timeout_add(args.interval, sender_func, app, args.send)
+		glib.timeout_add(args.interval, sender_func, app, args.nevent)
 
 	#Create burst sender glib timeouts
 	for event in args.events:
-		sender_func = event_sender_factory(event, ["this", "is", "an", "example", {"of" : "event data"}], 
+		sender_func = event_sender_factory(event, ["this", "is", "an", "example", {"of" : "event data"}],
 		                                   send_handler_burst, "burst event callback_data", \
 		                                   label=args.label, appid=args.appid, \
 										   binary=args.binary, user=args.user, \
