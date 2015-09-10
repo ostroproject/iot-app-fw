@@ -53,6 +53,7 @@ libiot_common_la_HEADERS =		\
 		common/utils.h		\
 		common/socket-utils.h	\
 		common/file-utils.h	\
+		common/regexp.h		\
 		common/refcnt.h		\
 		common/fragbuf.h	\
 		common/json.h		\
@@ -69,6 +70,7 @@ libiot_common_la_REGULAR_SOURCES =		\
 		common/utils.c			\
 		common/socket-utils.c		\
 		common/file-utils.c		\
+		common/regexp.c			\
 		common/fragbuf.c		\
 		common/json.c			\
 		common/transport.c		\
@@ -80,7 +82,8 @@ libiot_common_la_SOURCES =				\
 
 libiot_common_la_CFLAGS  =		\
 		$(AM_CFLAGS)		\
-		$(JSON_CFLAGS)
+		$(JSON_CFLAGS)		\
+		$(REGEXP_CFLAGS)
 
 libiot_common_la_LDFLAGS =					\
 		-Wl,-version-script=$(top_srcdir)/linker-script.common	\
@@ -88,6 +91,7 @@ libiot_common_la_LDFLAGS =					\
 
 libiot_common_la_LIBADD  = 		\
 		$(JSON_LIBS)		\
+		$(REGEXP_LIBS)		\
 		-lrt
 
 libiot_common_la_DEPENDENCIES =	\

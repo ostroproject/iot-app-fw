@@ -33,24 +33,13 @@
 #include <string.h>
 #include <stdbool.h>
 #include <dirent.h>
-#include <regex.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #include <iot/common/macros.h>
 #include <iot/common/debug.h>
+#include <iot/common/regexp.h>
 #include <iot/common/file-utils.h>
-
-
-static const char *translate_glob(const char *pattern, char *glob, size_t size)
-{
-    IOT_UNUSED(glob);
-    IOT_UNUSED(size);
-
-    /* XXX FIXME: translate pattern to glob-like */
-
-    return pattern;
-}
 
 
 static inline iot_dirent_type_t dirent_type(mode_t mode)
@@ -77,11 +66,11 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
     DIR               *dp;
     struct dirent     *de;
     struct stat        st;
-    regex_t            regexp;
+    iot_regexp_t      *re;
     const char        *prefix;
     char               glob[1024], file[PATH_MAX];
     size_t             size;
-    int                status;
+    int                status, flags;
     iot_dirent_type_t  type;
 
     if ((dp = opendir(path)) == NULL)
@@ -92,13 +81,12 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
         size   = sizeof(IOT_PATTERN_GLOB) - 1;
 
         if (!strncmp(pattern, prefix, size)) {
-            pattern = translate_glob(pattern + size, glob, sizeof(glob));
-
-            if (pattern == NULL) {
+            if (iot_regexp_glob(pattern + size, glob, sizeof(glob)) < 0) {
                 closedir(dp);
-                errno = EINVAL;
                 return -1;
             }
+
+            pattern = glob;
         }
         else {
             prefix = IOT_PATTERN_REGEX;
@@ -108,16 +96,16 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
                 pattern += size;
         }
 
-        if (regcomp(&regexp, pattern, REG_EXTENDED | REG_NOSUB) != 0) {
+        flags = IOT_REGEXP_EXTENDED | IOT_REGEXP_NOSUB;
+        if ((re = iot_regexp_compile(pattern, flags)) == NULL) {
             closedir(dp);
-            errno = EINVAL;
             return -1;
         }
     }
 
     status = 0;
     while ((de = readdir(dp)) != NULL && status > 0) {
-        if (pattern != NULL && regexec(&regexp, de->d_name, 0, NULL, 0) != 0)
+        if (pattern != NULL && !iot_regexp_matches(re, de->d_name, 0))
             continue;
 
         snprintf(file, sizeof(file), "%s/%s", path, de->d_name);
@@ -135,7 +123,7 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
 
     closedir(dp);
     if (pattern != NULL)
-        regfree(&regexp);
+        iot_regexp_free(re);
 
     if (status < 0)
         errno = -status;
