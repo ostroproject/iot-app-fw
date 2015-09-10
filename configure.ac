@@ -293,6 +293,36 @@ PYTHON_CONFIG([INSTALL_DATA])
 PYTHON_EXECUTABLE=python
 PYTHON_CONFIG([PYTHON_EXECUTABLE])
 
+# Check if we should use PCRE for regexp matching.
+AC_ARG_ENABLE(pcre,
+              [  --enable-pcre           enable PCRE regexp backend],
+	      [enable_pcre=$enableval], [enable_pcre=no])
+
+if test "$enable_pcre" = "yes"; then
+    PKG_CHECK_MODULES(PCRE, libpcre, [have_pcre=yes], [have_pcre=no])
+    if test "$have_pcre" = "no"; then
+        AC_MSG_ERROR([PCRE development libraries not found.])
+    fi
+    AC_MSG_NOTICE([Using PCRE regexp backend.])
+else
+    AC_MSG_NOTICE([Using POSIX/libc regexp backend.])
+fi
+
+if test "$enable_pcre" = "yes"; then
+    AC_DEFINE([PCRE_ENABLED], 1, [Enable PCRE regexp backend ?])
+    REGEXP_CFLAGS="$PCRE_CFLAGS"
+    REGEXP_LIBS="$PCRE_LIBS"
+else
+    REGEXP_CFLAGS=""
+    REGEXP_LIBS=""
+fi
+AM_CONDITIONAL(PCRE_ENABLED, [test "$enable_pcre" = "yes"])
+AC_SUBST(PCRE_ENABLED)
+AC_SUBST(PCRE_CFLAGS)
+AC_SUBST(PCRE_LIBS)
+AC_SUBST(REGEXP_CFLAGS)
+AC_SUBST(REGEXP_LIBS)
+
 # Check if systemd socket-based activation was enabled.
 AC_ARG_ENABLE(systemd,
               [  --enable-systemd       enable systemd socket-based activation],
@@ -431,4 +461,9 @@ if test "$NODEJS_ENABLED" = "yes"; then
 fi
 echo "Python bindings: $enable_python"
 echo "Qt mainloop support: $enable_qt"
+if test "$enable_pcre" = "yes"; then
+    echo "Using PCRE regexp backend."
+else
+    echo "Using POSIX/libc regexp backend."
+fi
 echo "Systemd socket-based activation: $enable_systemd"

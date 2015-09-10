@@ -7,5 +7,5 @@ Name: iot-common
 Description: IoT Application Framework, common library.
 Requires:
 Version: @PACKAGE_VERSION@
-Libs: -L${libdir} -liot-common @JSON_LIBS@
-Cflags: -I${includedir} @JSON_CFLAGS@
+Libs: -L${libdir} -liot-common @JSON_LIBS@ @REGEXP_CFLAGS@
+Cflags: -I${includedir} @JSON_CFLAGS@ @REGEXP_LIBS@
