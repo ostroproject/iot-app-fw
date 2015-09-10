@@ -203,17 +203,6 @@ int msg_hdr(iot_json_t *hdr, const char **type, int *seqno)
 }
 
 
-const char *msg_type(iot_json_t *hdr)
-{
-    const char *type;
-
-    if (msg_hdr(hdr, &type, NULL) < 0)
-        return NULL;
-    else
-        return type;
-}
-
-
 int msg_seqno(iot_json_t *hdr)
 {
     int seqno;
@@ -224,3 +213,244 @@ int msg_seqno(iot_json_t *hdr)
         return seqno;
 }
 
+
+
+
+
+
+
+
+
+
+const char *msg_type(iot_json_t *msg)
+{
+    const char *type;
+
+    if (!iot_json_get_string(msg, "type", &type)) {
+        errno = EINVAL;
+        type = NULL;
+    }
+
+    return type;
+}
+
+
+iot_json_t *msg_request_create(const char *type, int seqno, iot_json_t *payload)
+{
+    iot_json_t *req;
+
+    req = iot_json_create(IOT_JSON_OBJECT);
+
+    if (req == NULL)
+        goto nomem;
+
+    if (!iot_json_add_string(req, "type", type))
+        goto nomem;
+
+    if (!iot_json_add_integer(req, "seqno", seqno))
+        goto nomem;
+
+    if (payload != NULL) {
+        if (iot_json_get_type(payload) != IOT_JSON_OBJECT)
+            goto invalid_payload;
+
+        iot_json_add_object(req, type, payload);
+    }
+
+    return req;
+
+ nomem:
+    iot_json_unref(req);
+    errno = ENOMEM;
+    return NULL;
+
+ invalid_payload:
+    iot_json_unref(req);
+    errno = EINVAL;
+    return NULL;
+}
+
+
+int msg_request_parse(iot_json_t *req, const char **type, int *seqno,
+                      iot_json_t **payload)
+{
+    if (!iot_json_get_string(req, "type", type))
+        goto invalid;
+
+    if (!iot_json_get_integer(req, "seqno", seqno))
+        goto invalid;
+
+    if (payload != NULL) {
+        if (!iot_json_get_object(req, *type, payload))
+            goto invalid;
+    }
+
+    return 0;
+
+ invalid:
+    errno = EINVAL;
+    return -1;
+}
+
+
+iot_json_t *msg_reply_create(int seqno, iot_json_t *status)
+{
+    iot_json_t *rpl;
+
+    rpl = iot_json_create(IOT_JSON_OBJECT);
+
+    if (rpl == NULL)
+        goto nomem;
+
+    if (!iot_json_add_string(rpl, "type", "status"))
+        goto nomem;
+
+    if (!iot_json_add_integer(rpl, "seqno", seqno))
+        goto nomem;
+
+    if (status != NULL) {
+        if (iot_json_get_type(status) != IOT_JSON_OBJECT)
+            goto invalid_status;
+
+        iot_json_add_object(rpl, "status", status);
+    }
+
+    return rpl;
+
+ nomem:
+    iot_json_unref(rpl);
+    errno = ENOMEM;
+    return NULL;
+
+ invalid_status:
+    iot_json_unref(rpl);
+    errno = EINVAL;
+    return NULL;
+}
+
+
+iot_json_t *msg_error_create(int seqno, int code, char *fmt, ...)
+{
+    iot_json_t *rpl, *s;
+    va_list     ap;
+    char        buf[1024];
+
+    rpl = iot_json_create(IOT_JSON_OBJECT);
+
+    if (rpl == NULL)
+        goto nomem;
+
+    if (!iot_json_add_string(rpl, "type", "status"))
+        goto nomem;
+
+    if (!iot_json_add_integer(rpl, "seqno", seqno))
+        goto nomem;
+
+    va_start(ap, fmt);
+    if (fmt != NULL) {
+        vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+        buf[sizeof(buf) - 1] = '\0';
+    }
+    else
+        snprintf(buf, sizeof(buf), "failed, unknown error");
+    va_end(ap);
+
+    s = iot_json_create(IOT_JSON_OBJECT);
+
+    if (s == NULL)
+        goto nomem;
+
+    iot_json_add_object(rpl, "status", s);
+
+    if (!iot_json_add_integer(s, "status", code))
+        goto nomem;
+    if (!iot_json_add_string(s, "message", buf))
+        goto nomem;
+
+    return rpl;
+
+ nomem:
+    iot_json_unref(rpl);
+    errno = ENOMEM;
+    return NULL;
+}
+
+
+iot_json_t *msg_status_create(int code, iot_json_t *payload,
+                              const char *fmt, ...)
+{
+    iot_json_t *s;
+    char        buf[1024];
+    va_list     ap;
+
+    s = iot_json_create(IOT_JSON_OBJECT);
+
+    if (s == NULL)
+        goto nomem;
+
+    va_start(ap, fmt);
+    if (fmt != NULL) {
+        vsnprintf(buf, sizeof(buf) - 1, fmt, ap);
+        buf[sizeof(buf) - 1] = '\0';
+    }
+    else
+        snprintf(buf, sizeof(buf), "failed, unknown error");
+    va_end(ap);
+
+    if (!iot_json_add_integer(s, "status", code))
+        goto nomem;
+
+    if (!iot_json_add_string(s, "message", buf))
+        goto nomem;
+
+    if (payload != NULL)
+        iot_json_add_object(s, "data", payload);
+
+    return s;
+
+ nomem:
+    iot_json_unref(s);
+    errno = ENOMEM;
+    return NULL;
+}
+
+
+int msg_reply_parse(iot_json_t *rpl, const char **type, int *seqno,
+                    iot_json_t **payload)
+{
+    iot_json_t *s;
+    int         code;
+    const char *message;
+
+    if (!iot_json_get_string(rpl, "type", type))
+        goto invalid;
+
+    if (strcmp(*type, "status"))
+        goto invalid;
+
+    if (!iot_json_get_integer(rpl, "seqno", seqno))
+        goto invalid;
+
+    if (!iot_json_get_object(rpl, "status", &s))
+        goto invalid;
+
+    if (!iot_json_get_integer(s, "status", &code))
+        goto invalid;
+
+    if (!iot_json_get_string(s, "message", &message))
+        goto invalid;
+
+    if (code == 0) {
+        if (payload != NULL)
+            if (!iot_json_get_object(s, "data", *payload))
+                *payload = NULL;
+    }
+    else
+        *payload = s;
+
+    return code;
+
+ invalid:
+    errno = EINVAL;
+    return -1;
+}
