@@ -528,7 +528,7 @@ bool iotpm_backend_seed_plant(iotpm_t *iotpm, const char *pkg)
 			break;
 		    }
 
-		    headerDelete(h, RPMTAG_INSTALLTID);
+		    //headerDelete(h, RPMTAG_INSTALLTID);
 
 		    if (rpmdbAdd(rdb, tid, h, ts) != 0) {
 		        iot_log_error("failed to plant seed '%s': "
