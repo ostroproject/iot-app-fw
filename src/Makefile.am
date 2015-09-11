@@ -652,6 +652,7 @@ iot_app_list_LDFLAGS =			\
 ###################################
 # package-manager
 #
+
 bin_PROGRAMS += iotpm
 
 iotpm_SOURCES =			 							\
@@ -677,6 +678,14 @@ endif
 
 iotpm_LDFLAGS =	-rdynamic
 
+if BUILD_SAMPLES
+sample_PROGRAMS = hello-world
+sampledir=/home/@SAMPLE_USER@/@PKG_PREFIX@hello-world
+
+hello_world_SOURCES = package-manager/sample/hello-world.c
+hello_world_CFLAGS = $(AM_CFLAGS)
+
+endif
 
 ###################################
 # NodeJS bindings
