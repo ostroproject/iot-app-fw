@@ -133,7 +133,7 @@ typedef struct {
     launcher_t      *l;                  /* launcher context */
     client_t        *c;                  /* launcher client, if any */
     iot_manifest_t  *m;                  /* application manifest */
-    const char      *app;                /* application within manifest */
+    char            *app;                /* application within manifest */
     identity_t       id;                 /* application identity */
 } application_t;
 

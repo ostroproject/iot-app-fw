@@ -285,13 +285,14 @@ static void config_set_defaults(launcher_t *l, const char *argv0)
 
 static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 {
-#   define STDOPTS "s:a:k:cl:t:v::d:h"
+#   define STDOPTS "s:a:k:cQ::l:t:v::d:h"
 #   define DEVOPTS "SUBL:U:G:P:M:"
 #   define STDOPTIONS                                                   \
         { "server"           , required_argument, NULL, 's' },          \
         { "app"              , required_argument, NULL, 'a' },          \
         { "stop"             , no_argument      , NULL, 'k' },          \
         { "cleanup"          , no_argument      , NULL, 'c' },          \
+        { "list"             , optional_argument, NULL, 'Q' },          \
         { "log-level"        , required_argument, NULL, 'l' },          \
         { "log-target"       , required_argument, NULL, 't' },          \
         { "verbose"          , optional_argument, NULL, 'v' },          \
@@ -345,6 +346,21 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 
         case 'c':
             l->mode = LAUNCHER_CLEANUP;
+            break;
+
+        case 'Q':
+            if (optarg == NULL) {
+            list_running:
+                l->mode = LAUNCHER_LIST_RUNNING;
+            }
+            else {
+                if (!strcmp(optarg, "running"))
+                    goto list_running;
+                if (!strcmp(optarg, "installed"))
+                    l->mode = LAUNCHER_LIST_INSTALLED;
+                else
+                    print_usage(l, EINVAL, "invalid list mode '%s'", optarg);
+            }
             break;
 
             /*
@@ -626,10 +642,13 @@ static void security_setup(launcher_t *l)
 static int launch_process(launcher_t *l)
 {
     char *argv[l->app_argc + 1];
+    const char *shell = "/bin/bash";
 
     if (l->shell) {
-        launch_warn("Launching debug/development shell...");
-        argv[0] = "/bin/bash";
+        if (access(shell, X_OK) != 0)
+            shell = "/bin/sh";
+        launch_warn("Launching debug/development shell (%s)...", shell);
+        argv[0] = (char *)shell;
         argv[1] = NULL;
     }
     else {
@@ -640,6 +659,37 @@ static int launch_process(launcher_t *l)
     remove_signal_handlers(l);
 
     return execv(argv[0], argv);
+}
+
+
+static void list_apps(launcher_t *l, iot_json_t *data)
+{
+    iot_json_t *a, *argv;
+    int         i;
+    const char *app, *descr, *desktop;
+    char        user[64], *argv0;
+    uid_t       uid;
+
+    IOT_UNUSED(l);
+
+    for (i = 0; iot_json_array_get_object(data, i, &a); i++) {
+        app = descr = desktop = NULL;
+        uid = (uid_t)-1;
+
+        iot_json_get_string (a, "app"        , &app);
+        iot_json_get_string (a, "description", &descr);
+        iot_json_get_string (a, "desktop"    , &desktop);
+        iot_json_get_integer(a, "user"       , &uid);
+        iot_json_get_array  (a, "argv"       , &argv);
+        iot_json_array_get_string(argv, 0, &argv0);
+
+        iot_log_info("Application '%s':", app ? app : "?");
+        iot_log_info("    description: '%s'", descr);
+        iot_log_info("    desktop: '%s'", desktop && *desktop ? desktop : "-");
+        iot_log_info("    user id: %d (%s)", uid,
+                     iot_get_username(uid, user, sizeof(user)));
+        iot_log_info("    argv[0]: '%s'", argv0);
+    }
 }
 
 
@@ -670,7 +720,7 @@ static void closed_cb(iot_transport_t *t, int error, void *user_data)
 static void recv_cb(iot_transport_t *t, iot_json_t *rpl, void *user_data)
 {
     launcher_t *l = (launcher_t *)user_data;
-    int         status;
+    int         seqno, status;
     const char *message;
     iot_json_t *data;
 
@@ -678,7 +728,10 @@ static void recv_cb(iot_transport_t *t, iot_json_t *rpl, void *user_data)
 
     launch_debug("received message: %s", iot_json_object_to_string(rpl));
 
-    status = msg_status_data(rpl, &message, &data);
+    status = msg_reply_parse(rpl, &seqno, &message, &data);
+
+    if (status < 0)
+        launch_fail(l, -1, false, "Request failed.");
 
     if (status != 0)
         launch_fail(l, status, false,
@@ -700,6 +753,8 @@ static void recv_cb(iot_transport_t *t, iot_json_t *rpl, void *user_data)
 
     case LAUNCHER_LIST_INSTALLED:
     case LAUNCHER_LIST_RUNNING:
+        list_apps(l, data);
+        exit(0);
         break;
 
     default:
@@ -1092,6 +1147,7 @@ int main(int argc, char *argv[], char **envp)
         break;
 
     case LAUNCHER_CLEANUP:
+        resolve_cgroup_path(&l);
         req = create_cleanup_request(&l);
         break;
 

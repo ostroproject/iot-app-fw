@@ -124,7 +124,7 @@ iot_json_t *client_subscribe(client_t *c, iot_json_t *req)
             return msg_status_error(EINVAL, "failed to subscribe for '%s'", e);
     }
 
-    return msg_status_ok(0, NULL, "OK");
+    return msg_status_ok(NULL);
 }
 
 

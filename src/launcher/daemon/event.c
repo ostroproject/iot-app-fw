@@ -133,7 +133,7 @@ iot_json_t *event_route(client_t *c, iot_json_t *req)
     id = event_lookup(event);
 
     if (id < 0)
-        return msg_status_error(EINVAL, "unknown event requested");
+        return msg_status_error(EINVAL, "unknown event '%s'", event);
 
     iot_clear(&dst);
     dst.uid = NO_UID;
@@ -145,8 +145,6 @@ iot_json_t *event_route(client_t *c, iot_json_t *req)
     iot_json_get_integer(req, "group"  , &dst.gid);
     iot_json_get_integer(req, "process", &dst.pid);
     iot_json_get_object (req, "data"   , &data);
-
-    iot_log_info("Event data: %s", iot_json_object_to_string(data));
 
     cnt = 0;
     e   = NULL;
@@ -162,10 +160,7 @@ iot_json_t *event_route(client_t *c, iot_json_t *req)
               (dst.pid == NO_PID || dst.pid == t->id.pid)))
             continue;
 
-        if (e == NULL)
-            e = msg_event(event, data);
-
-        if (e == NULL)
+        if (e == NULL && (e = msg_event_create(event, data)) == NULL)
             return msg_status_error(EINVAL, "failed to create event message");
 
         transport_send(t, e);
@@ -174,5 +169,5 @@ iot_json_t *event_route(client_t *c, iot_json_t *req)
 
     iot_json_unref(e);
 
-    return msg_status_ok(0, NULL, "OK");
+    return msg_status_ok(NULL);
 }

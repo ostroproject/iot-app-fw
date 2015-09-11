@@ -508,17 +508,31 @@ static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
 
     iot_debug("got message: %s", iot_json_object_to_string(msg));
 
-    if (msg_hdr(msg, &type, &seqno) < 0)
+    type = msg_type(msg);
+
+    if (type == NULL)
         return;
 
-    if (!strcmp(type, "status")) {
-        status = msg_status_data(msg, &message, &data);
+    if (!strcmp(type, "event")) {
+        status = msg_event_parse(msg, &event, &data);
+
+        if (status < 0)
+            return;
+
+        event_dispatch(app, event, data);
+    }
+    else if (!strcmp(type, "status")) {
+        status = msg_reply_parse(msg, &seqno, &message, &data);
+
+        if (status < 0)
+            return;
+
         pending_notify(app, seqno, status, message, data);
     }
     else if (!strcmp(type, "event")) {
-        data = msg_event_data(msg, &event);
+        status = msg_event_parse(msg, &event, &data);
 
-        if (event == NULL)
+        if (status < 0)
             return;
 
         event_dispatch(app, event, data);

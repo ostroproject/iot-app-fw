@@ -127,7 +127,7 @@ static int copy_arguments(iot_json_t *args, char ***argvp)
         return 0;
     }
 
-    if ((argv = iot_allocz_array(char *, argc)) == NULL)
+    if ((argv = iot_allocz_array(char *, argc + 1)) == NULL)
         return -1;
 
     for (i = 0; i < argc; i++) {
@@ -145,6 +145,20 @@ static int copy_arguments(iot_json_t *args, char ***argvp)
     for (i = 0; i < argc; i++)
         iot_free(argv[i]);
     return -1;
+}
+
+
+static void free_arguments(char **argv)
+{
+    int i;
+
+    if (argv == NULL)
+        return;
+
+    for (i = 0; argv[0] != NULL; i++)
+        iot_free(argv[i]);
+
+    iot_free(argv);
 }
 
 
@@ -225,10 +239,13 @@ iot_json_t *application_setup(client_t *c, iot_json_t *req)
 
     iot_list_append(&l->apps, &a->hook);
 
-    return msg_status_ok(0, NULL, "OK");
+    return msg_status_ok(NULL);
 
  fail:
     if (a) {
+        iot_free(a->app);
+        iot_free(a->id.cgrp);
+        free_arguments(a->id.argv);
         iot_free(a);
     }
 
@@ -267,199 +284,84 @@ iot_json_t *application_cleanup(client_t *c, iot_json_t *req)
     a = application_for_cgroup(l, cgrp);
 
     if (a == NULL)
-        return msg_status_ok(0, NULL, "already gone");
+        return msg_status_ok(NULL);
 
     iot_list_delete(&a->hook);
     hook_trigger(l, a, HOOK_CLEANUP);
 
     cgroup_rmdir(l, cgrp);
 
-    return msg_status_ok(0, NULL, "OK");
+    return msg_status_ok(NULL);
+}
+
+
+static iot_json_t *list_running(client_t *c)
+{
+    launcher_t      *l = c->l;
+    application_t   *a;
+    iot_list_hook_t *p, *n;
+    iot_json_t      *apps, *app;
+    const char      *descr, *desktop;
+    char             appid[1024];
+
+    apps = iot_json_create(IOT_JSON_ARRAY);
+
+    if (apps == NULL)
+        return NULL;
+
+    iot_list_foreach(&l->apps, p, n) {
+        a = iot_list_entry(p, typeof(*a), hook);
+
+        if (c->id.uid != a->id.uid && c->id.uid != 0)
+            continue;
+
+        app = iot_json_create(IOT_JSON_OBJECT);
+
+        if (app == NULL) {
+            iot_json_unref(apps);
+            return NULL;
+        }
+
+        descr   = iot_manifest_description(a->m, a->app);
+        desktop = iot_manifest_desktop_path(a->m, a->app);
+        snprintf(appid, sizeof(appid), "%s:%s",
+                 iot_manifest_package(a->m), a->app);
+
+        iot_json_add_string (app, "app"        , appid);
+        iot_json_add_string (app, "description", descr);
+        iot_json_add_string (app, "desktop"    , desktop ? desktop : "");
+        iot_json_add_integer(app, "user"       , a->id.uid);
+        iot_json_add_string_array(app, "argv", a->id.argv, a->id.argc);
+
+        iot_json_array_append(apps, app);
+    }
+
+    return msg_status_ok(apps);
 }
 
 
 iot_json_t *application_list(client_t *c, iot_json_t *req)
 {
-    IOT_UNUSED(c);
-    IOT_UNUSED(req);
+    const char *which;
 
-    return msg_status_error(EOPNOTSUPP, "not implemented");
+    if (!iot_json_get_string(req, "type", &which))
+        return msg_status_error(EINVAL, "invalid list request");
+
+    if (!strcmp(which, "running"))
+        return list_running(c);
+
+#if 0
+    if (!strcmp(which, "installed"))
+        return list_installed(c, req);
+#endif
+
+    return msg_status_error(EINVAL, "invalid list request '%s'", which);
 }
-
-
 
 
 
 
 #if 0
-int application_init(launcher_t *l)
-{
-    app_handler_t   *h;
-    iot_list_hook_t *p, *n;
-
-    IOT_UNUSED(l);
-
-    iot_list_foreach(&handlers, p, n) {
-        h = iot_list_entry(p, typeof(*h), hook);
-
-        if (h->init) {
-            if (h->init() < 0)
-                return -1;
-        }
-    }
-
-    return 0;
-}
-
-
-void application_exit(launcher_t *l)
-{
-    app_handler_t   *h;
-    iot_list_hook_t *p, *n;
-
-    IOT_UNUSED(l);
-
-    iot_list_foreach(&handlers, p, n) {
-        h = iot_list_entry(p, typeof(*h), hook);
-
-        if (h->exit)
-            h->exit();
-    }
-
-    iot_list_init(&handlers);
-}
-
-
-application_t *application_find_by_cgroup(launcher_t *l, const char *path)
-{
-    iot_list_hook_t *p, *n;
-    application_t   *app;
-
-    iot_list_foreach(&l->apps, p, n) {
-        app = iot_list_entry(p, typeof(*app), hook);
-
-        if (!strcmp(app->id.cgroup, path))
-            return app;
-    }
-
-    return NULL;
-}
-
-
-iot_json_t *application_setup(client_t *c, iot_json_t *req)
-{
-    launcher_t      *l = c->l;
-    application_t   *app;
-    app_handler_t   *h;
-    iot_list_hook_t *p, *n;
-    const char      *argv0, *base;
-    char             id[PATH_MAX];
-
-    app = iot_allocz(sizeof(*app));
-
-    if (app == NULL)
-        goto oom;
-
-    iot_list_init(&app->hook);
-    app->l = l;
-    app->id.user    = c->id.user;
-    app->id.group   = c->id.group;
-    app->id.process = c->id.process;
-
-    argv0 = req->args[0];
-
-    iot_log_info("Setting up application:");
-    iot_log_info("  command: '%s'", req->args[0]);
-    iot_log_info("      pid: %u", app->id.process);
-    iot_log_info("      uid: %u", app->id.user);
-    iot_log_info("      gid: %u", app->id.group);
-
-    if ((base = strrchr(argv0, '/')) != NULL)
-        base++;
-    else
-        base = argv0;
-
-    if (cgroup_mkdir(l, app->id.user, base, app->id.process, id, sizeof(id)) < 0)
-        goto failed;
-
-    app->id.cgroup = iot_strdup(id);
-    app->id.binary = iot_strdup(argv0);
-
-    if (app->id.cgroup == NULL || app->id.binary == NULL)
-        goto oom;
-
-    iot_list_foreach(&handlers, p, n) {
-        h = iot_list_entry(p, typeof(*h), hook);
-
-        if (h->setup) {
-            if (h->setup(app) < 0)
-                goto failed;
-        }
-    }
-
-    iot_list_append(&l->apps, &app->hook);
-
-    reply_set_status(rpl, req->seqno, 0, "OK", NULL);
-
-    return 0;
-
- failed:
-    reply_set_status(rpl, req->seqno, EINVAL, "Failed", NULL);
-    iot_free(app);
-
-    return -1;
-
- oom:
-    reply_set_status(rpl, req->seqno, ENOMEM, "Out of memory", NULL);
-    iot_free(app->id.cgroup);
-    iot_free(app->id.binary);
-    iot_free(app);
-
-    return -1;
-}
-
-
-int application_cleanup(client_t *c, cleanup_req_t *req, reply_t *rpl)
-{
-    launcher_t      *l    = c->l;
-    const char      *path = req->cgpath;
-    const char      *id   = path + 1;
-    application_t   *app  = application_find_by_cgroup(l, id);
-    app_handler_t   *h;
-    iot_list_hook_t *p, *n;
-
-    iot_log_info("Cleaning up application:");
-    iot_log_info("    id: '%s'", id);
-
-    if (app != NULL) {
-        iot_list_delete(&app->hook);
-
-        iot_list_foreach(&handlers, p, n) {
-            h = iot_list_entry(p, typeof(*h), hook);
-
-            if (h->cleanup)
-                h->cleanup(app);
-        }
-
-        iot_free(app->id.cgroup);
-        iot_free(app->id.binary);
-        iot_free(app);
-    }
-
-    cgroup_rmdir(l, id);
-
-    reply_set_status(rpl, req->seqno, 0, "OK", NULL);
-
-    return 0;
-}
-
-
-void application_register_handler(app_handler_t *h)
-{
-    iot_list_append(&handlers, &h->hook);
-}
-
-
 static int list_running(client_t *c, list_req_t *req, reply_t *rpl)
 {
     launcher_t      *l = c->l;
