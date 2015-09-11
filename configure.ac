@@ -457,6 +457,15 @@ AM_CONDITIONAL(BACKEND_RPM5, test "$backend_type" = "rpm5")
 AM_CONDITIONAL(BACKEND_RPM4, test "$backend_type" = "rpm4")
 AC_SUBST(BACKEND_TYPE, $backend_type)
 
+AC_ARG_WITH(package-prefix,
+            [  --with-package-prefix    package prefixe eg. iot-appfw],
+            [pkg_prefix="${with_package_prefix}-"], [pkg_prefix=""])
+AC_SUBST(PKG_PREFIX, $pkg_prefix)
+
+# test user
+AC_SUBST(SAMPLE_USER, [mosse])
+AM_CONDITIONAL(BUILD_SAMPLES, test "${SAMPLE_USER}x" != "x")
+
 
 # Set up IoT CFLAGS and LIBS.
 IOT_CFLAGS=""
@@ -511,6 +520,7 @@ if test "$UV_STANDALONE" = "yes"; then
     echo "    * libuv LIBS: $UV_LIBS"
 fi
 echo "package manager backend: ${BACKEND_TYPE}"
+echo "build sample packages: ${BUILD_SAMPLES}"
 echo "NodeJS bindings: ${NODEJS_ENABLED:-no}"
 if test "$NODEJS_ENABLED" = "yes"; then
     echo "    * NodeJS prefix: $NODE_PREFIX"

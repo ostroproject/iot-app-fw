@@ -46,7 +46,7 @@ static bool verify_files(iotpm_pkginfo_t *info)
     mode_t mode;
     char dir[IOTPM_PATH_MAX];
     size_t len_min, len_max, len, plen;
-    bool local, conf;
+    bool home, local, conf;
     int i;
 
     if (!strcmp(iotpm->username, "root"))
@@ -57,40 +57,67 @@ static bool verify_files(iotpm_pkginfo_t *info)
 
     for (i = 0;  i < info->nfile;  i++) {
         f = info->files + i;
-	path = f->path;
-	mode = f->mode;
-	plen = strlen(path);
-	len  = (plen > len_max) ? len_max : plen;
+        path = f->path;
+        mode = f->mode;
+        plen = strlen(path);
+        len  = (plen > len_max) ? len_max : plen;
 
-	local = (len >= len_min && !strncmp(path, dir, len));
-	conf = !strcmp(path, "/etc") || !strncmp(path, "/etc/", 5);
+        if (!strncmp(path, dir, len)) {
+            if (len <= len_min) {
+                home = true;
+                local = false;
+            }
+            else {
+                home = false;
+                local = true;
+            }
+        }
 
-	if (!local && !conf) {
-	    iot_log_error("file '%s' is neither on '%s' nor on '/etc/' paths",
-			  path, dir);
-	    success = false;
-	}
+        conf = !strcmp(path, "/etc") || !strncmp(path, "/etc/", 5);
 
-	if (local && strcmp(f->user, iotpm->username)) {
-	    iot_log_error("owner of file '%s' supposed to be '%s' not '%s'",
-			  path, iotpm->username, f->user);
-	    success = false;
-	}
+        if (!home && !local && !conf) {
+            iot_log_error("file '%s' is neither on '%s' nor on '/etc/' paths",
+                          path, dir);
+            success = false;
+        }
 
-	if (local && (mode & S_IWOTH)) {
-	    iot_log_error("file '%s' can be written by anyone", path);
-	    success = false;
-	}
+        if (home) {
+            if (!S_ISDIR(mode)) {
+                iot_log_error("attempt to replace something on path '%s'", dir);
+                success = false;
+            }
 
-	if ((mode & S_ISUID)) {
-	    iot_log_error("setuid flag is set for file '%s'", path);
-	    success = false;
-	}
+            if (strlen(path) > strlen(iotpm->homedir) &&
+                strcmp(f->user, iotpm->username))
+            {
+                iot_log_error("owner of directory '%s' supposed to be '%s' not '%s'",
+                              path, iotpm->username, f->user);
+                success = false;
+            }
+        }
+            
+        if (local) {
+            if (strcmp(f->user, iotpm->username)) {
+                iot_log_error("owner of file '%s' supposed to be '%s' not '%s'",
+                              path, iotpm->username, f->user);
+                success = false;
+            }
+        }
 
-	if ((mode & S_ISGID)) {
-	    iot_log_error("setgid flag is set for file '%s'", path);
-	    success = false;
-	}
+        if ((mode & S_IWOTH)) {
+            iot_log_error("file '%s' can be written by anyone", path);
+            success = false;
+        }
+
+        if ((mode & S_ISUID)) {
+            iot_log_error("setuid flag is set for file '%s'", path);
+            success = false;
+        }
+        
+        if ((mode & S_ISGID)) {
+            iot_log_error("setgid flag is set for file '%s'", path);
+            success = false;
+        }
     }
 
     return success;
