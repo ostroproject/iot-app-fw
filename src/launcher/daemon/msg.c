@@ -32,194 +32,10 @@
 #include <string.h>
 
 #include <iot/common/macros.h>
+#include <iot/common/log.h>
 #include <iot/common/json.h>
 
 #include "launcher/daemon/msg.h"
-
-
-iot_json_t *msg_status_error(int code, const char *fmt, ...)
-{
-    iot_json_t *pl;
-    char        buf[128], *msg;
-    int         n;
-    va_list     ap;
-
-    if ((pl = iot_json_create(IOT_JSON_OBJECT)) == NULL)
-        return NULL;
-
-    if (fmt != NULL) {
-        va_start(ap, fmt);
-        n = snprintf(buf, sizeof(buf), fmt, ap);
-        va_end(ap);
-    }
-    else
-        goto nomsg;
-
-    if (n < 0 || n >= (int)sizeof(buf))
-    nomsg:
-        msg = "failed";
-    else
-        msg = buf;
-
-    iot_json_add_integer(pl, "status" , code ? code : EINVAL);
-    iot_json_add_string (pl, "message", msg);
-
-    return pl;
-}
-
-
-iot_json_t *msg_status_ok(int code, iot_json_t *data, const char *fmt, ...)
-{
-    iot_json_t *pl;
-    char       *msg, buf[128];
-    int         n;
-    va_list     ap;
-
-    if ((pl = iot_json_create(IOT_JSON_OBJECT)) == NULL)
-        return NULL;
-
-    if (fmt != NULL) {
-        va_start(ap, fmt);
-        n = snprintf(buf, sizeof(buf), fmt, ap);
-        va_end(ap);
-    }
-    else
-        goto nomsg;
-
-    if (n < 0 || n >= (int)sizeof(buf))
-    nomsg:
-        msg = "OK";
-    else
-        msg = buf;
-
-    iot_json_add_integer(pl, "status" , code);
-    iot_json_add_string (pl, "message", msg);
-
-    if (data)
-        iot_json_add_object(pl, "data", data);
-
-    return pl;
-}
-
-
-int msg_status_data(iot_json_t *hdr, const char **msg, iot_json_t **data)
-{
-    const char *type;
-    iot_json_t *pl;
-    int         code;
-
-    if (!iot_json_get_string(hdr, "type", &type) || strcmp(type, "status"))
-        goto malformed;
-
-    if (!iot_json_get_object (hdr, "status" , &pl ) ||
-        !iot_json_get_integer(pl , "status" , &code) ||
-        !iot_json_get_string (pl , "message", msg  )) {
-    malformed:
-        *msg = "malformed message";
-        if (data != NULL)
-            *data = NULL;
-        return EINVAL;
-    }
-
-    if (code == 0) {
-        if (data != NULL && !iot_json_get_object(pl, "data", data))
-            *data = NULL;
-    }
-
-    return code;
-}
-
-
-iot_json_t *msg_event(const char *name, iot_json_t *data)
-{
-    iot_json_t *hdr, *e;
-
-    hdr = iot_json_create(IOT_JSON_OBJECT);
-
-    if (hdr == NULL)
-        return NULL;
-
-    iot_json_add_string (hdr, "type" , "event");
-    iot_json_add_integer(hdr, "seqno", 0);
-
-    if ((e = iot_json_create(IOT_JSON_OBJECT)) == NULL) {
-        iot_json_unref(hdr);
-        return NULL;
-    }
-
-    iot_json_add_object(hdr, "event", e);
-    iot_json_add_string(e  , "event", name);
-    iot_json_add_object(e  , "data" , iot_json_ref(data));
-
-    return hdr;
-}
-
-
-iot_json_t *msg_event_data(iot_json_t *hdr, const char **name)
-{
-    iot_json_t *e, *data;
-
-    if (!iot_json_get_object(hdr, "event", &e))
-        goto invalid;
-
-    if (name != NULL)
-        if (!iot_json_get_string(e, "event", name))
-            goto invalid;
-
-    if (!iot_json_get_object(e, "data", &data))
-        data = NULL;
-
-    return data;
-
- invalid:
-    errno = EINVAL;
-    if (name != NULL)
-        *name = NULL;
-
-    return NULL;
-}
-
-
-int msg_hdr(iot_json_t *hdr, const char **type, int *seqno)
-{
-    if (type != NULL)
-        if (!iot_json_get_string(hdr, "type", type))
-            goto invalid;
-
-    if (seqno != NULL)
-        if (!iot_json_get_integer(hdr, "seqno", seqno))
-            goto invalid;
-
-    return 0;
-
- invalid:
-    if (type)
-        *type = NULL;
-    if (seqno)
-        *seqno = -1;
-
-    errno = EINVAL;
-    return -1;
-}
-
-
-int msg_seqno(iot_json_t *hdr)
-{
-    int seqno;
-
-    if (msg_hdr(hdr, NULL, &seqno) < 0)
-        return -1;
-    else
-        return seqno;
-}
-
-
-
-
-
-
-
-
 
 
 const char *msg_type(iot_json_t *msg)
@@ -415,17 +231,196 @@ iot_json_t *msg_status_create(int code, iot_json_t *payload,
 }
 
 
-int msg_reply_parse(iot_json_t *rpl, const char **type, int *seqno,
+enum {
+    MSG_TYPE_END = -1,
+    MSG_TYPE_NONE,
+    MSG_TYPE_INTEGER,
+    MSG_TYPE_BOOLEAN,
+    MSG_TYPE_STRING,
+    MSG_TYPE_DOUBLE,
+    MSG_TYPE_ARRAY,
+    MSG_TYPE_OBJECT,
+    MSG_TYPE_ARRAY_INLINED,
+    MSG_TYPE_OBJECT_INLINED,
+};
+
+
+static iot_json_t *array_create(va_list *ap);
+
+static iot_json_t *object_create(va_list *ap)
+{
+    iot_json_t *o;
+    int         type, at;
+    const char *name;
+    int         i;
+    const char *s;
+    bool        b;
+    double      d;
+    void       *av;
+    size_t      ac;
+    iot_json_t *ov;
+
+    o = iot_json_create(IOT_JSON_OBJECT);
+
+    if (o == NULL)
+        return NULL;
+
+    while ((name = va_arg(ap, const char *)) != NULL) {
+        type = va_arg(*ap, int);
+
+        switch (type) {
+        case MSG_TYPE_INTEGER:
+            i = va_arg(*ap, int);
+            if (!iot_json_add_integer(o, name, i))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_STRING:
+            s = va_arg(*ap, const char *);
+            if (!iot_json_add_string(o, name, s))
+                goto nomem;
+
+        case MSG_TYPE_BOOLEAN:
+            b = va_arg(*ap, bool);
+            if (!iot_json_add_boolean(o, name, b))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_DOUBLE:
+            d = va_arg(*ap, double);
+            if (!iot_json_add_double(o, name, d))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_ARRAY:
+            at = va_arg(*ap, int);
+            av = va_arg(*ap, void *);
+            ac = va_arg(*ap, size_t);
+            if (!iot_json_add_array(o, name, at, av, ac))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_OBJECT:
+            ov = va_arg(*ap, iot_json_t *);
+            iot_json_add_object(o, name, ov);
+            break;
+
+        case MSG_TYPE_ARRAY_INLINED:
+            if (!(av = array_create(ap)))
+                goto fail;
+            iot_json_add_object(o, name, av);
+            break;
+
+        case MSG_TYPE_OBJECT_INLINED:
+            if (!(ov = object_create(ap)))
+                goto fail;
+            iot_json_add_object(o, name, ov);
+            break;
+
+        default:
+            errno = EINVAL;
+            goto fail;
+        }
+    }
+
+    return o;
+
+ nomem:
+    iot_json_unref(o);
+    errno = ENOMEM;
+    return NULL;
+
+ fail:
+    iot_json_unref(o);
+    return NULL;
+}
+
+
+static iot_json_t *array_create(va_list *ap)
+{
+    iot_json_t *a;
+    int         type, cnt, i;
+
+    a = iot_json_create(IOT_JSON_ARRAY);
+
+    if (a == NULL)
+        return NULL;
+
+    type = va_arg(*ap, int);
+    cnt  = va_arg(*ap, int);
+
+    for (i = 0; i < cnt; i++) {
+        switch (type) {
+        case MSG_TYPE_INTEGER:
+            if (!iot_json_array_append_integer(a, va_arg(*ap, int)))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_STRING:
+            if (!iot_json_array_append_string(a, va_arg(*ap, const char *)))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_BOOLEAN:
+            if (!iot_json_array_append_boolean(a, va_arg(*ap, bool)))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_DOUBLE:
+            if (!iot_json_array_append_double(a, va_arg(*ap, double)))
+                goto nomem;
+            break;
+
+        case MSG_TYPE_ARRAY:
+            iot_log_error("MSG_TYPE_ARRAY for %s() not implemented", __func__);
+            errno = EINVAL;
+            goto fail;
+
+        case MSG_TYPE_OBJECT:
+            iot_log_error("MSG_TYPE_OBJECT for %s() not implemented", __func__);
+            errno = EINVAL;
+            goto fail;
+
+        default:
+            iot_log_error("type %d for %s() not implemented", type, __func__);
+        }
+    }
+
+ nomem:
+    iot_json_unref(a);
+    errno = ENOMEM;
+    return NULL;
+
+ fail:
+    iot_json_unref(a);
+    return NULL;
+}
+
+
+iot_json_t *msg_payload_create(int type, ...)
+{
+    iot_json_t *pl;
+    va_list     ap;
+
+    va_start(ap, type);
+    pl = object_create(&ap);
+    va_end(ap);
+
+    return pl;
+}
+
+
+int msg_reply_parse(iot_json_t *rpl, int *seqno, const char **message,
                     iot_json_t **payload)
 {
     iot_json_t *s;
     int         code;
-    const char *message;
+    const char *type, *msg;
 
-    if (!iot_json_get_string(rpl, "type", type))
+    if (!iot_json_get_string(rpl, "type", &type))
         goto invalid;
 
-    if (strcmp(*type, "status"))
+    if (strcmp(type, "status"))
         goto invalid;
 
     if (!iot_json_get_integer(rpl, "seqno", seqno))
@@ -437,16 +432,17 @@ int msg_reply_parse(iot_json_t *rpl, const char **type, int *seqno,
     if (!iot_json_get_integer(s, "status", &code))
         goto invalid;
 
-    if (!iot_json_get_string(s, "message", &message))
+    if (!iot_json_get_string(s, "message", message ? message : &msg))
         goto invalid;
 
     if (code == 0) {
         if (payload != NULL)
-            if (!iot_json_get_object(s, "data", *payload))
-                *payload = NULL;
+            *payload = iot_json_get(s, "data");
     }
-    else
-        *payload = s;
+    else {
+        if (payload != NULL)
+            *payload = s;
+    }
 
     return code;
 
@@ -454,3 +450,57 @@ int msg_reply_parse(iot_json_t *rpl, const char **type, int *seqno,
     errno = EINVAL;
     return -1;
 }
+
+
+iot_json_t *msg_event_create(const char *name, iot_json_t *data)
+{
+    iot_json_t *msg, *e;
+
+    msg = iot_json_create(IOT_JSON_OBJECT);
+
+    if (msg == NULL)
+        return NULL;
+
+    iot_json_add_string (msg, "type" , "event");
+    iot_json_add_integer(msg, "seqno", 0);
+
+    e = iot_json_create(IOT_JSON_OBJECT);
+
+    if (e == NULL) {
+        iot_json_unref(msg);
+        return NULL;
+    }
+
+    iot_json_add_object(msg, "event", e);
+    iot_json_add_string(e  , "event", name);
+    iot_json_add_object(e  , "data" , iot_json_ref(data));
+
+    return msg;
+}
+
+
+int msg_event_parse(iot_json_t *msg, const char **name, iot_json_t **payload)
+{
+    iot_json_t *e;
+    const char *event;
+
+    if (!iot_json_get_object(msg, "event", &e))
+        goto invalid;
+
+    if (!iot_json_get_string(e, "event", &event))
+        goto invalid;
+
+    if (name != NULL)
+        *name = event;
+
+    if (payload != NULL)
+        if (!iot_json_get_object(e, "data", payload))
+            *payload = NULL;
+
+    return 0;
+
+ invalid:
+    errno = EINVAL;
+    return -1;
+}
+
