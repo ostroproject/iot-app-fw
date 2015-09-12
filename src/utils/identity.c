@@ -63,6 +63,11 @@ const char *iot_get_username(uid_t uid, char *namebuf, size_t size)
     char          buf[4096];
     int           n;
 
+    if (uid == (uid_t)-1) {
+        snprintf(namebuf, size, "<no-user>");
+        return "<no-user>";
+    }
+
     if (getpwuid_r(uid, &pwd, buf, sizeof(buf), &found) == 0) {
         n = snprintf(namebuf, size, "%s", pwd.pw_name);
 
