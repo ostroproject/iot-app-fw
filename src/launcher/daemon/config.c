@@ -112,34 +112,69 @@ static void print_usage(launcher_t *l, const char *argv0, int exit_code,
 }
 
 
+static bool from_source_tree(const char *argv0, char *base, size_t size)
+{
+    char *e;
+    int   n;
+
+    if ((e = strstr(argv0, "/src/iot-launch")) == NULL &&
+        (e = strstr(argv0, "/src/.libs/lt-iot-launch")) == NULL)
+        return false;
+
+    if (base != NULL) {
+        n = e - argv0;
+
+        if (n >= (int)size)
+            n = size - 1;
+
+        snprintf(base, size, "%*.*s", n, n, argv0);
+    }
+
+    return true;
+}
+
+
 static void config_set_defaults(launcher_t *l, char *argv0)
 {
     static char  agent[PATH_MAX];
+    char         common[PATH_MAX], user[PATH_MAX], base[PATH_MAX];
     char        *p;
+    int          n;
 
-    l->lnc_addr = IOT_LAUNCH_ADDRESS;
-    l->app_addr = IOT_APPFW_ADDRESS;
-    l->lnc_fd   = -1;
-    l->app_fd   = -1;
+    l->lnc_addr   = IOT_LAUNCH_ADDRESS;
+    l->app_addr   = IOT_APPFW_ADDRESS;
+    l->lnc_fd     = -1;
+    l->app_fd     = -1;
+    l->log_mask   = IOT_LOG_UPTO(IOT_LOG_WARNING);
+    l->log_target = IOT_LOG_TO_STDERR;
 
-    if (strstr(argv0, "/iot-app-fw/src/iot-launch") ||
-        strstr(argv0, "/iot-app-fw/src/.libs/")) {
-        iot_log_mask_t saved = iot_log_set_mask(IOT_LOG_MASK_WARNING);
-        iot_log_warning("*** Setting defaults for running from source tree...");
+    iot_log_set_mask(l->log_mask);
+    iot_log_set_target(l->log_target);
 
-        strcpy(agent, argv0);
-        p = strstr(agent, "iot-app-fw/src/");
-        strcpy(p, "iot-app-fw/src/iot-launch-agent");
+    if (from_source_tree(argv0, base, sizeof(base))) {
+        p = strstr(argv0, "iot-app-fw/src/");
+        n = p - argv0;
+        snprintf(agent, sizeof(agent),
+                 "%*.*s/iot-app-fw/src/iot-launch-agent", n, n, argv0);
+        snprintf(common, sizeof(common), "%s/manifests/common", base);
+        snprintf(user, sizeof(user), "%s/manifests/user", base);
 
-        iot_log_warning("launcher path: %s", argv0);
-        iot_log_warning("agent path: %s", agent);
-
-        iot_log_set_mask(saved);
-
+        l->log_mask = IOT_LOG_UPTO(IOT_LOG_INFO);
         l->cgagent    = agent;
-        l->log_mask   = IOT_LOG_UPTO(IOT_LOG_INFO);
-        l->log_target = IOT_LOG_TO_STDERR;
         l->foreground = TRUE;
+
+        iot_log_set_mask(l->log_mask);
+        iot_manifest_set_directories(common, user);
+
+        iot_log_warning("*** Set up defaults for a source tree run:");
+        iot_log_warning("  launcher: %s", argv0);
+        iot_log_warning("      base: %s", base);
+        iot_log_warning("     agent: %s", agent);
+        iot_log_warning("  manifest directories:");
+        iot_log_warning("    common: %s", common);
+        iot_log_warning("  per-user: %s", user);
+        iot_log_warning("  By default will %sstay in the foreground...",
+                        l->foreground ? "" : "not ");
     }
     else {
         l->cgagent    = IOT_LIBEXECDIR"/iot-launcher/io-launch-agent";
@@ -147,10 +182,6 @@ static void config_set_defaults(launcher_t *l, char *argv0)
         l->log_target = IOT_LOG_TO_STDERR;
         l->foreground = FALSE;
     }
-
-    iot_log_set_mask(l->log_mask);
-    iot_log_set_target(l->log_target);
-
 }
 
 
