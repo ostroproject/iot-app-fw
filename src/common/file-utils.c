@@ -110,7 +110,15 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
 
         snprintf(file, sizeof(file), "%s/%s", path, de->d_name);
 
-        if (((mask & IOT_DIRENT_LNK ? lstat : stat))(file, &st) != 0)
+        /*
+         * Notes: XXX TODO:
+         *     I think it would be better to have 3 link-related modes:
+         *       1) follow symlinks transparently
+         *       2) pass symlinks to the callback
+         *       3) ignore symlinks altogether
+         *     Now IOT_DIRENT_LINK in mask lets us chose between 1 and 3.
+         */
+        if (((mask & IOT_DIRENT_LNK ? stat : lstat))(file, &st) != 0)
             continue;
 
         type = dirent_type(st.st_mode);
@@ -119,7 +127,6 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
 
         status = cb(path, de->d_name, type, user_data);
     }
-
 
     closedir(dp);
     if (pattern != NULL)
