@@ -103,7 +103,7 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
         }
     }
 
-    status = 0;
+    status = 1;
     while ((de = readdir(dp)) != NULL && status > 0) {
         if (pattern != NULL && !iot_regexp_matches(re, de->d_name, 0))
             continue;
@@ -125,8 +125,10 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
     if (pattern != NULL)
         iot_regexp_free(re);
 
-    if (status < 0)
+    if (status < 0) {
         errno = -status;
+        return -1;
+    }
 
     return 0;
 }
