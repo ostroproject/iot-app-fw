@@ -340,6 +340,78 @@ static iot_json_t *list_running(client_t *c)
 }
 
 
+static iot_json_t *list_installed(client_t *c)
+{
+    launcher_t         *l = c->l;
+    iot_json_t         *apps, *app;
+    iot_manifest_t     *m;
+    iot_hashtbl_iter_t  it;
+    uid_t               uid;
+    char               *mapps[64], *a, *argv[64];
+    int                 nmapp, argc, i;
+    const char         *descr, *desktop;
+    char                appid[1024];
+
+    if (iot_manifest_populate_cache() < 0)
+        return NULL;
+
+    apps = iot_json_create(IOT_JSON_ARRAY);
+
+    if (apps == NULL)
+        goto out;
+
+    IOT_MANIFEST_CACHE_FOREACH(&it, &m) {
+        iot_log_info("Got manifest '%s'...", iot_manifest_path(m));
+
+        uid = iot_manifest_user(m);
+
+        iot_log_info("client uid: %d, manifest uid: %d",
+                     c->id.uid, uid);
+
+        if (uid != (uid_t)-1 && c->id.uid != 0 && c->id.uid != uid)
+            continue;
+
+        nmapp = iot_manifest_applications(m, mapps, IOT_ARRAY_SIZE(mapps));
+
+        if (nmapp > (int)IOT_ARRAY_SIZE(mapps))
+            goto fail;
+
+        for (i = 0; i < nmapp; i++) {
+            a   = mapps[i];
+            app = iot_json_create(IOT_JSON_OBJECT);
+
+            if (app == NULL)
+                goto fail;
+
+            descr   = iot_manifest_description(m, a);
+            desktop = iot_manifest_desktop_path(m, a);
+            snprintf(appid, sizeof(appid), "%s:%s",
+                     iot_manifest_package(m), a);
+            argc = iot_manifest_arguments(m, a, argv, IOT_ARRAY_SIZE(argv));
+
+            iot_json_add_string (app, "app"        , appid);
+            iot_json_add_string (app, "description", descr);
+            iot_json_add_string (app, "desktop"    , desktop ? desktop : "");
+            iot_json_add_integer(app, "user"       , uid);
+            iot_json_add_string_array(app, "argv", argv, argc);
+
+            iot_json_array_append(apps, app);
+        }
+    }
+
+    goto out;
+
+ fail:
+    iot_json_unref(apps);
+    apps = NULL;
+
+ out:
+    iot_manifest_reset_cache();
+
+    return apps ? msg_status_ok(apps) : msg_status_error(EINVAL, "failed");
+}
+
+
 iot_json_t *application_list(client_t *c, iot_json_t *req)
 {
     const char *which;
@@ -350,10 +422,8 @@ iot_json_t *application_list(client_t *c, iot_json_t *req)
     if (!strcmp(which, "running"))
         return list_running(c);
 
-#if 0
     if (!strcmp(which, "installed"))
-        return list_installed(c, req);
-#endif
+        return list_installed(c);
 
     return msg_status_error(EINVAL, "invalid list request '%s'", which);
 }
