@@ -34,6 +34,7 @@
 #include <iot/common/macros.h>
 #include <iot/common/json.h>
 #include <iot/common/mainloop.h>
+#include <iot/common/hash-table.h>
 
 #define IOT_MANIFEST_MAXSIZE (16 * 1024) /**< limit for manifest JSON data */
 
@@ -106,6 +107,15 @@ int iot_manifest_tracking(iot_mainloop_t *ml);
  * @return Returns 0 upon success, -1 otherwise.
  */
 int iot_manifest_populate_cache(void);
+
+
+/**
+ * @brief Reset the manifest cache.
+ *
+ * Reset the manifest cache, purging any potentially cached entries.
+ */
+void iot_manifest_reset_cache(void);
+
 
 /**
  * @brief A manifest read from the filesystem, and potentially cached.
@@ -308,44 +318,63 @@ int iot_manifest_validate(iot_manifest_t *m);
 
 /**
  * @brief Read the given manifest file.
- */
-iot_manifest_t *iot_manifest_read(const char *path);
-
-
-#if 0
-/**
- * @brief Type for a manifest read/cached in from the filesystem.
- */
-typedef struct {
-    int         usr;                     /* user this manifest belongs to */
-    char       *pkg;                     /* package this manifest is for */
-    char       *path;                    /* path manifest was read in from */
-    iot_json_t *data;                    /* actual manifest data */
-} iot_manifest_t;
-
-
-/**
- * @brief Read the given manifest file.
+ *
+ * Read the given manifest file. Do not consult the cache, neither cache
+ * the resulting manifest.
+ *
+ * @param [in] path  Path of the manifest file to read.
+ *
+ * @return Returns the read manifest or @NULL upon failure.
  */
 iot_manifest_t *iot_manifest_read(const char *path);
 
 /**
- * @brief Lookup the manifest for the given user and package.
+ * @brief Type for a manifest cache iterator.
  */
-iot_manifest_t *iot_manifest_lookup(uid_t usr, const char *package);
+typedef iot_hashtbl_iter_t iot_manifest_iter_t;
 
 /**
- * @brief Manifest cache control.
+ * @brief Helper function to begin the interation of the manifest cache.
+ *
+ * Initialize the given iterator for going through all entries in the
+ * manifest cache.
+ *
+ * @param [in] it  iterator to initialize.
+ *
+ * Note that probably you should use the @IOT_MANIFEST_CACHE_FOREACH macro
+ * for iterating the cache instead of this function.
  */
-typedef enum {
-    IOT_MANIFEST_CACHE_DISABLE = 0,      /**< disable cache */
-    IOT_MANIFEST_CACHE_ENABLE,           /**< enable cache */
-    IOT_MANIFEST_CACHE_PREFETCH,         /**< enable and prepopulate cache */
-} iot_manifest_cache_mode_t;
+void _iot_manifest_cache_begin(iot_manifest_iter_t *it);
 
-iot_manifest_cache_mode_t iot_manifest_cache(iot_manifest_cache_mode_t m);
+/**
+ * @brief Helper function to continue the interation of the manifest cache.
+ *
+ * Continue the iteration of the manifest cache, moving to the next
+ * entry.
+ *
+ * @param [in] it  iterator used in for iterating the cache
+ *
+ * @return Returns @NULL once all entries have been iterated through.
+ *
+ * Note that probably you should use the @IOT_MANIFEST_CACHE_FOREACH macro
+ * for iterating the cache instead of this function.
+ */
+void *_iot_manifest_cache_next(iot_manifest_iter_t *it, iot_manifest_t **m);
 
-#endif
+/**
+ * @brief Macro for iterating through all manifest cache entries.
+ *
+ * Iterate through all entries in the manifest cache.
+ *
+ * @param [in,out] _it  iterator used for iterating the cache
+ * @param [out]    _m   variable to successively set to the cache entries
+ *
+ */
+#define IOT_MANIFEST_CACHE_FOREACH(_it, _m)                             \
+    for (_iot_manifest_cache_begin((_it)),                              \
+             _iot_manifest_cache_next((_it), (_m));                     \
+         (_it)->b != NULL;                                              \
+         _iot_manifest_cache_next((_it), (_m)))
 
 /**
  * @}

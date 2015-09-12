@@ -132,6 +132,12 @@ int iot_manifest_populate_cache(void)
 }
 
 
+void iot_manifest_reset_cache(void)
+{
+    cache_destroy();
+}
+
+
 static iot_manifest_t *manifest_alloc(uid_t usr, const char *pkg,
                                       const char *path)
 {
@@ -775,6 +781,7 @@ static int cache_create(void)
 static void cache_destroy(void)
 {
     iot_hashtbl_destroy(cache, true);
+    cache = NULL;
 }
 
 
@@ -782,6 +789,8 @@ static int cache_add(iot_manifest_t *m)
 {
     if (cache == NULL || m == NULL)
         return 0;
+
+    iot_debug("adding manifest %s to cache...", m->path);
 
     return iot_hashtbl_add(cache, m, m, NULL);
 }
@@ -823,13 +832,16 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
     char            path[PATH_MAX], pkg[128];
     int             n, status;
 
-    n = snprintf(path, sizeof(path), dir, e);
+    n = snprintf(path, sizeof(path), "%s/%s", dir, e);
 
     if (n < 0 || n >= (int)sizeof(path))
         return -EOVERFLOW;
 
     switch (type) {
     case IOT_DIRENT_DIR:
+        if (access(path, R_OK|X_OK) != 0)
+            return 1;
+
         scan->usr = strtoul(e, NULL, 10);
         status = iot_scan_dir(path, ".*\\.manifest$", IOT_DIRENT_REG,
                               cache_scan_cb, scan);
@@ -837,16 +849,23 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
         break;
 
     case IOT_DIRENT_REG:
+        if (access(path, R_OK) != 0)
+            return 1;
+
         if (manifest_pkg(e, pkg, sizeof(pkg)) == NULL)
             return -EINVAL;
 
         if ((m = manifest_alloc(scan->usr, pkg, path)) == NULL)
             return -errno;
 
+        iot_debug("trying to read %s into manifest cache...", path);
+
         if (manifest_read(m) < 0) {
             manifest_free(m);
             return -errno;
         }
+        else
+            cache_add(m);
 
         status = 1;
         break;
@@ -881,277 +900,22 @@ static int cache_scan(const char *path, bool users)
 
 static int cache_populate(const char *common, const char *user)
 {
+    if (cache_create() < 0)
+        return -1;
+
     return (cache_scan(common, false) < 0 || cache_scan(user, true)) ? -1 : 0;
 }
 
 
-
-
-
-
-
-
-
-
-
-#if 0
-static int cache_create(void)
+void _iot_manifest_cache_begin(iot_manifest_iter_t *it)
 {
-    iot_hashtbl_config_t cfg;
-
-    if (cache != NULL)
-        return 0;
-
-    cfg.hash    = entry_hash;
-    cfg.comp    = entry_comp;
-    cfg.free    = entry_free;
-    cfg.nalloc  = 0;
-    cfg.nbucket = 128;
-    cfg.cookies = 0;
-
-    cache = iot_hashtbl_create(&cfg);
-
-    return cache != NULL ? 0 : -1;
+    _iot_hashtbl_begin(cache, it, +1);
 }
 
 
-static void cache_destroy(void)
+void *_iot_manifest_cache_next(iot_manifest_iter_t *it, iot_manifest_t **m)
 {
-    iot_hashtbl_destroy(cache, true);
+    return _iot_hashtbl_iter(cache, it, +1, NULL, NULL, (const void **)m);
 }
 
 
-static int cache_add(iot_manifest_t *m)
-{
-    if (cache == NULL)
-        return 0;
-    else
-        return iot_hashtbl_add(cache, m, m, NULL);
-}
-
-
-static int cache_del(iot_manifest_t *m)
-{
-    return iot_hashtbl_del(cache, m, IOT_HASH_COOKIE_NONE, false) ? 0 : -1;
-}
-
-
-static iot_manifest_t *cache_lookup(int usr, const char *pkg)
-{
-    iot_manifest_t *m;
-    iot_manifest_t  key;
-
-    key.usr = usr;
-    key.pkg = (char *)pkg;
-
-    m = iot_hashtbl_lookup(cache, &key, IOT_HASH_COOKIE_NONE);
-
-    return m;
-}
-
-
-static int scandir_cb(const char *dir, const char *e, iot_dirent_type_t type,
-                      void *user_data)
-{
-    dirscan_t      *s = (dirscan_t *)user_data;
-    iot_manifest_t *m;
-    char            path[PATH_MAX], pkg[128];
-    int             n;
-
-    IOT_UNUSED(dir);
-    IOT_UNUSED(type);
-
-    if (manifest_pkg(e, pkg, sizeof(pkg)) == NULL)
-        return TRUE;
-
-    n = snprintf(path, sizeof(path), "%s/%s", s->dir, e);
-
-    if (n < 0 || n >= (int)sizeof(path))
-        return TRUE;
-
-    if ((m = manifest_alloc(s->usr, pkg, path)) == NULL)
-        return TRUE;
-
-    if (manifest_read(m) < 0)
-        manifest_free(m);
-    else
-        cache_add(m);
-
-    return TRUE;
-}
-
-
-static int cache_scandir(const char *dir, int usr)
-{
-    dirscan_t          scan    = { .dir = dir, .usr = usr };
-    const char        *pattern = ".*\\.manifest$";
-    iot_dirent_type_t  type    = IOT_DIRENT_REG;
-
-    return iot_scan_dir(dir, pattern, type, scandir_cb, &scan) ? 0 : -1;
-}
-
-
-static int scanusr_cb(const char *e, iot_dirent_type_t type, void *user_data)
-{
-    dirscan_t *s = (dirscan_t *)user_data;
-    char       path[PATH_MAX];
-    int        n, usr;
-
-    IOT_UNUSED(type);
-
-    n = snprintf(path, sizeof(path), "%s/%s", s->dir, e);
-
-    if (n < 0 || n >= (int)sizeof(path))
-        return TRUE;
-
-    usr = strtoul(e, NULL, 10);
-    cache_scandir(path, usr);
-
-    return TRUE;
-}
-
-
-static int cache_populate(const char *common, const char *user)
-{
-    dirscan_t          scan    = { .dir = user, .usr = -1 };
-    const char        *pattern = "[1-9][0-9]*";
-    iot_dirent_type_t  type    = IOT_DIRENT_DIR;
-
-    cache_scandir(common, -1);
-
-    return iot_scan_dir(user, pattern, type, scanusr_cb, &scan) ? 0 : -1;
-}
-
-
-
-uid_t iot_manifest_userid(const char *user)
-{
-    struct passwd pwd, *found;
-    char          buf[4096];
-
-    if (getpwnam_r(usr, &pwd, buf, sizeof(buf), &found) != 0)
-        return -1;
-
-    return (int)pwd.pw_uid;
-}
-
-static iot_json_t *read_manifest(const char *path)
-{
-    struct stat  st;
-    char        *buf;
-    iot_json_t  *data;
-    int          fd, n, ch;
-
-    if (stat(path, &st) < 0)
-        return NULL;
-
-    if (st.st_size > IOT_MANIFEST_MAXSIZE) {
-        errno = ENOBUFS;
-        return NULL;
-    }
-
-    fd = open(path, O_RDONLY);
-
-    if (fd < 0)
-        return NULL;
-
-    buf = alloca(st.st_size + 1);
-    n = read(fd, buf, st.st_size);
-
-    close(fd);
-
-    if (n < st.st_size)
-        return NULL;
-
-    while (n < 1 && ((ch = buf[n - 1]) == '\n' || ch == '\t' || ch == ' '))
-        n--;
-
-    buf[n] = '\0';
-
-    if (iot_json_parse_object(&buf, &n, &data) < 0)
-        return NULL;
-
-    if (n > 0) {
-        errno = EINVAL;
-        return NULL;
-    }
-
-    return data;
-}
-
-
-static void free_manifest(iot_manifest_t *m)
-{
-    if (m == NULL)
-        return;
-
-    iot_free(m->pkg);
-    iot_free(m->path);
-    iot_json_unref(m->data);
-
-    iot_free(m);
-}
-
-
-iot_manifest_t *iot_manifest_read(const char *path)
-{
-    iot_manifest_t *m;
-    iot_json_t     *data;
-    char            pkg[128], *b, *e;
-
-    if (manifest_pkg(path, pkg, sizeof(pkg)) == NULL) {
-        errno = EINVAL;
-        return NULL;
-    }
-
-    data = read_manifest(path);
-
-    if (data == NULL)
-        return NULL;
-
-    m = iot_allocz(sizeof(*m));
-
-    if (m == NULL) {
-        iot_json_unref(data);
-        return NULL;
-    }
-
-    m->data = data;
-    m->pkg  = iot_strdup(pkg);
-    m->path = iot_strdup(path);
-
-    if (m->pkg == NULL || m->path == NULL) {
-        free_manifest(m);
-        return NULL;
-    }
-
-    return m;
-}
-
-
-iot_manifest_t *iot_manifest_lookup(uid_t usr, const char *pkg)
-{
-    iot_manifest_t *m;
-    char            path[PATH_MAX];
-
-    if ((m = cache_lookup(usr, pkg)) != NULL ||
-        (m = cache_lookup(-1 , pkg)) != NULL)
-        return m;
-
-    if (manifest_path(usr, pkg, path, sizeof(path)) == NULL &&
-        manifest_path(-1 , pkg, path, sizeof(path)) == NULL)
-        return NULL;
-
-    m = iot_manifest_read(path);
-
-    if (m == NULL)
-        return NULL;
-
-    m->usr = usr;
-
-    cache_add(m);
-
-    return m;
-}
-
-#endif
