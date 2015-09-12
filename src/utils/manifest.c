@@ -790,7 +790,7 @@ static int cache_add(iot_manifest_t *m)
     if (cache == NULL || m == NULL)
         return 0;
 
-    iot_debug("adding manifest %s to cache...", m->path);
+    iot_debug("adding %s to manifest cache...", m->path);
 
     return iot_hashtbl_add(cache, m, m, NULL);
 }
@@ -858,7 +858,7 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
         if ((m = manifest_alloc(scan->usr, pkg, path)) == NULL)
             return -errno;
 
-        iot_debug("trying to read %s into manifest cache...", path);
+        iot_debug("read %s (user %d) into manifest cache...", path, scan->usr);
 
         if (manifest_read(m) < 0) {
             manifest_free(m);
@@ -891,6 +891,7 @@ static int cache_scan(const char *path, bool users)
     else {
         type = IOT_DIRENT_REG;
         name = ".*\\.manifest$";
+        scan.usr = -1;
     }
 
     return iot_scan_dir(path, name, type, cache_scan_cb, &scan);
