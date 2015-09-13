@@ -352,6 +352,8 @@ static iot_json_t *list_installed(client_t *c)
     const char         *descr, *desktop;
     char                appid[1024];
 
+    IOT_UNUSED(l);
+
     if (iot_manifest_populate_cache() < 0)
         return NULL;
 
@@ -361,12 +363,9 @@ static iot_json_t *list_installed(client_t *c)
         goto out;
 
     IOT_MANIFEST_CACHE_FOREACH(&it, &m) {
-        iot_log_info("Got manifest '%s'...", iot_manifest_path(m));
+        iot_debug("checking manifest '%s'...", iot_manifest_path(m));
 
         uid = iot_manifest_user(m);
-
-        iot_log_info("client uid: %d, manifest uid: %d",
-                     c->id.uid, uid);
 
         if (uid != (uid_t)-1 && c->id.uid != 0 && c->id.uid != uid)
             continue;
