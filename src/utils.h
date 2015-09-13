@@ -32,5 +32,6 @@
 
 #include <iot/common.h>
 #include <iot/utils/manifest.h>
+#include <iot/utils/identity.h>
 
 #endif /* __IOT_UTILS_H__ */
