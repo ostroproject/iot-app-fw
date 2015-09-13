@@ -30,7 +30,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #define __USE_GNU
-#define _GNU_SOURCE
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
