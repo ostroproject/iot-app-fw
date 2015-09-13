@@ -29,6 +29,7 @@
 
 #include <errno.h>
 #include <string.h>
+#define __USE_GNU    /* setresuid */
 #include <unistd.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -526,7 +527,7 @@ static void remove_signal_handlers(launcher_t *l)
 
 int set_user(launcher_t *l)
 {
-    return setreuid(l->uid, l->uid);
+    return setresuid(l->uid, l->uid, l->uid);
 }
 
 
@@ -586,6 +587,8 @@ int set_smack_label(launcher_t *l)
 
 static void security_setup(launcher_t *l)
 {
+    iot_switch_userid(IOT_USERID_SUID);
+
     if (l->label || l->user || l->groups || l->privileges) {
         if (!iot_development_mode())
             launch_fail(l, EINVAL, false, "Hmm... not in development mode.");
@@ -613,6 +616,10 @@ static void security_setup(launcher_t *l)
         if (security_manager_set_process_groups_from_appid(l->fqai) != 0)
             launch_fail(l, 1, false, "Failed to set groups.");
 
+        if (iot_switch_userid(IOT_USERID_DROP) < 0)
+            launch_fail(l, errno, false, "Failed to switch user id (%d: %s).",
+                        errno, strerror(errno));
+
         if (security_manager_drop_process_privileges() != 0)
             launch_fail(l, 1, false, "Failed to drop privileges.");
     }
@@ -622,19 +629,22 @@ static void security_setup(launcher_t *l)
 
 static void security_setup(launcher_t *l)
 {
+    iot_switch_userid(IOT_USERID_SUID);
+
     launch_warn("Support for Security-Manager is disabled.");
 
     if (set_groups(l) < 0)
         launch_fail(l, errno, false, "Failed to set groups (%d: %s).",
                     errno, strerror(errno));
 
-    if (set_user(l) < 0)
-        launch_fail(l, errno, false, "Failed to switch user id (%d: %s).",
+    if (iot_switch_userid(IOT_USERID_DROP) < 0)
+        launch_fail(l, errno, false, "Failed to switch to real uid (%d: %s).",
                     errno, strerror(errno));
 
     if (drop_privileges(l) < 0)
         launch_fail(l, errno, false, "Failed to drop privileges (%d: %s).",
                     errno, strerror(errno));
+
 }
 
 #endif
@@ -1121,6 +1131,8 @@ int main(int argc, char *argv[], char **envp)
 {
     launcher_t  l;
     iot_json_t *req;
+
+    iot_switch_userid(IOT_USERID_REAL);
 
     launcher_init(&l, argv[0], envp);
     parse_cmdline(&l, argc, argv, envp);
