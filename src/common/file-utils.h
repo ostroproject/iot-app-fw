@@ -50,6 +50,11 @@ typedef enum {
     IOT_DIRENT_LNK  = 0x20,                      /* symbolic link */
     IOT_DIRENT_SOCK = 0x40,                      /* socket */
     IOT_DIRENT_ANY  = 0xff,                      /* mask of all types */
+
+    IOT_DIRENT_FOLLOW_LNK = 0x000,               /* follow symlinks */
+    IOT_DIRENT_ACTUAL_LNK = 0x100,               /* don't follow symlinks */
+    IOT_DIRENT_IGNORE_LNK = 0x200,               /* ignore symlinks */
+    IOT_DIRENT_ACTION_LNK = 0x300,               /* symlink action mask */
 } iot_dirent_type_t;
 
 

@@ -64,80 +64,87 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
                  iot_scan_dir_cb_t cb, void *user_data)
 {
     DIR               *dp;
+    iot_regexp_t      *re;
     struct dirent     *de;
     struct stat        st;
-    iot_regexp_t      *re;
-    const char        *prefix;
     char               glob[1024], file[PATH_MAX];
-    size_t             size;
     int                status, flags;
+    int              (*statfn)(const char *, struct stat *);
     iot_dirent_type_t  type;
 
     if ((dp = opendir(path)) == NULL)
         return -1;
 
+    /* compile pattern if given (converting globs to regexp) */
+    re = NULL;
     if (pattern != NULL) {
-        prefix = IOT_PATTERN_GLOB;
-        size   = sizeof(IOT_PATTERN_GLOB) - 1;
+        if (strstr(pattern, IOT_PATTERN_GLOB) == pattern) {
+            pattern += sizeof(IOT_PATTERN_GLOB) - 1;
 
-        if (!strncmp(pattern, prefix, size)) {
-            if (iot_regexp_glob(pattern + size, glob, sizeof(glob)) < 0) {
-                closedir(dp);
-                return -1;
-            }
+            if (iot_regexp_glob(pattern, glob, sizeof(glob)) < 0)
+                goto fail;
 
             pattern = glob;
         }
         else {
-            prefix = IOT_PATTERN_REGEX;
-            size   = sizeof(IOT_PATTERN_REGEX) - 1;
-
-            if (!strncmp(pattern, prefix, size))
-                pattern += size;
+            if (strstr(pattern, IOT_PATTERN_REGEX) == pattern)
+                pattern += sizeof(IOT_PATTERN_REGEX) - 1;
         }
 
         flags = IOT_REGEXP_EXTENDED | IOT_REGEXP_NOSUB;
-        if ((re = iot_regexp_compile(pattern, flags)) == NULL) {
-            closedir(dp);
-            return -1;
-        }
+        re    = iot_regexp_compile(pattern, flags);
+
+        if (re == NULL)
+            goto fail;
     }
 
-    status = 1;
-    while ((de = readdir(dp)) != NULL && status > 0) {
+    /* follow symlinks if no other preferences are given. */
+    if (!(mask & (IOT_DIRENT_ACTION_LNK)))
+        mask |= IOT_DIRENT_LNK;
+    else if (mask & IOT_DIRENT_ACTUAL_LNK)
+        mask |= IOT_DIRENT_LNK;
+    else if (mask & IOT_DIRENT_IGNORE_LNK)
+        mask &= ~IOT_DIRENT_LNK;
+
+    /* lstat instead of stat if we ignore or pass on symlinks */
+    if (mask & (IOT_DIRENT_ACTUAL_LNK | IOT_DIRENT_IGNORE_LNK))
+        statfn = lstat;
+    else
+        statfn = stat;
+
+    while ((de = readdir(dp)) != NULL) {
         if (pattern != NULL && !iot_regexp_matches(re, de->d_name, 0))
             continue;
 
         snprintf(file, sizeof(file), "%s/%s", path, de->d_name);
 
-        /*
-         * Notes: XXX TODO:
-         *     I think it would be better to have 3 link-related modes:
-         *       1) follow symlinks transparently
-         *       2) pass symlinks to the callback
-         *       3) ignore symlinks altogether
-         *     Now IOT_DIRENT_LINK in mask lets us chose between 1 and 3.
-         */
-        if (((mask & IOT_DIRENT_LNK ? stat : lstat))(file, &st) != 0)
+        if (statfn(file, &st) != 0)
             continue;
 
         type = dirent_type(st.st_mode);
+
         if (!(type & mask))
             continue;
 
         status = cb(path, de->d_name, type, user_data);
+
+        if (status == 0)
+            break;
+
+        if (status < 0)
+            goto fail;
     }
 
     closedir(dp);
-    if (pattern != NULL)
-        iot_regexp_free(re);
-
-    if (status < 0) {
-        errno = -status;
-        return -1;
-    }
+    iot_regexp_free(re);
 
     return 0;
+
+ fail:
+    closedir(dp);
+    iot_regexp_free(re);
+
+    return -1;
 }
 
 
