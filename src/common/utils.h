@@ -27,8 +27,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __IOT_UTILS_H__
-#define __IOT_UTILS_H__
+#ifndef __IOT_COMMON_UTILS_H__
+#define __IOT_COMMON_UTILS_H__
 
 #include <stdint.h>
 
@@ -37,4 +37,4 @@ int iot_daemonize(const char *dir, const char *new_out, const char *new_err);
 int iot_string_comp(const void *key1, const void *key2);
 uint32_t iot_string_hash(const void *key);
 
-#endif /* __IOT_UTILS_H__ */
+#endif /* __IOT_COMMON_UTILS_H__ */
