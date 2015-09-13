@@ -790,7 +790,7 @@ static int cache_add(iot_manifest_t *m)
     if (cache == NULL || m == NULL)
         return 0;
 
-    iot_debug("adding %s to manifest cache...", m->path);
+    iot_debug("adding manifest %s to cache...", m->path);
 
     return iot_hashtbl_add(cache, m, m, NULL);
 }
@@ -842,11 +842,18 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
         if (access(path, R_OK|X_OK) != 0)
             return 1;
 
+        iot_debug("scanning %s for manifest files...", path);
+
         scan->usr = strtoul(e, NULL, 10);
-        status = iot_scan_dir(path, ".*\\.manifest$", IOT_DIRENT_REG,
+        status = iot_scan_dir(path, ".*\\.manifest$",
+                              IOT_DIRENT_REG | IOT_DIRENT_IGNORE_LNK,
                               cache_scan_cb, scan);
         scan->usr = -1;
-        break;
+
+        if (status < 0)
+            return status;
+
+        return 1;
 
     case IOT_DIRENT_REG:
         if (access(path, R_OK) != 0)
@@ -858,7 +865,7 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
         if ((m = manifest_alloc(scan->usr, pkg, path)) == NULL)
             return -errno;
 
-        iot_debug("read %s (user %d) into manifest cache...", path, scan->usr);
+        iot_debug("reading manifest %s (uid %d)...", path, scan->usr);
 
         if (manifest_read(m) < 0) {
             manifest_free(m);
@@ -867,14 +874,11 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
         else
             cache_add(m);
 
-        status = 1;
-        break;
+        return 1;
 
     default:
-        status = -EINVAL;
+        return -EINVAL;
     }
-
-    return status;
 }
 
 
@@ -882,19 +886,20 @@ static int cache_scan(const char *path, bool users)
 {
     cachescan_t  scan;
     const char  *name;
-    int          type;
+    int          mask;
 
     if (users) {
-        type = IOT_DIRENT_DIR;
+        mask = IOT_DIRENT_DIR | IOT_DIRENT_IGNORE_LNK;
         name = "[1-9][0-9]*$";
     }
     else {
-        type = IOT_DIRENT_REG;
+        mask = IOT_DIRENT_REG | IOT_DIRENT_IGNORE_LNK;
         name = ".*\\.manifest$";
         scan.usr = -1;
     }
 
-    return iot_scan_dir(path, name, type, cache_scan_cb, &scan);
+    iot_debug("scanning %s for manifest files...", path);
+    return iot_scan_dir(path, name, mask, cache_scan_cb, &scan);
 }
 
 
