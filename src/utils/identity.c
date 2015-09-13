@@ -29,6 +29,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#define __USE_GNU
+#define _GNU_SOURCE
+#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <pwd.h>
@@ -146,4 +149,32 @@ int iot_get_groups(const char *names, gid_t *gids, size_t size)
     }
 
     return i;
+}
+
+
+static uid_t _iot_suid = -1;
+static uid_t _iot_ruid = -1;
+
+static IOT_INIT void save_userid(void)
+{
+    _iot_suid = geteuid();
+    _iot_ruid = getuid();
+}
+
+
+int iot_switch_userid(iot_userid_t which)
+{
+    switch (which) {
+    case IOT_USERID_REAL:
+        return setreuid(-1, _iot_ruid);
+    case IOT_USERID_SUID:
+        return setreuid(-1, _iot_suid);
+    case IOT_USERID_DROP:
+        if (setresuid(_iot_ruid, _iot_ruid, _iot_ruid) < 0)
+            return -1;
+        _iot_suid = _iot_ruid;
+        return 0;
+    default:
+        return -1;
+    }
 }

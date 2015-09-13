@@ -78,7 +78,6 @@ const char *iot_get_username(uid_t uid, char *namebuf, size_t size);
  */
 gid_t iot_get_groupid(const char *name);
 
-
 /**
  * @brief Convenience function to resolve a list of group names.
  *
@@ -92,6 +91,37 @@ gid_t iot_get_groupid(const char *name);
  */
 
 int iot_get_groups(const char *names, gid_t *gids, size_t size);
+
+/**
+ * @brief Enumeration for selecting active/effective user id.
+ *
+ * This enumeration specifies which user id @iot_switch_userid will
+ * switch the effective user id to:
+ *
+ *     IOT_USERID_REAL: switch to the saved real id
+ *     IOT_USERID_SUID: switch to the saved setuid id
+ *     IOT_USERID_DROP: switch to the saved real id, disable further switch (by
+ *                      setting the effective, the real and the saved user ids
+ *                      all to the saved real id)
+ */
+typedef enum {
+    IOT_USERID_REAL,                     /* switch to real user id */
+    IOT_USERID_SUID,                     /* switch to setuid user id */
+    IOT_USERID_DROP,                     /* switch to real user id for good */
+} iot_userid_t;
+
+/**
+ * @brief Convenience function to switch effective user id.
+ *
+ * If running as setuid process, switch setuid on or off, or drop
+ * it altogether (by setting both the real and effective user id
+ * to the real user id).
+ *
+ * @param [in] which  uid to switch to
+ *
+ * @return Returns 0 on success, -1 upon error.
+ */
+int iot_switch_userid(iot_userid_t which);
 
 /**
  * @}
