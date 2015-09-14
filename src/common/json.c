@@ -210,12 +210,12 @@ iot_json_t *iot_json_add_array(iot_json_t *o, const char *key,
 {
     va_list      ap;
     void        *arr;
-    size_t       cnt, i;
+    ssize_t      cnt, i;
     iot_json_t  *a;
 
     va_start(ap, type);
     arr = va_arg(ap, void *);
-    cnt = va_arg(ap, size_t);
+    cnt = va_arg(ap, ssize_t);
     a   = iot_json_create(IOT_JSON_ARRAY);
 
     if (a == NULL)
@@ -223,7 +223,7 @@ iot_json_t *iot_json_add_array(iot_json_t *o, const char *key,
 
     switch (type) {
     case IOT_JSON_STRING:
-        for (i = 0; i < cnt; i++) {
+        for (i = 0; i < cnt || (cnt < 0 && ((char **)arr)[i]); i++) {
             if (!iot_json_array_append_string(a, ((char **)arr)[i]))
                 goto fail;
         }
