@@ -195,15 +195,14 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
  * @brief Application information returned by listing applications.
  */
 typedef struct {
-    char *appid;                         /**< application id */
-    char *desktop;                       /**< desktop file location */
-    /*
-     * XXX TODO:
-     *     Don't know yet... add as necessary once we figure out what
-     *     type of other information, if any, we need to provide about
-     *     applications.
-     */
+    const char  *appid;
+    const char  *description;
+    const char  *desktop;
+    uid_t        user;
+    const char **argv;
+    int          argc;
 } iot_app_info_t;
+
 
 /**
  * @brief IoT application listing notification callback type.
