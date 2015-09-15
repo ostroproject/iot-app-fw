@@ -248,6 +248,7 @@ NodeIoTApp::NodeIoTApp(Handle<Object> &exports)
 
     iot_ = iot_app_create(ml, this);
     assert(iot_ != NULL);
+    _list_id = 0;
 
     iot_app_event_set_handler(iot_, dispatch_event);
 
@@ -1107,11 +1108,12 @@ void NodeIoTApp::DispatchListReq(int id, int status, const char *msg, int napp,
     for (i = 0; i < napp; i++) {
         o = iot_json_create(IOT_JSON_OBJECT);
 
-        if (apps[i].appid != NULL)
-            iot_json_add_string(o, "appid", apps[i].appid);
-        if (apps[i].desktop != NULL)
-            iot_json_add_string(o, "desktop", apps[i].desktop);
-
+        iot_json_add_string (o, "appid", apps[i].appid);
+        iot_json_add_string (o, "description", apps[i].description);
+        iot_json_add_string (o, "desktop", apps[i].desktop);
+        iot_json_add_integer(o, "user", apps[i].user);
+        iot_json_add_string_array(o, "argv",
+                                  apps[i].argv, (size_t)apps[i].argc);
         iot_json_array_append(json, o);
     }
 
