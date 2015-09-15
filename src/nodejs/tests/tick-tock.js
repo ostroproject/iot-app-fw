@@ -1,5 +1,3 @@
-var iot = require('./build/Release/iot-appfw');
-
 // destination application we send events to
 var dst = { user: process.env['USER'] };
 
@@ -157,6 +155,7 @@ iot.type = 'tock';
 iot.dump = false;
 iot.msec = 1000;
 data.count = 10;
+libdir = "";
 
 // parse command line options
 for (i = 1; i < process.argv.length; i++) {
@@ -181,10 +180,17 @@ for (i = 1; i < process.argv.length; i++) {
     case '--delay':
         iot.msec = process.argv[i + 1];
         break;
+    case "--libdir":
+    case "-L":
+        libdir = optarg;
+        i += 2;
+        break;
     default:
         break;
     }
 }
+
+iot = require(libdir ? libdir + "/iot-appfw.node" : "iot-appfw.node");
 
 
 // ask the IoT app framework to bridge system signals as pseudo-events

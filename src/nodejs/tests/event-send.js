@@ -131,7 +131,7 @@ function parse_cmdline(app, argv) {
         }
     }
 
-    app.iot = require(libdir ? libdir + "/iot-appfw" : "iot-appfw");
+    app.iot = require(libdir ? libdir + "/iot-appfw.node" : "iot-appfw.node");
     app.iot.SetDebug(d);
 
     parse_events(app);
