@@ -525,40 +525,33 @@ static void remove_signal_handlers(launcher_t *l)
 }
 
 
-int set_user(launcher_t *l)
-{
-    return setresuid(l->uid, l->uid, l->uid);
-}
-
-
-int set_groups(launcher_t *l)
+static int set_groups(launcher_t *l)
 {
     gid_t gids[64];
     int   ngid, saved_errno;
 
     saved_errno = errno;
     if (setgroups(l->ngid, l->gids) < 0) {
-        if (errno == EPERM) {
-            ngid    = getgroups(IOT_ARRAY_SIZE(gids) - 1, gids + 1);
-            gids[0] = getgid();
-            ngid++;
+        if (errno != EPERM)
+            return -1;
 
-            if (ngid == l->ngid) {
-                if (!memcmp(gids, l->gids, ngid * sizeof(gids[0]))) {
-                    errno = saved_errno;
-                    return 0;
-                }
-            }
-        }
+        ngid    = getgroups(IOT_ARRAY_SIZE(gids) - 1, gids + 1);
+        gids[0] = getgid();
+        ngid++;
 
-        return -1;
+        if (ngid != l->ngid)
+            return -1;
+
+        if (memcmp(gids, l->gids, ngid * sizeof(gids[0])) != 0)
+            return -1;
     }
+    errno = saved_errno;
 
     return 0;
 }
 
 
-int drop_privileges(launcher_t *l)
+static int drop_privileges(launcher_t *l)
 {
     cap_t c;
 
@@ -579,7 +572,13 @@ int drop_privileges(launcher_t *l)
 
 #ifdef ENABLE_SECURITY_MANAGER
 
-int set_smack_label(launcher_t *l)
+static int set_user(launcher_t *l)
+{
+    return setresuid(l->uid, l->uid, l->uid);
+}
+
+
+static int set_smack_label(launcher_t *l)
 {
     return smack_set_label_for_self(l->fqai);
 }
@@ -956,7 +955,7 @@ static void resolve_appid(launcher_t *l)
 }
 
 
-void resolve_cgroup_path(launcher_t *l)
+static void resolve_cgroup_path(launcher_t *l)
 {
     if (l->argc != 1)
         launch_fail(l, EINVAL, false, "Agent expects a single cgroup path.");
