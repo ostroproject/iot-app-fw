@@ -45,21 +45,21 @@
 #include <iot/common/uv-glue.h>
 #endif
 
+#include <iot/utils.h>
 #include <iot/app.h>
-
 
 /*
  * test application runtime context
  */
 
 enum {
+    APP_INVALID,
 #ifdef GLIB_ENABLED
     APP_GLIB,
 #endif
 #ifdef UV_STANDALONE
     APP_UV,
 #endif
-    APP_INVALID
 };
 
 typedef struct {
@@ -107,8 +107,17 @@ static void list_cb(iot_app_t *iot, int id, int status, const char *msg,
     }
     else {
         printf("Got list of %d applications:\n", napp);
-        for (i = 0; i < napp; i++)
-            printf("  %s\n", apps[i].appid);
+        for (i = 0; i < napp; i++) {
+            char usr[64];
+            printf("#%d.\n", i + 1);
+            printf("        appid: %s\n", apps[i].appid);
+            printf("  description: %s\n", apps[i].description);
+            printf("      desktop: %s\n", apps[i].desktop);
+            printf("         user: %s\n",
+                   iot_get_username(apps[i].user, usr, sizeof(usr)));
+            printf("      argv[0]: %s\n", apps[i].argv[0]);
+            printf("\n");
+        }
     }
 
     mainloop_quit(app);
@@ -209,6 +218,14 @@ void mainloop_create(app_t *app)
 #endif
 
     case APP_INVALID:
+        ml = app->ml = iot_mainloop_create();
+
+        if (app->ml == NULL) {
+            iot_log_error("Failed to create mainloop.");
+            exit(1);
+        }
+        break;
+
     default:
         iot_log_error("Hey... you did not enable any mainloop I can use.");
         exit(1);
@@ -239,6 +256,9 @@ void mainloop_run(app_t *app)
 #endif
 
     case APP_INVALID:
+        iot_mainloop_run(app->ml);
+        break;
+
     default:
         iot_log_error("Hey... you did not enable any mainloop I can use.");
         exit(1);
@@ -262,6 +282,9 @@ void mainloop_quit(app_t *app)
 #endif
 
     case APP_INVALID:
+        iot_mainloop_quit(app->ml, 0);
+        break;
+
     default:
         iot_log_error("Hey... you did not enable any mainloop I can use.");
         exit(1);
@@ -287,6 +310,10 @@ void mainloop_destroy(app_t *app)
 #endif
 
     case APP_INVALID:
+        iot_mainloop_destroy(app->ml);
+        app->ml = NULL;
+        break;
+
     default:
         iot_log_error("Hey... you did not enable any mainloop I can use.");
         exit(1);
