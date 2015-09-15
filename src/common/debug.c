@@ -44,6 +44,8 @@
 
 #define WILDCARD  "*"
 
+#ifdef DEBUG_ENABLED
+
 int iot_debug_stamp = 0;                    /* debug config stamp */
 
 static int         debug_enabled;           /* debug messages enabled */
@@ -416,3 +418,64 @@ int iot_debug_check(const char *func, const char *file, int line)
 }
 
 
+#else /* !DEBUG_ENABLED */
+
+int iot_debug_stamp = 0;                    /* debug config stamp */
+
+void iot_debug_reset(void)
+{
+    return;
+}
+
+
+int iot_debug_enable(int enabled)
+{
+    IOT_UNUSED(enabled);
+
+    return 0;
+}
+
+
+int iot_debug_set_config(const char *cmd)
+{
+    IOT_UNUSED(cmd);
+
+    return TRUE;
+}
+
+
+int iot_debug_dump_config(FILE *fp)
+{
+    fprintf(fp, "  debugging is compile-time disabled\n");
+
+    return TRUE;
+}
+
+
+void iot_debug_msg(const char *file, int line, const char *func,
+                   const char *format, ...)
+{
+    static int warned = FALSE;
+
+    IOT_UNUSED(file);
+    IOT_UNUSED(line);
+    IOT_UNUSED(func);
+    IOT_UNUSED(format);
+
+    if (warned)
+        return;
+
+    iot_log_warning("Debugging infra has been compile-time disabled.");
+}
+
+
+int iot_debug_check(const char *func, const char *file, int line)
+{
+    IOT_UNUSED(func);
+    IOT_UNUSED(file);
+    IOT_UNUSED(line);
+
+    return FALSE;
+}
+
+#endif /* !DEBUG_ENABLED */

@@ -104,6 +104,17 @@ fi
 
 AC_SUBST(WARNING_CFLAGS)
 
+# Check if debugging infra should be disabled.
+AC_ARG_ENABLE(debug-infra,
+              [  --enable-debug-infra    enable runtime debug messages],
+              [enable_debug_infra=$enableval], [enable_debug_infra=yes])
+
+if test "$enable_debug_infra" = "yes"; then
+    AC_DEFINE([DEBUG_ENABLED], 1, [Enable runtime debug messages ?])
+fi
+AM_CONDITIONAL(DEBUG_ENABLED, [test "$enable_debug_infra" = "yes"])
+AC_SUBST(DEBUG_ENABLED)
+
 # Check if PulseAudio mainloop support was enabled.
 AC_ARG_ENABLE(pulse,
               [  --enable-pulse          enable PulseAudio mainloop support],
@@ -520,6 +531,7 @@ AC_OUTPUT
 # Display the configuration.
 echo "----- configuration -----"
 echo "Extra C warnings flags: $WARNING_CFLAGS"
+echo "Debugging infra: $enable_debug_infra"
 echo "Cross-compiling: $cross_compiling"
 if test "$cross_compiling" != "no"; then
     echo "     * native compiler: $UNSHAVED_CC_FOR_BUILD"

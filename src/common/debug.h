@@ -32,9 +32,12 @@
 
 #include <stdio.h>
 
+#include <iot/config.h>
 #include <iot/common/macros.h>
 
 IOT_CDECL_BEGIN
+
+#ifdef DEBUG_ENABLED
 
 /** Log a debug message if the invoking debug site is enabled. */
 #define iot_debug(fmt, args...)        do {                               \
@@ -82,6 +85,16 @@ IOT_CDECL_BEGIN
             __VA_ARGS__;                                                  \
         }                                                                 \
     } while (0)
+
+#else /* !DEBUG_ENABLED */
+
+/** Stubs for compile-time disabled debugging infra. */
+#define iot_debug(fmt, args...) do { } while (0)
+#define iot_debug_at(_file, _line, _func, fmt, args...) do { } while (0)
+#define iot_debug_code(...) do { } while (0)
+
+#endif /* !DEBUG_ENABLED */
+
 
 /** Global debug configuration stamp, exported for minimum-overhead checking. */
 extern int iot_debug_stamp;
