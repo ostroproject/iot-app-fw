@@ -1054,7 +1054,11 @@ bool NodeIoTApp::EnqListReq(int id, Handle<Function> &f)
         return false;
 
     _list_id = id;
+#if NODE_MODULE_VERSION <= 11
     _list_cb = Persistent<Function>::New(f);
+#else
+    _list_cb.Reset(Isolate::GetCurrent(), f);
+#endif
 
     return true;
 }
@@ -1065,7 +1069,11 @@ bool NodeIoTApp::GetListReq(int id, Persistent<Function> &f)
     if (id != _list_id)
         return false;
 
+#if NODE_MODULE_VERSION <= 11
     f = _list_cb;
+#else
+    f.Reset(Isolate::GetCurrent(), _list_cb);
+#endif
 
     return true;
 }
@@ -1125,13 +1133,14 @@ void NodeIoTApp::DispatchListReq(int id, int status, const char *msg, int napp,
     };
     int js_argc = IOT_ARRAY_SIZE(js_argv);
 
-#if MODE_MODULE_VERSION <= 11
+#if NODE_MODULE_VERSION <= 11
     Local<Object> obj = *js_;
+    f->Call(obj, js_argc, js_argv);
 #else
-    Local<Object> obj = Local<Object>::New(Isolate::GetCurrent(), js_);
+    Local<Function> callback = Local<Function>::New(Isolate::GetCurrent(), f);
+    callback->Call(Isolate::GetCurrent()->GetCurrentContext()->Global(), js_argc, js_argv);
 #endif
 
-    f->Call(obj, js_argc, js_argv);
     iot_json_unref(json);
 
     DeqListReq(id);
