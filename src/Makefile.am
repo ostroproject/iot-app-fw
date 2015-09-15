@@ -647,7 +647,8 @@ iot_app_list_LDADD   =			\
 		libiot-app.la		\
 		$(IOT_GLIB)		\
 		$(IOT_UV)		\
-		libiot-common.la
+		libiot-common.la	\
+		libiot-utils.la
 
 iot_app_list_LDFLAGS =			\
 		-rdynamic
