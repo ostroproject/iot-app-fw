@@ -115,6 +115,17 @@ fi
 AM_CONDITIONAL(DEBUG_ENABLED, [test "$enable_debug_infra" = "yes"])
 AC_SUBST(DEBUG_ENABLED)
 
+# Check if development/developer mode should be disabled.
+AC_ARG_ENABLE(development-mode,
+              [  --enable-development-mode    enable development mode],
+              [enable_devel_mode=$enableval], [enable_devel_mode=yes])
+
+if test "$enable_devel_mode" = "yes"; then
+    AC_DEFINE([DEVEL_MODE_ENABLED], 1, [Enable development mode ?])
+fi
+AM_CONDITIONAL(DEVEL_MODE_ENABLED, [test "$enable_devel_mode" = "yes"])
+AC_SUBST(DEVEL_MODE_ENABLED)
+
 # Check if PulseAudio mainloop support was enabled.
 AC_ARG_ENABLE(pulse,
               [  --enable-pulse          enable PulseAudio mainloop support],
@@ -538,6 +549,7 @@ AC_OUTPUT
 echo "----- configuration -----"
 echo "Extra C warnings flags: $WARNING_CFLAGS"
 echo "Debugging infra: $enable_debug_infra"
+echo "Development mode: $enable_devel_mode"
 echo "Cross-compiling: $cross_compiling"
 if test "$cross_compiling" != "no"; then
     echo "     * native compiler: $UNSHAVED_CC_FOR_BUILD"
