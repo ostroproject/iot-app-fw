@@ -14,6 +14,7 @@
 %{!?_with_qt:%{!?_without_qt:%define _without_qt 1}}
 %{!?_with_node:%{!?_without_node:%define _without_node 1}}
 %{!?_with_python:%{!?_without_python:%define _without_python 1}}
+%{!?_with_pm:%{!?_without_pm:%define _with_pm 1}}
 
 %define systemddir /lib/systemd
 
@@ -55,6 +56,12 @@ Requires: %{name} = %{version}
 %package -n iot-app-launcher
 Summary: IoT Application launcher client and daemon
 Requires: iot-app-framework = %{version}
+
+%if %{?_with_pm:1}%{!?_with_pm:0}
+%package -n iot-package-manager
+Summary: IoT Package Manager
+Requires: iot-app-framework = %{version}
+%endif
 
 %package doc
 Summary: Documentation for IoT Application Framework
@@ -98,7 +105,13 @@ This package contains the basic runtime libraries.
 This package contains header files and libraries necessary for development.
 
 %description -n iot-app-launcher
-this package contains the IoT Application launcher daemon and client.
+This package contains the IoT Application launcher daemon and client.
+
+%if %{?_with_pm:1}%{!?_with_pm:0}
+%description -n iot-package-manager
+This package contains the IoT package Manager for installing, removing and
+upgrading software.
+%endif
 
 %description doc
 This package contains documentation.
@@ -173,6 +186,12 @@ CONFIG_OPTIONS="$CONFIG_OPTIONS --enable-python"
 CONFIG_OPTIONS="$CONFIG_OPTIONS --disable-python"
 %endif
 
+%if %{?_with_pm:1}%{!?_with_pm:0}
+CONFIG_OPTIONS="$CONFIG_OPTIONS --with-backend=rpm4"
+%else
+CONFIG_OPTIONS="$CONFIG_OPTIONS --without-backend"
+%endif
+
 NUM_CPUS="`cat /proc/cpuinfo | tr -s '\t' ' ' | \
                grep '^processor *:' | wc -l`"
 [ -z "$NUM_CPUS" ] && NUM_CPUS=1
@@ -235,6 +254,12 @@ ldconfig
 %{_libexecdir}/iot-launcher/*
 /lib/systemd/system/iot-launch.service
 /lib/systemd/system/iot-launch.socket
+
+%if %{?_with_pm:1}%{!?_with_pm:0}
+%files -n iot-package-manager
+%defattr(-,root,root,-)
+%{_bindir}/iotpm
+%endif
 
 %files doc
 %defattr(-,root,root,-)
