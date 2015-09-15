@@ -114,7 +114,6 @@ void list_callback_wrapper(iot_app_t *app, int id, int status, const char *msg,
     IOT_UNUSED(app);
 
     iot_debug("list_callback_wrapper");
-    assert(user_data != NULL);
     if (napp > 0) {
       assert(apps != NULL);
     }
@@ -122,8 +121,7 @@ void list_callback_wrapper(iot_app_t *app, int id, int status, const char *msg,
     if (python_app.list_handler)
     {
         PyObject* function = PyMethod_Function(python_app.list_handler);
-        int callback_id = *(static_cast<int *>(user_data));
-        free(user_data);
+        int callback_id = (int)(ptrdiff_t)user_data;
 
         // convert C list into Python list
 
@@ -223,8 +221,7 @@ void send_callback_wrapper(iot_app_t* app, int id, int status,
 
     if (python_app.send_handler)
     {
-        int callback_id = *(static_cast<int *>(user_data));
-        free(user_data);
+        int callback_id = (int)(ptrdiff_t)user_data;
         PyObject* function = PyMethod_Function(python_app.send_handler);
         PyObject* args = Py_BuildValue("(Oiiis)", python_app.app, callback_id, id, status, msg);
 
@@ -509,21 +506,11 @@ static PyObject* iot_py_app_send_event(PyObject* self, PyObject* args,
         iot_debug("Sent json data as string: %s",
                   iot_json_object_to_string(json_data));
 
-        // dynamic allocation so that the value remains valid even after this
-        // scope is exited
-        int *callback_id = static_cast<int *>(malloc(sizeof(int)));
-
-        if (callback_id == NULL)
-        {
-            PyErr_SetString(python_app.AppfwError, "Memory allocation failed");
-            return NULL;
-        }
-        *callback_id = send_id;
-
         //const_cast required for C-compatibility.
         // ownership of the callback_id pointer is passed here.
         int err = iot_app_event_send(iot_app, event, json_data, &app_id,
-                                     send_callback_wrapper, callback_id);
+                                     send_callback_wrapper,
+                                     (void *)(ptrdiff_t)send_id);
         if (!err)
         {
             PyErr_SetString(python_app.AppfwError, "Synchronous failure while sending event");
@@ -564,25 +551,17 @@ static PyObject* iot_py_app_list_common(PyObject* args, ListType type)
         return NULL;
     }
 
-    int *callback_id = static_cast<int *>((malloc(sizeof(int))));
-
-    if (callback_id == NULL)
-    {
-        PyErr_SetString(python_app.AppfwError, "Memory allocation failed");
-        return NULL;
-    }
-
-    *callback_id = id;
-
     // ownership of the callback_id pointer is passed here.
     int err = 0;
     switch (type)
     {
         case ListType::ALL:
-            err = iot_app_list_all(iot_app, list_callback_wrapper, callback_id);
+            err = iot_app_list_all(iot_app, list_callback_wrapper,
+                                   (void *)(ptrdiff_t)id);
             break;
         case ListType::RUNNING:
-            err = iot_app_list_running(iot_app, list_callback_wrapper, callback_id);
+            err = iot_app_list_running(iot_app, list_callback_wrapper,
+                                       (void *)(ptrdiff_t)id);
             break;
         default:
             // should never be reached!
