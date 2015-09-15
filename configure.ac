@@ -458,8 +458,13 @@ AC_ARG_WITH(backend,
 case $backend in
      rpm4)
         backend_type="rpm4"
-        PKG_CHECK_MODULES(LIBRPM, [rpm < 5.0])
-        PKG_CHECK_MODULES(POPT, popt)
+        PKG_CHECK_MODULES(LIBRPM, [rpm < 5.0], [have_rpm=yes], [have_rpm=no])
+        PKG_CHECK_MODULES(POPT, popt, [have_popt=yes], [have_popt=no])
+        
+        if test "$have_rpm" != "yes"; then
+           AC_MSG_ERROR([RPM4 or popt development libraries not found.])
+        fi
+        
         AC_SUBST(LIBRPM_CFLAGS)
         AC_SUBST(POPT_CFLAGS)
         AC_SUBST(LIBRPM_LIBS)
@@ -467,12 +472,20 @@ case $backend in
         ;;
      rpm5)
         backend_type="rpm5"
-        PKG_CHECK_MODULES(LIBRPM, [rpm >= 5.0])
-        PKG_CHECK_MODULES(POPT, popt)
+        PKG_CHECK_MODULES(LIBRPM, [rpm >= 5.0], [have_rpm=yes], [have_rpm=no])
+        PKG_CHECK_MODULES(POPT, popt, [have_popt=yes], [have_popt=no])
+
+        if test "$have_rpm" != "yes" -o "$have_popt" != "yes"; then
+           AC_MSG_ERROR([RPM5 or popt development libraries not found.])
+        fi
+
         AC_SUBST(LIBRPM_CFLAGS)
         AC_SUBST(POPT_CFLAGS)
         AC_SUBST(LIBRPM_LIBS)
         AC_SUBST(POPT_LIBS)
+        ;;
+      none|no)
+        backend_type="none"
         ;;
      *)
         AC_MSG_ERROR([invalid or missing package manager backend])
@@ -480,6 +493,7 @@ case $backend in
 esac
 AM_CONDITIONAL(BACKEND_RPM5, test "$backend_type" = "rpm5")
 AM_CONDITIONAL(BACKEND_RPM4, test "$backend_type" = "rpm4")
+AM_CONDITIONAL(BACKEND_DISABLED, test "$backend_type" = "none")
 AC_SUBST(BACKEND_TYPE, $backend_type)
 
 AC_ARG_WITH(package-prefix,
