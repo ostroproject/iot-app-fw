@@ -403,6 +403,20 @@ fi
 
 # Check for libcap.
 PKG_CHECK_MODULES(LIBCAP, [libcap], [have_libcap=yes], [have_libcap=no])
+
+# Older libcap did not have pkg-config file. Try to deal with those.
+if test "$have_libcap" = "no"; then
+    AC_CHECK_HEADERS([sys/capability.h], [have_libcap=yes], [have_libcap=no])
+    AC_CHECK_LIB([cap], [cap_init], [have_libcap=yes], [have_libcap=no])
+fi
+
+if test "$have_libcap" = "no"; then
+    AC_MSG_ERROR([Required libcap library not found.])
+else
+    LIBCAP_CFLAGS=""
+    LIBCAP_LIBS="-lcap"
+fi
+
 AC_SUBST(LIBCAP_CFLAGS)
 AC_SUBST(LIBCAP_LIBS)
 
