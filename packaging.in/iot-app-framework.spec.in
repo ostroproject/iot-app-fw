@@ -12,6 +12,8 @@
 %{!?_with_ecore:%{!?_without_ecore:%define _without_ecore 1}}
 %{!?_with_glib:%{!?_without_glib:%define _with_glib 1}}
 %{!?_with_qt:%{!?_without_qt:%define _without_qt 1}}
+%{!?_with_node:%{!?_without_node:%define _without_node 1}}
+%{!?_with_python:%{!?_without_python:%define _without_python 1}}
 
 %define systemddir /lib/systemd
 
@@ -133,8 +135,7 @@ export CFLAGS="-O0 -g3"
 V="V=1"
 #%endif
 
-CONFIG_OPTIONS=""
-DYNAMIC_PLUGINS="domain-control"
+CONFIG_OPTIONS="--disable-security"
 
 %if %{?_with_pulse:1}%{!?_with_pulse:0}
 CONFIG_OPTIONS="$CONFIG_OPTIONS --enable-pulse"
@@ -160,12 +161,24 @@ CONFIG_OPTIONS="$CONFIG_OPTIONS --enable-qt"
 CONFIG_OPTIONS="$CONFIG_OPTIONS --disable-qt"
 %endif
 
+%if %{?_with_node:1}%{!?_with_node:0}
+CONFIG_OPTIONS="$CONFIG_OPTIONS --with-node"
+%else
+CONFIG_OPTIONS="$CONFIG_OPTIONS --without-node --disable-uv"
+%endif
+
+%if %{?_with_python:1}%{!?_with_python:0}
+CONFIG_OPTIONS="$CONFIG_OPTIONS --enable-python"
+%else
+CONFIG_OPTIONS="$CONFIG_OPTIONS --disable-python"
+%endif
+
 NUM_CPUS="`cat /proc/cpuinfo | tr -s '\t' ' ' | \
                grep '^processor *:' | wc -l`"
 [ -z "$NUM_CPUS" ] && NUM_CPUS=1
 
 ./bootstrap && \
-    %configure $CONFIG_OPTIONS --disable-nodejs --disable-uv && \
+    %configure $CONFIG_OPTIONS && \
     make clean && \
     make -j$(($NUM_CPUS + 1)) $V
 
@@ -203,12 +216,15 @@ ldconfig
 %files
 %defattr(-,root,root,-)
 %{_libdir}/libiot-common.so.*
+%{_libdir}/libiot-utils.so.*
 %{_libdir}/libiot-app.so.*
 
 %files devel -f filelist.devel-includes
 %defattr(-,root,root,-)
 %{_libdir}/libiot-common.so
 %{_libdir}/pkgconfig/iot-common.pc
+%{_libdir}/libiot-utils.so
+%{_libdir}/pkgconfig/iot-utils.pc
 %{_libdir}/libiot-app.so
 %{_libdir}/pkgconfig/iot-app.pc
 
@@ -251,6 +267,8 @@ ldconfig
 
 %files tests
 %defattr(-,root,root,-)
+%{_bindir}/iot-app-list
+%{_bindir}/iot-manifest-test
 %{_bindir}/iot-event-test
 %{_bindir}/iot-event-send
 %{_bindir}/iot-event-catch
