@@ -474,12 +474,16 @@ case $backend in
         AC_SUBST(LIBRPM_LIBS)
         AC_SUBST(POPT_LIBS)
         ;;
+      none)
+        backend_type="none"
+        ;;
      *)
         AC_MSG_ERROR([invalid or missing package manager backend])
         ;;
 esac
 AM_CONDITIONAL(BACKEND_RPM5, test "$backend_type" = "rpm5")
 AM_CONDITIONAL(BACKEND_RPM4, test "$backend_type" = "rpm4")
+AM_CONDITIONAL(BACKEND_DISABLED, test "$backend_type" = "none")
 AC_SUBST(BACKEND_TYPE, $backend_type)
 
 AC_ARG_WITH(package-prefix,
