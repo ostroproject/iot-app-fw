@@ -21,7 +21,7 @@
 #include "backend.h"
 
 
-#define RPM_DIR                   "%s/lib/rpm/"
+#define RPM_DIR                   IOTPM_PACKAGE_HOME "/rpm/"
 #define DB_DIR                    RPM_DIR "db"
 #define SEED_DIR                  RPM_DIR "seed"
 
@@ -96,18 +96,27 @@ static struct poptOption   *verifyOptionsTable = queryOptionsTable;
 bool iotpm_backend_init(iotpm_t *iotpm)
 {
     iotpm_backend_t *backend;
-    const char *error;
-    char dbpath[1024];
+    const char *error, *dir;
+    char dbpath[IOTPM_PATH_MAX];
+    char seedpath[IOTPM_PATH_MAX];
+    char manpath[IOTPM_PATH_MAX];
+    char errbuf[256];
 
     if (!iotpm)
         return false;
 
     iotpm->backend = NULL;
 
-    snprintf(dbpath, sizeof(dbpath), "_dbpath " DB_DIR, iotpm->homedir);
+    snprintf(dbpath, sizeof(dbpath), DB_DIR, iotpm->homedir);
+    snprintf(seedpath, sizeof(seedpath), SEED_DIR, iotpm->homedir);
+    iot_manifest_dir(iotpm->userid, manpath, sizeof(manpath));
 
     if (!(backend = iot_allocz(sizeof(iotpm_backend_t))) ||
-	!(backend->dbpath = iot_strdup(dbpath))           )
+	!(backend->pkgmgr.name = iot_strdup(rpmNAME))    ||
+	!(backend->pkgmgr.version = iot_strdup(rpmEVR))  ||
+	!(backend->path.db = iot_strdup(dbpath))         ||
+	!(backend->path.seed = iot_strdup(seedpath))     ||
+	!(backend->path.manifest = iot_strdup(manpath))   )
     {
         error = "can't allocate memory for RPM backend";
         goto failed;
@@ -118,16 +127,18 @@ bool iotpm_backend_init(iotpm_t *iotpm)
 
     rpmSetVerbosity(RPMLOG_WARNING);
 
-    if (!(backend->pkgmgr.name = iot_strdup(rpmNAME))  ||
-	!(backend->pkgmgr.version = iot_strdup(rpmEVR)) )
+    rpmlogSetCallback(log_callback, (void *)backend);
+
+    error = errbuf;
+
+    if (iot_mkdir((dir = dbpath)  , 0755, iotpm->default_label) < 0 ||
+        iot_mkdir((dir = seedpath), 0755, iotpm->default_label) < 0 ||
+	iot_mkdir((dir = manpath) , 0755, iotpm->default_label) < 0  )
     {
-        error = "can't allocate memory for RPM backend";
+        snprintf(errbuf, sizeof(errbuf), "failed to create directory '%s': %s",
+                 dir, strerror(errno));
         goto failed;
     }
-
-    // backend->dbpath = rpmGetPath("%{?_dbpath}", NULL)
-
-    rpmlogSetCallback(log_callback, (void *)backend);
 
     return true;
 
@@ -144,7 +155,9 @@ void iotpm_backend_exit(iotpm_t *iotpm)
     if (iotpm && (backend = iotpm->backend)) {
         iot_free((void *)backend->pkgmgr.name);
         iot_free((void *)backend->pkgmgr.version);
-	iot_free((void *)backend->dbpath);
+	iot_free((void *)backend->path.db);
+	iot_free((void *)backend->path.seed);
+	iot_free((void *)backend->path.manifest);
 
 	iot_free((void *)backend);
 
@@ -169,7 +182,6 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
     poptContext optCtx;
     bool gst;
     iotpm_pkginfo_t *info;
-    char dbdir[1024];
 
     if (!iotpm || !(backend = iotpm->backend))
         return NULL;
@@ -196,10 +208,6 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
 	if (!gst || (gst && !info->file))
 	    return info;
     }
-    else {
-        snprintf(dbdir, sizeof(dbdir), DB_DIR, iotpm->homedir);
-    }
-
 
     qargv[qargc=0] = (char *)iotpm->prognam;
     qargv[++qargc] = "-q";
@@ -207,7 +215,7 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
         qargv[++qargc] = "-p";
     else {
         qargv[++qargc] = "--dbpath";
-	qargv[++qargc] = dbdir;
+	qargv[++qargc] = backend->path.db;
     }
     qargv[++qargc] = "-l";
     qargv[++qargc] = (char *)pkg;
@@ -275,21 +283,18 @@ bool iotpm_backend_remove_package(iotpm_t *iotpm, const char *pkg)
     poptContext optCtx;
     int qargc;
     char *qargv[16];
-    char dbdir[1024];
     ARGV_const_t arg;
     bool success;
 
     if (!iotpm || !(backend = iotpm->backend) || !pkg)
         return false;
 
-    snprintf(dbdir, sizeof(dbdir), DB_DIR, iotpm->homedir);
-
     memset(ia, 0, sizeof(*ia));
 
     qargv[qargc=0] = (char *)iotpm->prognam;
     qargv[++qargc] = "-e";
     qargv[++qargc] = "--dbpath";
-    qargv[++qargc] = dbdir;
+    qargv[++qargc] = backend->path.db;
     qargv[++qargc] = (char *)pkg;
     qargv[++qargc] = NULL;
 
@@ -324,7 +329,7 @@ bool iotpm_backend_seed_create(iotpm_pkginfo_t *info)
 	goto out;
     }
 
-    snprintf(path, sizeof(path), SEED_DIR "/%s", iotpm->homedir, info->name);
+    snprintf(path, sizeof(path), "%s/%s", backend->path.seed, info->name);
 
     if (stat(path, &st) == 0) {
         if (S_ISREG(st.st_mode)) {
@@ -380,7 +385,7 @@ bool iotpm_backend_seed_destroy(iotpm_pkginfo_t *info)
 	goto out;
     }
 
-    snprintf(path, sizeof(path), SEED_DIR "/%s", iotpm->homedir, info->name);
+    snprintf(path, sizeof(path), "%s/%s", backend->path.seed, info->name);
 
     if (stat(path, &st) < 0) {
         iot_log_error("failed to destroy seed '%s': %s", path,strerror(errno));
@@ -420,7 +425,6 @@ bool iotpm_backend_seed_plant(iotpm_t *iotpm, const char *pkg)
     int ac, i;
     bool success = false;
     char path[1024];
-    char dbdir[1024];
     void *buf;
     size_t length;
     const char *name;
@@ -430,8 +434,7 @@ bool iotpm_backend_seed_plant(iotpm_t *iotpm, const char *pkg)
     if (!iotpm || !(backend = iotpm->backend) || !pkg)
         goto out;
 
-    snprintf(path,  sizeof(path),  SEED_DIR "/%s", iotpm->homedir, pkg);
-    snprintf(dbdir, sizeof(dbdir), DB_DIR, iotpm->homedir);
+    snprintf(path,  sizeof(path),  "%s/%s", backend->path.seed, pkg);
 
     n = rpmEscapeSpaces(path);
     if (rpmGlob(n, &ac, &av) != 0 || ac < 1 || !av)
@@ -443,7 +446,7 @@ bool iotpm_backend_seed_plant(iotpm_t *iotpm, const char *pkg)
     qargv[++qargc] = "-i";
     qargv[++qargc] = "--justdb";
     qargv[++qargc] = "--dbpath";
-    qargv[++qargc] = dbdir;
+    qargv[++qargc] = backend->path.db;
     qargv[++qargc] = "--noscripts";
     qargv[++qargc] = NULL;
 
@@ -526,18 +529,16 @@ bool iotpm_backend_verify_db(iotpm_t *iotpm)
     rpmts ts;
     int qargc;
     char *qargv[16];
-    char dbdir[1024];
     bool ok = false;
 
     if (iotpm && (backend = iotpm->backend)) {
         memset(qva, 0, sizeof(*qva));
-        snprintf(dbdir, sizeof(dbdir), DB_DIR, iotpm->homedir);
 
 	qargv[qargc=0] = (char *)iotpm->prognam;
 	qargv[++qargc] = "-V";
 	qargv[++qargc] = "-a";
 	qargv[++qargc] = "--dbpath";
-	qargv[++qargc] = dbdir;
+	qargv[++qargc] = backend->path.db;
 	qargv[++qargc] = NULL;
 
 	optCtx = rpmcliInit(qargc, qargv, verifyOptionsTable);
@@ -560,6 +561,7 @@ bool iotpm_backend_verify_db(iotpm_t *iotpm)
 static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
 {
     iotpm_pkginfo_t *info = (iotpm_pkginfo_t *)qva->qva_queryFormat;
+    iotpm_backend_t *backend;
     HeaderIterator hi = NULL;
     rpmfi fi = NULL;
     rpmfiFlags fiflags =  (RPMFI_NOHEADER | RPMFI_FLAGS_QUERY);
@@ -571,9 +573,11 @@ static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
     size_t size;
     void *data;
     unsigned int length;
+    char manfile[IOTPM_PATH_MAX];
     int i;
 
-    if (!info)
+
+    if (!info || !(backend = info->backend))
         return -1;
 
     /* basic package info */
@@ -602,6 +606,9 @@ static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
     info->proc = proc;
 
     /* build file list */
+    snprintf(manfile, sizeof(manfile), "%s/%s.manifest",
+             backend->path.manifest, info->name);
+
     fi = rpmfiNew(ts, h, RPMTAG_BASENAMES, fiflags);
 
     if (rpmfiFC(fi) <= 0)
@@ -636,6 +643,9 @@ static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
 	        break;
 	    }
 
+            if (!strcmp(f->path, manfile))
+                info->manifest = f;
+
 	    info->nfile = i + 1;
         }
     }
@@ -666,7 +676,6 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
     char *n;
     bool gst;
     char *file;
-    char dbdir[1024];
     ARGV_t av, arg;
     int ac;
     bool success;
@@ -684,15 +693,12 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
     iot_free((void *)n);
     argvFree(av);
 
-    /* get our DB dir */
-    snprintf(dbdir, sizeof(dbdir), DB_DIR, iotpm->homedir);
-
     memset(ia, 0, sizeof(*ia));
 
     qargv[qargc=0] = (char *)iotpm->prognam;
     qargv[++qargc] = upgrade ? "-U" : "-i";
     qargv[++qargc] = "--dbpath";
-    qargv[++qargc] = dbdir;
+    qargv[++qargc] = backend->path.db;
     qargv[++qargc] = file;
     qargv[++qargc] = NULL;
 
@@ -728,9 +734,9 @@ static void *seed_read(const char *path, size_t *length_ret)
 	goto failed;
     }
 
-    if (!S_ISREG(st.st_mode)            ||
-	st.st_size < sizeof(magic) + 10 ||
-	st.st_size > HEADER_LENGTH_MAX   )
+    if (!S_ISREG(st.st_mode)                   ||
+	st.st_size < (off_t)sizeof(magic) + 10 ||
+	st.st_size > HEADER_LENGTH_MAX          )
     {
         iot_log_error("failed to reed seed '%s': not a seed", path);
 	goto failed;

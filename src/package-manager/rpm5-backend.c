@@ -33,7 +33,7 @@
 #include "backend.h"
 
 
-#define RPM_DIR                   "%s/lib/rpm/"
+#define RPM_DIR                   IOTPM_PACKAGE_HOME "/rpm/"
 #define DB_DIR                    RPM_DIR "db"
 #define SEED_DIR                  RPM_DIR "seed"
 #define REPACKAGE_DIR             RPM_DIR "repackage"
@@ -121,18 +121,31 @@ static struct poptOption   *verifyOptionsTable = queryOptionsTable;
 bool iotpm_backend_init(iotpm_t *iotpm)
 {
     iotpm_backend_t *backend;
-    const char *error;
-    char dbpath[1024];
+    const char *error, *dir;
+    char dbdir[IOTPM_PATH_MAX];
+    char dbpath[IOTPM_PATH_MAX];
+    char seedpath[IOTPM_PATH_MAX];
+    char repackpath[IOTPM_PATH_MAX];
+    char manpath[IOTPM_PATH_MAX];
+    char errbuf[256];
 
     if (!iotpm)
         return false;
 
-    snprintf(dbpath, sizeof(dbpath), "_dbpath " DB_DIR, iotpm->homedir);
+    snprintf(dbdir, sizeof(dbdir), DB_DIR, iotpm->homedir);
+    snprintf(dbpath, sizeof(dbpath), "_dbpath %s", dbdir);
+    snprintf(seedpath, sizeof(seedpath), SEED_DIR, iotpm->homedir);
+    snprintf(repackpath, sizeof(repackpath), REPACKAGE_DIR, iotpm->homedir);
+    iot_manifest_dir(iotpm->userid, manpath, sizeof(manpath));
 
     iotpm->backend = NULL;
 
     if (!(backend = iot_allocz(sizeof(iotpm_backend_t))) ||
-	!(backend->dbpath = iot_strdup(dbpath))           )
+	!(backend->pkgmgr.name = iot_strdup(rpmNAME))    ||
+	!(backend->pkgmgr.version = iot_strdup(rpmEVR))  ||
+	!(backend->path.db = iot_strdup(dbpath))         ||
+	!(backend->path.seed = iot_strdup(seedpath))     ||
+	!(backend->path.manifest = iot_strdup(manpath))   )
     {
         error = "can't allocate memory for RPM backend";
         goto failed;
@@ -143,14 +156,19 @@ bool iotpm_backend_init(iotpm_t *iotpm)
 
     rpmlogSetMask(RPMLOG_UPTO(RPMLOG_WARNING));
 
-    if (!(backend->pkgmgr.name = iot_strdup(rpmNAME))  ||
-	!(backend->pkgmgr.version = iot_strdup(rpmEVR)) )
+    rpmlogSetCallback(log_callback, (void *)backend);
+
+    error = errbuf;
+
+    if (iot_mkdir((dir = dbdir)     , 0755, iotpm->default_label) < 0 ||
+        iot_mkdir((dir = seedpath)  , 0755, iotpm->default_label) < 0 ||
+        iot_mkdir((dir = repackpath), 0755, iotpm->default_label) < 0 ||
+	iot_mkdir((dir = manpath)   , 0755, iotpm->default_label) < 0  )
     {
-        error = "can't allocate memory for RPM backend";
+        snprintf(errbuf, sizeof(errbuf), "failed to create directory '%s': %s",
+                 dir, strerror(errno));
         goto failed;
     }
-
-    rpmlogSetCallback(log_callback, (void *)backend);
 
     return true;
 
@@ -167,7 +185,9 @@ void iotpm_backend_exit(iotpm_t *iotpm)
     if (iotpm && (backend = iotpm->backend)) {
         iot_free((void *)backend->pkgmgr.name);
         iot_free((void *)backend->pkgmgr.version);
-	iot_free((void *)backend->dbpath);
+	iot_free((void *)backend->path.db);
+	iot_free((void *)backend->path.seed);
+	iot_free((void *)backend->path.manifest);
 
 	iot_free((void *)backend);
 
@@ -222,7 +242,7 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
 
     qargv[qargc=0] = POPT_PROGNAM;
     qargv[++qargc] = "--define";
-    qargv[++qargc] = backend->dbpath;
+    qargv[++qargc] = backend->path.db;
     qargv[++qargc] = "-q";
     if (file)
         qargv[++qargc] = "-p";
@@ -306,7 +326,7 @@ bool iotpm_backend_remove_package(iotpm_t *iotpm, const char *pkg)
 
     qargv[qargc=0] = POPT_PROGNAM;
     qargv[++qargc] = "--define";
-    qargv[++qargc] = backend->dbpath;
+    qargv[++qargc] = backend->path.db;
     qargv[++qargc] = "--define";
     qargv[++qargc] = repackagedir;
     qargv[++qargc] = "-e";
@@ -344,7 +364,7 @@ bool iotpm_backend_seed_create(iotpm_pkginfo_t *info)
 	goto out;
     }
 
-    snprintf(path, sizeof(path), SEED_DIR "/%s", iotpm->homedir, info->name);
+    snprintf(path, sizeof(path), "%s/%s", backend->path.seed, info->name);
 
     if (stat(path, &st) == 0) {
         if (S_ISREG(st.st_mode)) {
@@ -398,7 +418,7 @@ bool iotpm_backend_seed_destroy(iotpm_pkginfo_t *info)
 	goto out;
     }
 
-    snprintf(path, sizeof(path), SEED_DIR "/%s", iotpm->homedir, info->name);
+    snprintf(path, sizeof(path), "%s/%s", backend->path.seed, info->name);
 
     if (stat(path, &st) < 0) {
         iot_log_error("failed to destroy seed '%s': %s", path,strerror(errno));
@@ -448,7 +468,7 @@ bool iotpm_backend_seed_plant(iotpm_t *iotpm, const char *pkg)
     if (!iotpm || !(backend = iotpm->backend) || !pkg)
         goto out;
 
-    snprintf(path,  sizeof(path),  SEED_DIR "/%s", iotpm->homedir, pkg);
+    snprintf(path,  sizeof(path),  "%s/%s", backend->path.seed, pkg);
 
     n = rpmgiEscapeSpaces(path);
     if (rpmGlob(n, &ac, &av) != 0 || ac < 1 || !av)
@@ -456,7 +476,7 @@ bool iotpm_backend_seed_plant(iotpm_t *iotpm, const char *pkg)
 
     qargv[qargc=0] = POPT_PROGNAM;
     qargv[++qargc] = "--define";
-    qargv[++qargc] = backend->dbpath;
+    qargv[++qargc] = backend->path.db;
     qargv[++qargc] = "-i";
     qargv[++qargc] = "--nodeps";
     qargv[++qargc] = "--justdb";
@@ -579,7 +599,7 @@ bool iotpm_backend_verify_db(iotpm_t *iotpm)
 
 	qargv[qargc=0] = POPT_PROGNAM;
 	qargv[++qargc] = "--define";
-	qargv[++qargc] = backend->dbpath;
+	qargv[++qargc] = backend->path.db;
 	qargv[++qargc] = "-V";
 	qargv[++qargc] = "-a";
 	qargv[++qargc] = NULL;
@@ -604,6 +624,7 @@ bool iotpm_backend_verify_db(iotpm_t *iotpm)
 static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
 {
     iotpm_pkginfo_t *info = (iotpm_pkginfo_t *)qva->qva_queryFormat;
+    iotpm_backend_t *backend;
     HeaderIterator hi = NULL;
     rpmfi fi = NULL;
     int sts = 0;
@@ -614,9 +635,10 @@ static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
     size_t size;
     void *data;
     size_t length;
+    char manfile[IOTPM_PATH_MAX];
     int i;
 
-    if (!info)
+    if (!info || !(backend = info->backend))
         return -1;
 
     /* basic package info */
@@ -645,6 +667,9 @@ static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
     info->proc = proc;
 
     /* build file list */
+    snprintf(manfile, sizeof(manfile), "%s/%s.manifest",
+             backend->path.manifest, info->name);
+
     fi = rpmfiNew(ts, h, RPMTAG_BASENAMES, 0);
 
     if (rpmfiFC(fi) <= 0)
@@ -678,6 +703,9 @@ static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
 	        sts = -1;
 	        break;
 	    }
+
+            if (!strcmp(f->path, manfile))
+                info->manifest = f;
 
 	    info->nfile = i + 1;
         }
@@ -730,7 +758,7 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
 
     qargv[qargc=0] = POPT_PROGNAM;
     qargv[++qargc] = "--define";
-    qargv[++qargc] = backend->dbpath;
+    qargv[++qargc] = backend->path.db;
 #if 0
     qargv[++qargc] = "--define";
     qargv[++qargc] = "_rollback_transaction_on_failure 1";

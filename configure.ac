@@ -515,8 +515,12 @@ AC_ARG_WITH(package-prefix,
 AC_SUBST(PKG_PREFIX, $pkg_prefix)
 
 # test user
-AC_SUBST(SAMPLE_USER, [mosse])
-AM_CONDITIONAL(BUILD_SAMPLES, test "${SAMPLE_USER}x" != "x")
+AC_ARG_WITH(sample-user, 
+            [  --with-sample-user       user for sample packages],
+            [sample_user="${with_sample_user}"], [sample_user=$USER])
+AC_SUBST(SAMPLE_USER_NAME, [$sample_user])
+AC_SUBST(SAMPLE_USER_ID, `id -u $sample_user`)
+AM_CONDITIONAL(BUILD_SAMPLES, test "${SAMPLE_USER_NAME}x" != "x")
 
 
 # Set up IoT CFLAGS and LIBS.
@@ -552,6 +556,7 @@ AC_CONFIG_FILES([build-aux/shave
                  src/common/iot-qt.pc
                  src/nodejs/binding.gyp
                  src/python/setup.py
+                 src/package-manager/sample/hello-world.manifest
 		 ])
 AC_OUTPUT
 
@@ -574,6 +579,7 @@ if test "$LIBUV_SHARED" = "yes"; then
     echo "    * libuv LIBS: $LIBUV_LIBS"
 fi
 echo "package manager backend: ${BACKEND_TYPE}"
+echo "sample user: ${SAMPLE_USER_NAME}(${SAMPLE_USER_ID})"
 echo "build sample packages: ${BUILD_SAMPLES}"
 echo "NodeJS bindings: ${NODEJS_ENABLED:-no}"
 if test "$NODEJS_ENABLED" = "yes"; then

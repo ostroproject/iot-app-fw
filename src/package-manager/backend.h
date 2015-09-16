@@ -8,11 +8,14 @@
 struct iotpm_backend_s {
     iotpm_t *iotpm;
     struct {
-        const char  *name;
+        const char *name;
         const char *version;
     } pkgmgr;
-    char *dbpath; /* should be 'const char *' but
-		     we pass this to argv which is 'char *' :( */
+    struct {
+        char *db; /* should be 'const' but we pass this to argv which is not */
+        const char *seed;
+        const char *manifest;
+    } path;
 };
 
 

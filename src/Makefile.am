@@ -661,20 +661,24 @@ if !BACKEND_DISABLED
 
 bin_PROGRAMS += iotpm
 
-iotpm_SOURCES =			 						\
-		package-manager/iotpm.c						\
-		package-manager/options.c					\
-		package-manager/pkginfo.c					\
-		package-manager/@BACKEND_TYPE@-backend.c			\
+iotpm_SOURCES =			 				\
+		package-manager/iotpm.c				\
+		package-manager/options.c			\
+		package-manager/pkginfo.c			\
+		package-manager/@BACKEND_TYPE@-backend.c	\
+		package-manager/manifest.c			\
 		package-manager/security-manager.c
 
-iotpm_CFLAGS =									\
-		$(AM_CFLAGS)							\
+
+iotpm_CFLAGS =							\
+		$(AM_CFLAGS)					\
 		$(SECURITY_CFLAGS)
 
-iotpm_LDADD =									\
-		libiot-common.la						\
+iotpm_LDADD =							\
+		libiot-common.la				\
+		libiot-utils.la					\
 		$(SECURITY_LIBS)
+
 
 if BACKEND_RPM5
 iotpm_CFLAGS +=	$(LIBRPM_CFLAGS) $(POPT_CFLAGS)
@@ -689,7 +693,10 @@ iotpm_LDFLAGS =	-rdynamic
 
 if BUILD_SAMPLES
 sample_PROGRAMS = hello-world
-sampledir=/home/@SAMPLE_USER@/@PKG_PREFIX@hello-world
+sampledir = /home/@SAMPLE_USER_NAME@/@PKG_PREFIX@hello-world
+
+manifest_DATA = package-manager/sample/hello-world.manifest
+manifestdir = /usr/share/iot/users/@SAMPLE_USER_NAME@
 
 hello_world_SOURCES = package-manager/sample/hello-world.c
 hello_world_CFLAGS = $(AM_CFLAGS)

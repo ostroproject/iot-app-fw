@@ -5,7 +5,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <iot/utils/manifest.h>
+
 #define IOTPM_PATH_MAX   1024
+
+#define IOTPM_PACKAGE_HOME       "%s/lib"
+#define IOTPM_MANIFEST_HOME      IOT_MANIFEST_USER_PATH "/%d"
+
+#define IOTPM_DEFAULT_LABEL      "User"
 
 typedef enum   iotpm_mode_e                 iotpm_mode_t;
 typedef struct iotpm_s                      iotpm_t;
@@ -29,6 +36,7 @@ enum iotpm_mode_e {
 
 struct iotpm_s {
     const char *prognam;
+    uid_t userid;
     const char *username;
     const char *homedir;
     int log_mask;
@@ -36,6 +44,7 @@ struct iotpm_s {
     bool debugging;
     iotpm_backend_t *backend;
     iotpm_mode_t mode;
+    const char *default_label;  /* default SMACK label for dirs, files */
     int argc;
     char **argv;
 };

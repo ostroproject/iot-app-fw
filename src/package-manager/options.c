@@ -61,6 +61,7 @@ void iotpm_options_exit(iotpm_t *iotpm)
 static void set_defaults(iotpm_t *iotpm, int argc, char **argv)
 {
     IOT_UNUSED(argc);
+    IOT_UNUSED(argv);
 
     iotpm->log_mask = LOG_MASK_DEFAULT;
 }

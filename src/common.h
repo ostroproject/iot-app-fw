@@ -42,6 +42,7 @@
 #include <iot/common/transport.h>
 #include <iot/common/json.h>
 #include <iot/common/socket-utils.h>
+#include <iot/common/file-utils.h>
 #include <iot/common/utils.h>
 
 #endif /* __IOT_COMMON_H__ */

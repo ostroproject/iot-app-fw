@@ -23,16 +23,17 @@ struct iotpm_pkginfo_filentry_s {
 
 
 struct iotpm_pkginfo_s {
-  int sts;
-  iotpm_backend_t *backend;
-  const char *name;
-  const char *ver;
-  const char *file;
-  iotpm_pkginfo_processing_t proc;
-  int nfile;
-  iotpm_pkginfo_filentry_t *files;
-  void *data;
-  size_t length;
+    int sts;
+    iotpm_backend_t *backend;
+    const char *name;
+    const char *ver;
+    const char *file;
+    iotpm_pkginfo_processing_t proc;
+    int nfile;
+    iotpm_pkginfo_filentry_t *files;
+    iotpm_pkginfo_filentry_t *manifest;
+    void *data;
+    size_t length;
 };
 
 bool iotpm_pkginfo_verify(iotpm_pkginfo_t *info);

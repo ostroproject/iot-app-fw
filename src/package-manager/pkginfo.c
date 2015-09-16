@@ -62,62 +62,82 @@ static bool verify_files(iotpm_pkginfo_t *info)
         plen = strlen(path);
         len  = (plen > len_max) ? len_max : plen;
 
-        if (!strncmp(path, dir, len)) {
-            if (len <= len_min) {
-                home = true;
-                local = false;
-            }
-            else {
-                home = false;
-                local = true;
-            }
-        }
-
-        conf = !strcmp(path, "/etc") || !strncmp(path, "/etc/", 5);
-
-        if (!home && !local && !conf) {
-            iot_log_error("file '%s' is neither on '%s' nor on '/etc/' paths",
-                          path, dir);
-            success = false;
-        }
-
-        if (home) {
-            if (!S_ISDIR(mode)) {
-                iot_log_error("attempt to replace something on path '%s'", dir);
+        if (f && f == info->manifest) {
+            if (!S_ISREG(mode)) {
+                iot_log_error("manifest file '%s' is not regular", f->path);
                 success = false;
             }
 
-            if (strlen(path) > strlen(iotpm->homedir) &&
-                strcmp(f->user, iotpm->username))
-            {
-                iot_log_error("owner of directory '%s' supposed to be '%s' not '%s'",
-                              path, iotpm->username, f->user);
+            if ((mode & 0777) != 0644) {
+                iot_log_error("manifest file '%s' mode supposed to be 644 "
+                              "not %03o", path, (mode & 0777));
                 success = false;
             }
         }
-            
-        if (local) {
-            if (strcmp(f->user, iotpm->username)) {
-                iot_log_error("owner of file '%s' supposed to be '%s' not '%s'",
-                              path, iotpm->username, f->user);
-                success = false;
+        else {
+            if (!strncmp(path, dir, len)) {
+                if (len <= len_min) {
+                    home = true;
+                    local = false;
+                }
+                else {
+                    home = false;
+                    local = true;
+                }
             }
-        }
 
-        if ((mode & S_IWOTH)) {
-            iot_log_error("file '%s' can be written by anyone", path);
-            success = false;
+            conf = !strcmp(path, "/etc") || !strncmp(path, "/etc/", 5);
+
+            if (!home && !local && !conf) {
+                iot_log_error("'%s' is neither on path '%s' nor on '/etc/'",
+                              path, dir);
+                success = false;
+            }
+
+            if (home) {
+                if (!S_ISDIR(mode)) {
+                    iot_log_error("attempt to replace something on "
+                                  "path '%s'", dir);
+                    success = false;
+                }
+
+                if (strlen(path) > strlen(iotpm->homedir) &&
+                    strcmp(f->user, iotpm->username))
+                {
+                    iot_log_error("owner of '%s' supposed to be '%s' not '%s'",
+                                  path, iotpm->username, f->user);
+                    success = false;
+                }
+            }
+
+            if (local) {
+                if (strcmp(f->user, iotpm->username)) {
+                    iot_log_error("owner of '%s' supposed to be '%s' not '%s'",
+                                  path, iotpm->username, f->user);
+                    success = false;
+                }
+            }
+
+            if ((mode & S_IWOTH)) {
+                iot_log_error("file '%s' can be written by anyone", path);
+                success = false;
+            }
         }
 
         if ((mode & S_ISUID)) {
             iot_log_error("setuid flag is set for file '%s'", path);
             success = false;
         }
-        
+
         if ((mode & S_ISGID)) {
             iot_log_error("setgid flag is set for file '%s'", path);
             success = false;
         }
+    }
+
+    if (!info->manifest) {
+        iot_log_error("could not find manifest file in the package");
+        success = false;
     }
 
     return success;

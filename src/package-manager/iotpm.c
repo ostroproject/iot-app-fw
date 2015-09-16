@@ -12,6 +12,7 @@
 #include "options.h"
 #include "backend.h"
 #include "security-manager.h"
+#include "manifest.h"
 
 static bool iotpm_init(iotpm_t **, int, char **);
 static void iotpm_exit(iotpm_t *);
@@ -31,7 +32,8 @@ int main(int argc, char **argv)
 
     if (!iotpm_init(&iotpm, argc,argv)        ||
 	!iotpm_options_init(iotpm, argc,argv) ||
-	!iotpm_backend_init(iotpm)             )
+	!iotpm_backend_init(iotpm)            ||
+        !iotpm_manifest_init(iotpm)            )
     {
         return EINVAL;
     }
@@ -46,6 +48,7 @@ int main(int argc, char **argv)
     default:                  rc = EIO;                          break;
     }
 
+    iotpm_manifest_exit(iotpm);
     iotpm_backend_exit(iotpm);
     iotpm_options_exit(iotpm);
     iotpm_exit(iotpm);
@@ -56,6 +59,7 @@ int main(int argc, char **argv)
 
 static bool iotpm_init(iotpm_t **iotpm_ret, int argc, char **argv)
 {
+    uid_t userid = getuid();
     iotpm_t *iotpm;
     struct passwd *pwd;
     char homedir[IOTPM_PATH_MAX], *h;
@@ -67,7 +71,7 @@ static bool iotpm_init(iotpm_t **iotpm_ret, int argc, char **argv)
     if (!iotpm_ret)
         return false;
 
-    if (!(pwd = getpwuid(getuid())) || !pwd->pw_name ||
+    if (!(pwd = getpwuid(userid)) || !pwd->pw_name ||
         !pwd->pw_dir || !pwd->pw_dir[0])
     {
         error = "missing or broken user account information";
@@ -75,10 +79,11 @@ static bool iotpm_init(iotpm_t **iotpm_ret, int argc, char **argv)
     }
 
 
-    if (!(iotpm = iot_allocz(sizeof(iotpm_t)))            ||
-        !(iotpm->prognam = iot_strdup(basename(argv[0]))) ||
-        !(iotpm->username = iot_strdup(pwd->pw_name))     ||
-        !(iotpm->homedir = iot_strdup(pwd->pw_dir))        )
+    if (!(iotpm = iot_allocz(sizeof(iotpm_t)))                    ||
+        !(iotpm->prognam = iot_strdup(basename(argv[0])))         ||
+        !(iotpm->username = iot_strdup(pwd->pw_name))             ||
+        !(iotpm->homedir = iot_strdup(pwd->pw_dir))               ||
+        !(iotpm->default_label = iot_strdup(IOTPM_DEFAULT_LABEL))  )
     {
         error = "can't allocate memory for iotpm";
         goto failed;
@@ -98,10 +103,12 @@ static bool iotpm_init(iotpm_t **iotpm_ret, int argc, char **argv)
         homedir[lastchar] = 0;
     if (strcmp(homedir, iotpm->homedir))
         goto failed;
-    
+
+    iotpm->userid = userid;
+
     *iotpm_ret = iotpm;
     return true;
-    
+
  failed:
     iot_log_error("%s", error);
     *iotpm_ret = NULL;
@@ -114,6 +121,7 @@ static void iotpm_exit(iotpm_t *iotpm)
         iot_free((void *)iotpm->prognam);
         iot_free((void *)iotpm->username);
         iot_free((void *)iotpm->homedir);
+        iot_free((void *)iotpm->default_label);
 
         iot_free((void *)iotpm);
     }
@@ -123,43 +131,46 @@ static int install_package(iotpm_t *iotpm)
 {
     const char *pkg = iotpm->argv[0];
     iotpm_pkginfo_t *info = NULL;
+    iot_manifest_t *man = NULL;
+    iotpm_pkginfo_filentry_t *manfile;
     char name[1024];
     int rc = EIO;
-    
+
     if (!pkg)
         goto out;
 
     info = iotpm_backend_pkginfo_create(iotpm, true, pkg);
-    
+
     if (info->sts < 0)
         goto out;
-    
+
     if (!iotpm_pkginfo_verify(info))
         goto out;
-    
+
     strncpy(name, info->name, sizeof(name));
     name[sizeof(name)-1] = 0;
-    
+
     iotpm_backend_pkginfo_destroy(info);
     info = NULL;
-    
+
     if (!iotpm_backend_install_package(iotpm, pkg))
         goto out;
-    
-    info = iotpm_backend_pkginfo_create(iotpm, false, name);
-    
-    if (info->sts < 0 || !iotpm_backend_seed_create(info)) {
-    cleanup:
-        iotpm_backend_remove_package(iotpm, info->name);
-        goto out;
-    }
 
-    if (iotpm_register_package(info, /* Le Manifesto */NULL) < 0)
+    info = iotpm_backend_pkginfo_create(iotpm, false, name);
+
+    if (info->sts < 0 || !(manfile = info->manifest)                   ||
+        !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
+        !iotpm_backend_seed_create(info)                               ||
+        iotpm_register_package(info, /* Le Manifesto */NULL) < 0)
         goto cleanup;
 
     rc = 0;
+
+ cleanup:
+    iotpm_backend_remove_package(iotpm, info->name);
  out:
     iotpm_backend_pkginfo_destroy(info);
+    iotpm_manifest_free(man);
     return rc;
 }
 
@@ -175,23 +186,23 @@ static int remove_package(iotpm_t *iotpm)
     iotpm_pkginfo_t *info = NULL;
     const char *pkg = iotpm->argv[0];
     int rc = EIO;
-    
+
     info = iotpm_backend_pkginfo_create(iotpm, false, pkg);
-    
+
     if (info->sts < 0)
         goto out;
-    
+
     if (!iotpm_backend_remove_package(iotpm, pkg))
         goto out;
-    
+
     if (!iotpm_backend_seed_destroy(info))
         goto out;
 
     if (iotpm_unregister_package(info, /* Le Manifesto */NULL) < 0)
         goto out;
-    
+
     rc = 0;
-    
+
  out:
     iotpm_backend_pkginfo_destroy(info);
     return rc;
@@ -201,9 +212,9 @@ static int remove_package(iotpm_t *iotpm)
 static int db_check(iotpm_t *iotpm)
 {
     int rc;
-    
+
     iot_log_info("verifying DB");
-    
+
     if (!iotpm_backend_verify_db(iotpm)) {
         iot_log_error("package DB has issues ...");
         rc = EIO;
@@ -212,17 +223,17 @@ static int db_check(iotpm_t *iotpm)
         iot_log_info("package DB is OK");
         rc = 0;
     }
-    
+
     return rc;
 }
 
 static int db_plant(iotpm_t *iotpm)
 {
     int crc, prc = 0;
-    
+
     prc = iotpm_backend_seed_plant(iotpm, "*") ? 0 : EIO;
     crc = db_check(iotpm);
-    
+
     return prc ? prc : crc;
 }
 
