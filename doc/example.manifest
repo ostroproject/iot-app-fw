@@ -1,0 +1,16 @@
+
+[
+  {
+    "application": "x",
+    "description": "X Terminal, the one and only.",
+    "privileges": [ "foo", "bar", "foobar", "barfoo" ],
+    "execute": [ "/usr/bin/xterm" ],
+    "desktop": "/usr/share/applications/xterm.desktop",
+  },
+  {
+    "application": "gnome",
+    "description": "Terminal for/by Quasimodo.",
+    "privileges": [ "foo", "bar" ],
+    "execute": [ "/usr/bin/gnome-terminal" ],
+  }
+]
