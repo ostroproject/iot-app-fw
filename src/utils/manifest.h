@@ -281,7 +281,7 @@ typedef enum {
     IOT_MANIFEST_OK                = 0x000,  /**< checks OK */
     IOT_MANIFEST_FAILED            = 0x001,  /**< unknown error */
     IOT_MANIFEST_MISNAMED          = 0x002,  /**< not named *.manifest */
-    IOT_MANIFEST_UNLOADABLE        = 0x004,  /**< failed to load manifet */
+    IOT_MANIFEST_UNLOADABLE        = 0x004,  /**< failed to load manifest */
     IOT_MANIFEST_MALFORMED         = 0x008,  /**< not an array or object */
     IOT_MANIFEST_MISSING_FIELD     = 0x010,  /**< missing mandatory field */
     IOT_MANIFEST_INVALID_FIELD     = 0x020,  /**< field with invalid type */
