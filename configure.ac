@@ -437,7 +437,7 @@ AC_ARG_ENABLE(security,
 	      [enable_security=$enableval], [enable_security=yes])
 
 if test "$enable_security" = "yes"; then
-    PKG_CHECK_MODULES(SECURITY, security-manager,
+    PKG_CHECK_MODULES(SECURITY, security-manager libsmack,
                       [have_security=yes], [have_security=no])
     if test "$have_security" = "no"; then
         AC_MSG_ERROR([security-manager development libraries not found.])
