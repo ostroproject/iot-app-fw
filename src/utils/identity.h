@@ -124,6 +124,23 @@ typedef enum {
 int iot_switch_userid(iot_userid_t which);
 
 /**
+ * @brief Generate a fully qualified application id.
+ *
+ * Generate a fully qualified application id for the given user,
+ * package and application.
+ *
+ * @param [out] buf   buffer to write application id into
+ * @param [in]  size  size of the given buffer
+ * @param [in]  uid   user id
+ * @param [in]  pkg   package name
+ * @param [in]  app   application name within package
+ *
+ * @return Return buf upon success, @NULL otherwise.
+ */
+char *iot_application_id(char *buf, size_t size, uid_t uid, const char *pkg,
+                         const char *app);
+
+/**
  * @}
  */
 

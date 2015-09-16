@@ -177,3 +177,24 @@ int iot_switch_userid(iot_userid_t which)
         return -1;
     }
 }
+
+
+char *iot_application_id(char *buf, size_t size, uid_t uid, const char *pkg,
+                         const char *app)
+{
+    int n;
+
+    if (uid == (uid_t)-1 || pkg == NULL || app == NULL)
+        goto invalid;
+
+    n = snprintf(buf, size, "%d:%s:%s", uid, pkg, app);
+
+    if (n < 0 || n >= (int)size)
+        goto invalid;
+
+    return buf;
+
+ invalid:
+    errno = EINVAL;
+    return NULL;
+}
