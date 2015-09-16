@@ -941,14 +941,11 @@ static void override_manifest(launcher_t *l)
 static void resolve_appid(launcher_t *l)
 {
     static char fqai[1024];
-    int         n;
 
     l->pkg = iot_manifest_package(l->m);
 
-    n = snprintf(fqai, sizeof(fqai), "%d:%s:%s", l->uid, l->pkg, l->app);
-
-    if (n < 0 || n >= (int)sizeof(fqai))
-        launch_fail(l, EINVAL, false, "Fully-qualified appid %d:%s:%s too long",
+    if (iot_application_id(fqai, sizeof(fqai), l->uid, l->pkg, l->app) == NULL)
+        launch_fail(l, EINVAL, false, "Can't determine appid for %d:%s:%s.",
                     l->uid, l->pkg, l->app);
 
     l->fqai = fqai;
