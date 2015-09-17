@@ -279,6 +279,13 @@ iot_json_t *iot_manifest_data(iot_manifest_t *m, const char *app);
  */
 const char *iot_manifest_desktop_path(iot_manifest_t *m, const char *app);
 
+
+/**
+ * @brief Map a file path to a 'file type' and application.
+ */
+int iot_manifest_filetype(iot_manifest_t *m, const char *path,
+                          const char **app, const char **type);
+
 /**
  * @brief Bitmasks describing manifest validation results.
  */

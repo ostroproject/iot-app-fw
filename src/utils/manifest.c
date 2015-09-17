@@ -40,10 +40,32 @@
 #include <iot/common/json.h>
 #include <iot/common/hash-table.h>
 #include <iot/common/file-utils.h>
+#include <iot/common/regexp.h>
 
 #include <iot/utils/identity.h>
 #include <iot/utils/manifest.h>
 
+/*
+ * path mapping (for mapping file paths to app/'file types')
+ */
+#define PATHMAP_ENTRY(app, type) ((((app) << 16) | (type)))
+#define PATHMAP_APP(id)          (((id)) >> 16)
+#define PATHMAP_TYPE(id)         (((id)) & 0xffff)
+
+typedef struct {
+    iot_regexp_t *re;                    /* compiled regexp */
+    int           type;                  /* type for matching entries */
+} regmap_t;
+
+typedef struct {
+    const char    **types;               /* file types in type map */
+    int             ntype;               /* number of file types */
+    iot_hashtbl_t  *files;               /* regular path map */
+    regmap_t       *regexps;             /* regexp-based mapping */
+    int             nregexp;             /* number of regexp entries */
+    char          **roots;               /* app-root based mapping */
+    int             nroot;               /* numner of root entries */
+} pathmap_t;
 
 /*
  * a package/application manifest
@@ -54,6 +76,7 @@ struct iot_manifest_s {
     char         *pkg;                   /* package this manifest belongs to */
     char         *path;                  /* path to manifest file */
     iot_json_t   *data;                  /* manifest JSON data */
+    pathmap_t     pmap;                  /* application path map */
 };
 
 /*
@@ -64,16 +87,10 @@ typedef struct {
     int         usr;                     /* user, or -1 for common */
 } dirscan_t;
 
-/*
- * manifest directory configuration
- */
-static char *cmn_dir;
-static char *usr_dir;
 
-/*
- * manifest cache
- */
-static iot_hashtbl_t *cache;
+static char          *cmn_dir;           /* common manifest dir */
+static char          *usr_dir;           /* user-specific manifest root */
+static iot_hashtbl_t *cache;             /* manifest cache */
 
 
 static int cache_create(void);
@@ -82,7 +99,8 @@ static int cache_add(iot_manifest_t *m);
 static int cache_del(iot_manifest_t *m);
 static iot_manifest_t *cache_lookup(uid_t usr, const char *pkg);
 static int cache_populate(const char *common, const char *user);
-
+static int pathmap_populate(iot_manifest_t *m);
+static void pathmap_destroy(iot_manifest_t *m);
 
 int iot_manifest_set_directories(const char *common, const char *user)
 {
@@ -194,6 +212,7 @@ static void manifest_free(iot_manifest_t *m)
     iot_free(m->pkg);
     iot_free(m->path);
     iot_json_unref(m->data);
+    pathmap_destroy(m);
 
     iot_free(m);
 }
@@ -270,6 +289,9 @@ static int manifest_read(iot_manifest_t *m)
     }
 
     m->data = data;
+
+    if (pathmap_populate(m) < 0)
+        return -1;
 
     return 0;
 }
@@ -744,6 +766,487 @@ int iot_manifest_validate_file(uid_t usr, const char *path)
     manifest_free(m);
     return status;
 }
+
+
+static iot_json_t *manifest_filemap(iot_manifest_t *m, const char *app)
+{
+    iot_json_t *data, *map;
+
+    if ((data = app_data(m, app)) == NULL)
+        goto notfound;
+
+    iot_debug("data for %s:%s: %s", m->pkg, app,
+              iot_json_object_to_string(data));
+
+    if (!iot_json_get_object(data, "file-types", &map))
+        goto notfound;
+
+    return map;
+
+ notfound:
+    iot_debug("manifest '%s' has no file-types map for app '%s'",
+              m->path, app);
+    errno = ENOENT;
+    return NULL;
+}
+
+
+static int pathmap_create(iot_manifest_t *m)
+{
+    pathmap_t            *pm = &m->pmap;
+    iot_hashtbl_config_t  cfg;
+
+    if (pm->files != NULL)
+        return 0;
+
+    cfg.hash    = iot_hash_string;
+    cfg.comp    = iot_comp_string;
+    cfg.free    = NULL;
+    cfg.nalloc  = 0;
+    cfg.nlimit  = 16 * 1024;
+    cfg.nbucket = 128;
+    cfg.cookies = 0;
+
+    pm->files = iot_hashtbl_create(&cfg);
+
+    return pm->files != NULL ? 0 : -1;
+}
+
+
+static void pathmap_destroy(iot_manifest_t *m)
+{
+    pathmap_t *pm = &m->pmap;
+    int        i;
+
+    iot_hashtbl_destroy(pm->files, true);
+    pm->files = NULL;
+
+    iot_free(pm->types);
+    pm->types = NULL;
+
+    iot_free(pm->files);
+    pm->files = NULL;
+
+    if (pm->regexps != NULL) {
+        for (i = 0; i < pm->nregexp; i++)
+            iot_regexp_free(pm->regexps[i].re);
+
+        iot_free(pm->regexps);
+        pm->regexps = NULL;
+    }
+
+    if (pm->roots != NULL) {
+        for (i = 0; i < pm->nroot; i++)
+            iot_free(pm->roots[i]);
+
+        iot_free(pm->roots);
+        pm->roots = NULL;
+    }
+}
+
+
+static char *get_app_root(const char *argv0, char *buf, size_t size)
+{
+    char *e;
+    int   n, l;
+
+    e = strrchr(argv0, '/');
+
+    if (e == NULL)
+        return NULL;
+
+    if (e > argv0 + 4 && !strncmp(e - 4, "/bin/", 4))
+        e -= 4;
+
+    l = (int)(ptrdiff_t)(e - argv0);
+    n = snprintf(buf, size, "%*.*s", l, l, argv0);
+
+    if (n < 0 || n >= (int)size)
+        return NULL;
+
+    return buf;
+}
+
+
+static int pathmap_type_insert(pathmap_t *pm, const char *type)
+{
+    int i;
+
+    for (i = 0; i < pm->ntype; i++)
+        if (!strcmp(pm->types[i], type))
+            return i;
+
+    if (!iot_reallocz(pm->types, pm->ntype, pm->ntype + 1))
+        return -1;
+
+    pm->types[i = pm->ntype++] = type;
+
+    return i;
+}
+
+
+static int pathmap_file_insert(pathmap_t *pm, const char *path, int type)
+{
+    if (iot_hashtbl_add(pm->files, path, (void *)(ptrdiff_t)type, NULL) < 0)
+        return -1;
+    else
+        return 0;
+}
+
+
+static int pathmap_regexp_insert(pathmap_t *pm, const char *exp, int type)
+{
+    regmap_t *rm;
+
+    if (!iot_reallocz(pm->regexps, pm->nregexp, pm->nregexp + 1))
+        return -1;
+
+    rm = pm->regexps + pm->nregexp;
+
+    rm->re   = iot_regexp_compile(exp, 0);
+    rm->type = type;
+
+    if (rm->re == NULL)
+        return -1;
+
+    return pm->nregexp++;
+}
+
+
+static int pathmap_root_insert(pathmap_t *pm, const char *root)
+{
+    if (!iot_reallocz(pm->roots, pm->nroot, pm->nroot + 1))
+        return -1;
+
+    if ((pm->roots[pm->nroot] = iot_strdup(root)) == NULL)
+        return -1;
+
+    return pm->nroot++;
+}
+
+
+static int pathmap_insert(iot_manifest_t *m, const char *app, iot_json_t *map)
+{
+    pathmap_t       *pm = &m->pmap;
+    const char      *argv[64], *argv0, *path;
+    char             base[PATH_MAX];
+    int              argc;
+    iot_json_iter_t  it;
+    const char      *k;
+    iot_json_t      *v;
+    int              a, t, n, i, f;
+
+    iot_debug("generating pathmap for %s:%s", m->path, app);
+
+    argc = iot_manifest_arguments(m, app, argv, IOT_ARRAY_SIZE(argv));
+
+    if (argc < 0 || argc > (int)IOT_ARRAY_SIZE(argv))
+        goto invalid;
+
+    argv0 = NULL;
+    for (i = 0; i < argc && argv == NULL; i++) {
+        if (!strncmp(argv[i], "/home/", 6))        /* XXX Uhmm... hackish. */
+            argv0 = argv[i];
+    }
+
+    if (argv0 == NULL)
+        argv0 = argv[0];
+
+    if (get_app_root(argv0, base, sizeof(base)) == NULL)
+        goto invalid;
+
+    iot_debug("root entry '%s'", base);
+    a = pathmap_root_insert(pm, base);
+
+    if (a < 0)
+        goto failed;
+
+    if (map == NULL)
+        return 0;
+
+    iot_json_foreach_member(map, k, v, it) {
+        t = pathmap_type_insert(pm, k);
+
+        if (t < 0)
+            goto failed;
+
+        if (iot_json_get_type(v) != IOT_JSON_ARRAY)
+            goto invalid;
+
+        f = PATHMAP_ENTRY(a, t);
+        n = iot_json_array_length(v);
+
+        for (i = 0; i < n; i++) {
+            if (!iot_json_array_get_string(v, i, &path))
+                goto invalid;
+
+            if (!(strchr(path, '*') || strchr(path, '?') ||
+                  strchr(path, '[') || strchr(path, '{'))) {
+                iot_debug("regular entry '%s' => 0x%x", path, f);
+                if (pathmap_file_insert(pm, path, f) < 0)
+                    goto failed;
+            }
+            else {
+                iot_debug("regexp entry '%s' => 0x%x", path, f);
+                if (pathmap_regexp_insert(pm, path, f) < 0)
+                    goto failed;
+            }
+        }
+    }
+
+    return 0;
+
+ invalid:
+    errno = EINVAL;
+ failed:
+    return -1;
+}
+
+
+static int pathmap_populate(iot_manifest_t *m)
+{
+    iot_json_t  *map;
+    const char  *app, *apps[256];
+    int          napp, i;
+
+    iot_debug("populating pathmap for manifest %s...", m->path);
+
+    napp = iot_manifest_applications(m, apps, IOT_ARRAY_SIZE(apps));
+
+    if (napp < 0 || napp > (int)IOT_ARRAY_SIZE(apps))
+        goto invalid;
+
+    for (i = 0; i < napp; i++) {
+        app = apps[i];
+        map = manifest_filemap(m, app);
+
+        if (map == NULL && errno != ENOENT)
+            goto failed;
+
+        if (pathmap_create(m) < 0)
+            goto failed;
+
+        if (pathmap_insert(m, app, map) < 0)
+            goto failed;
+    }
+
+    return 0;
+
+ invalid:
+    errno = EINVAL;
+ failed:
+    return -1;
+}
+
+
+static int pathmap_file_lookup(pathmap_t *pm, const char *path)
+{
+    void *e;
+
+    e = iot_hashtbl_lookup(pm->files, path, IOT_HASH_COOKIE_NONE);
+
+    return ((int)(ptrdiff_t)e);
+}
+
+
+static int pathmap_regex_lookup(pathmap_t *pm, const char *path)
+{
+    int i;
+
+    if (pm->regexps == NULL)
+        return -1;
+
+    /*
+     * This is not the right way to do it, we should search for the
+     * longest match.
+     */
+
+    for (i = 0; i < pm->nregexp; i++)
+        if (iot_regexp_matches(pm->regexps[i].re, path, 0))
+            return pm->regexps[i].type;
+
+    return -1;
+}
+
+
+static int pathmap_root_lookup(pathmap_t *pm, const char *path)
+{
+#define RW_PUBLIC  (S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH)
+#define RO_PUBLIC  (S_IRGRP|        S_IROTH        )
+#define RW_PACKAGE (S_IRGRP|S_IWGRP                )
+#define RO_PACKAGE (S_IRGRP                        )
+
+    struct stat st;
+    const char *type;
+    int         i, l, t, c;
+
+    if (lstat(path, &st) < 0)
+        return -1;
+
+    /*
+     * This needs to be reviewed by someone who has a thorough
+     * understanding of how and why the security-manager file
+     * types should be used.
+     *
+     * Here is the current mapping logic. Note that this only applies
+     * as a default fallback method to files which do not have an
+     * explicit (full-match) or matching (regexp-based) entry.
+     *
+     *   For executables (by any bit), don't ever map to *rw:
+     *     - map to public-ro if readable by others
+     *     - map to ro if readable by group
+     *     - otherwise map to private
+     *
+     *   For non-executables:
+     *     - map to public if readable and writable by everyone
+     *     - map to public-ro if readable by everyone
+     *     - map to rw if readbable and writable by group
+     *     - map to ro if readable by group
+     *     - otherwise map to private
+     */
+    if (st.st_mode & (S_IXUSR|S_IXGRP|S_IXOTH)) {
+        /* Don't allow executables to be writable (well... except private). */
+        if (st.st_mode & S_IROTH)
+            type = "public-ro";
+        else if (st.st_mode & S_IRGRP)
+            type = "ro";
+        else
+            type = "private";
+    }
+    else {
+        if ((st.st_mode & RW_PUBLIC) == RW_PUBLIC)
+            type = "public";
+        else if ((st.st_mode & RO_PUBLIC) == RO_PUBLIC)
+            type = "public-ro";
+        else if ((st.st_mode & RW_PACKAGE) == RW_PACKAGE)
+            type = "rw";
+        else if ((st.st_mode & RO_PACKAGE) == RO_PACKAGE)
+            type = "ro";
+        else
+            type = "private";
+    }
+
+    t = pathmap_type_insert(pm, type);
+
+    if (t < 0)
+        return -1;
+
+    for (i = 0; i < pm->nroot; i++) {
+        l = strlen(pm->roots[i]);
+        if (!strncmp(path, pm->roots[i], l) && ((c=path[l]) == '/' || !c))
+            return PATHMAP_ENTRY(i, t);
+    }
+
+    return PATHMAP_ENTRY(0, t);  /* let's hope there's only one app */
+}
+
+
+static int pathmap_lookup(pathmap_t *pm, const char *path)
+{
+    int f;
+
+    f = pathmap_file_lookup(pm, path);
+
+    if (f != -1)
+        return f;
+
+    f = pathmap_regex_lookup(pm, path);
+
+    if (f != -1)
+        return f;
+
+    f = pathmap_root_lookup(pm, path);
+
+    if (f != -1)
+        return f;
+
+    errno = ENOENT;
+    return -1;
+}
+
+
+int iot_manifest_filetype(iot_manifest_t *m, const char *path,
+                          const char **app, const char **type)
+{
+    pathmap_t *pm = &m->pmap;
+    int        f, a, t, n;
+
+    f = pathmap_lookup(pm, path);
+
+    if (f < 0)
+        return -1;
+
+    a = PATHMAP_APP(f);
+    t = PATHMAP_TYPE(f);
+
+    if (app != NULL) {
+        const char *apps[64];
+
+        n = iot_manifest_applications(m, apps, IOT_ARRAY_SIZE(apps));
+
+        if (n < 0 || a > (int)IOT_ARRAY_SIZE(apps))
+            goto invalid;
+
+        *app = apps[a];
+    }
+
+    if (type != NULL) {
+        if (t >= pm->ntype)
+            goto invalid;
+
+        *type = pm->types[t];
+    }
+
+    return 0;
+
+ invalid:
+    errno = EINVAL;
+    return -1;
+}
+
+
+
+#if 0
+static iot_json_t *manifest_entry(iot_manifest_t *m, const char *app,
+                                  const char *key, int type_mask)
+{
+    iot_json_t *data, *v;
+    int         type;
+
+    data = app_data(m, app);
+
+    if (data == NULL)
+        goto notfound;
+
+    v = iot_json_get(data, key);
+
+    if (v == NULL)
+        goto notfound;
+
+    type = iot_json_get_type(v);
+
+    if (!(type_mask & (1 << type)))
+        goto invalid;
+
+    return v;
+
+ notfound:
+    errno = ENOENT;
+    return NULL;
+
+ invalid:
+    errno = EINVAL;
+    return NULL;
+}
+#endif
+
+
+
+
+
+
+
+
 
 
 static uint32_t entry_hash(const void *key)
