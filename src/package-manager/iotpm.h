@@ -33,7 +33,7 @@ struct iotpm_s {
     const char *homedir;
     int log_mask;
     const char *log_target;
-    const char *debug_cmd;
+    bool debugging;
     iotpm_backend_t *backend;
     iotpm_mode_t mode;
     int argc;
