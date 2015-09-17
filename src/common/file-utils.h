@@ -146,7 +146,7 @@ int iot_scan_dir(const char *path, const char *pattern, iot_dirent_type_t mask,
  *
  * @return Returns 0 upon sucess, -1 otherwise.
  */
-int iot_mkdir(const char *path, mode_t mode);
+int iot_mkdir(const char *path, mode_t mode, const char *label);
 
 /**
  * @brief Normalize a path name, removing any '..' and '.' components.
