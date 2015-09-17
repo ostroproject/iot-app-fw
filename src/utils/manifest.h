@@ -194,7 +194,7 @@ const char *iot_manifest_path(iot_manifest_t *m);
  *         Note that this might be larger than @size if an insufficient
  *         buffer was provided.
  */
-int iot_manifest_applications(iot_manifest_t *m, char **buf, size_t size);
+int iot_manifest_applications(iot_manifest_t *m, const char **buf, size_t size);
 
 /**
  * @brief Get the description for the given application from the manifest.
@@ -225,7 +225,7 @@ const char *iot_manifest_description(iot_manifest_t *m, const char *app);
  *         The returned data is valid only until the manifest is freed.
  */
 int iot_manifest_privileges(iot_manifest_t *m, const char *app,
-                            char **buf, size_t size);
+                            const char **buf, size_t size);
 
 /**
  * @brief Get the list of arguments for the given application.
@@ -243,7 +243,7 @@ int iot_manifest_privileges(iot_manifest_t *m, const char *app,
  *         The returned data is valid only until the manifest is freed.
  */
 int iot_manifest_arguments(iot_manifest_t *m, const char *app,
-                           char **buf, size_t size);
+                           const char **buf, size_t size);
 
 /**
  * @brief Get JSON data from the manifest.

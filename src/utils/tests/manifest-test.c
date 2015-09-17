@@ -21,7 +21,7 @@ typedef struct {
 
 void dump_manifest(iot_manifest_t *m)
 {
-    char *apps[64], *privs[64], *args[64];
+    const char *apps[64], *privs[64], *args[64];
     const char *desktop, *descr;
     int   napp, npriv, narg, i, j;
 
