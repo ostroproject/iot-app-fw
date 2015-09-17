@@ -118,6 +118,11 @@ void iot_manifest_reset_cache(void);
 
 
 /**
+ * @brief Resolve the manifest directory for the given user id.
+ */
+char *iot_manifest_dir(uid_t uid, char *buf, size_t size);
+
+/**
  * @brief A manifest read from the filesystem, and potentially cached.
  */
 typedef struct iot_manifest_s iot_manifest_t;

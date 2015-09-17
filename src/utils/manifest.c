@@ -41,6 +41,7 @@
 #include <iot/common/hash-table.h>
 #include <iot/common/file-utils.h>
 
+#include <iot/utils/identity.h>
 #include <iot/utils/manifest.h>
 
 
@@ -135,6 +136,26 @@ int iot_manifest_populate_cache(void)
 void iot_manifest_reset_cache(void)
 {
     cache_destroy();
+}
+
+
+char *iot_manifest_dir(uid_t uid, char *buf, size_t size)
+{
+    char usr[256];
+    int  n;
+
+    if (uid == (uid_t)-1)
+        n = snprintf(buf, size, "%s", common_dir());
+    else {
+        if (iot_get_username(uid, usr, sizeof(usr)) == NULL)
+            return NULL;
+        n = snprintf(buf, size, "%s/%s", user_dir(), usr);
+    }
+
+    if (n < 0 || n >= (int)size)
+        return NULL;
+
+    return buf;
 }
 
 
@@ -254,14 +275,13 @@ static int manifest_read(iot_manifest_t *m)
 }
 
 
-static char *manifest_path(int usr, const char *pkg, char *buf, size_t size)
+static char *manifest_path(int uid, const char *pkg, char *buf, size_t size)
 {
-    int n;
+    char dir[PATH_MAX];
+    int  n;
 
-    if (usr < 0)
-        n = snprintf(buf, size, "%s/%s.manifest", common_dir(), pkg);
-    else
-        n = snprintf(buf, size, "%s/%d/%s.manifest", user_dir(), usr, pkg);
+    n = snprintf(buf, size, "%s/%s.manifest",
+                 iot_manifest_dir(uid, dir, sizeof(dir)), pkg);
 
     if (n < 0 || n >= (int)size)
         return NULL;
@@ -844,7 +864,8 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
 
         iot_debug("scanning %s for manifest files...", path);
 
-        scan->usr = strtoul(e, NULL, 10);
+        if ((scan->usr = iot_get_userid(e)) == (uid_t)-1)
+            return -1;
         status = iot_scan_dir(path, ".*\\.manifest$",
                               IOT_DIRENT_REG | IOT_DIRENT_IGNORE_LNK,
                               cache_scan_cb, scan);
@@ -890,7 +911,7 @@ static int cache_scan(const char *path, bool users)
 
     if (users) {
         mask = IOT_DIRENT_DIR | IOT_DIRENT_IGNORE_LNK;
-        name = "[1-9][0-9]*$";
+        name = "[a-zA-Z_].*$";
     }
     else {
         mask = IOT_DIRENT_REG | IOT_DIRENT_IGNORE_LNK;
