@@ -661,17 +661,20 @@ if !BACKEND_DISABLED
 
 bin_PROGRAMS += iotpm
 
-iotpm_SOURCES =			 							\
+iotpm_SOURCES =			 						\
 		package-manager/iotpm.c						\
 		package-manager/options.c					\
 		package-manager/pkginfo.c					\
-		package-manager/@BACKEND_TYPE@-backend.c
+		package-manager/@BACKEND_TYPE@-backend.c			\
+		package-manager/security-manager.c
 
-iotpm_CFLAGS =										\
-		$(AM_CFLAGS)
+iotpm_CFLAGS =									\
+		$(AM_CFLAGS)							\
+		$(SECURITY_CFLAGS)
 
-iotpm_LDADD =										\
-		libiot-common.la
+iotpm_LDADD =									\
+		libiot-common.la						\
+		$(SECURITY_LIBS)
 
 if BACKEND_RPM5
 iotpm_CFLAGS +=	$(LIBRPM_CFLAGS) $(POPT_CFLAGS)

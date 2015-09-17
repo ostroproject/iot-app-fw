@@ -11,6 +11,7 @@
 
 #include "options.h"
 #include "backend.h"
+#include "security-manager.h"
 
 static bool iotpm_init(iotpm_t **, int, char **);
 static void iotpm_exit(iotpm_t *);
@@ -148,10 +149,14 @@ static int install_package(iotpm_t *iotpm)
     info = iotpm_backend_pkginfo_create(iotpm, false, name);
     
     if (info->sts < 0 || !iotpm_backend_seed_create(info)) {
+    cleanup:
         iotpm_backend_remove_package(iotpm, info->name);
         goto out;
     }
-    
+
+    if (iotpm_register_package(info, /* Le Manifesto */NULL) < 0)
+        goto cleanup;
+
     rc = 0;
  out:
     iotpm_backend_pkginfo_destroy(info);
@@ -180,6 +185,9 @@ static int remove_package(iotpm_t *iotpm)
         goto out;
     
     if (!iotpm_backend_seed_destroy(info))
+        goto out;
+
+    if (iotpm_unregister_package(info, /* Le Manifesto */NULL) < 0)
         goto out;
     
     rc = 0;
