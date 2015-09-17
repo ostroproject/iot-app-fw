@@ -35,16 +35,12 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/xattr.h>
-#include <linux/xattr.h>
 
 #include <iot/config.h>
 #include <iot/common/macros.h>
 #include <iot/common/debug.h>
 #include <iot/common/regexp.h>
 #include <iot/common/file-utils.h>
-
-#define IOT_LABEL XATTR_NAME_SMACK
 
 static inline iot_dirent_type_t dirent_type(mode_t mode)
 {
@@ -212,13 +208,10 @@ int iot_mkdir(const char *path, mode_t mode, const char *label)
                 if (mkdir(buf, mode) < 0)
                     goto cleanup;
 
-#ifdef ENABLE_SMACK
                 if (label != NULL)
-                    if (lsetxattr(buf, IOT_LABEL, label, strlen(label), 0) < 0)
+                    if (iot_set_label(buf, label, 0) < 0)
                         goto cleanup;
-#else
-                IOT_UNUSED(label);
-#endif
+
                 undo[n++] = q - buf;
             }
             else {
@@ -353,4 +346,25 @@ char *iot_normalize_path(char *buf, size_t size, const char *path)
     *q = '\0';
 
     return buf;
+}
+
+
+int iot_set_label(const char *path, const char *label, iot_label_mode_t mode)
+{
+#ifdef ENABLE_SMACK
+    int len;
+
+    if (label == NULL)
+        len = 0;
+    else
+        len = strlen(label);
+
+    return lsetxattr(path, XATTR_NAME_SMACK, label, len, mode);
+#else
+    IOT_UNUSED(path);
+    IOT_UNUSED(label);
+    IOT_UNUSED(mode);
+
+    return 0;
+#endif
 }
