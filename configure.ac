@@ -448,8 +448,10 @@ fi
 
 if test "$enable_security" = "yes"; then
     AC_DEFINE([ENABLE_SECURITY_MANAGER], 1, [Enable Security Framework support ?])
+    AC_DEFINE([ENABLE_SMACK], 1, [Enable SMACK support ?])
 fi
 AM_CONDITIONAL(ENABLE_SECURITY_MANAGER, [test "$enable_security" = "yes"])
+AM_CONDITIONAL(ENABLE_SMACK,            [test "$enable_security" = "yes"])
 
 # Check for package manager backend
 AC_ARG_WITH(backend,
