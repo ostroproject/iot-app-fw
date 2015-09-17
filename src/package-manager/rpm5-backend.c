@@ -31,6 +31,7 @@
 #include <iot/common.h>
 
 #include "backend.h"
+#include "rpmx-backend.h"
 
 
 #define RPM_DIR                   IOTPM_PACKAGE_HOME "/rpm/"
@@ -56,9 +57,6 @@ static int pkginfo_fill(QVA_t, rpmts, Header);
 static bool install_package(iotpm_t *, bool, const char *);
 
 static void *seed_read(const char *, size_t *);
-
-static bool file_write(int, const char *, const void *, ssize_t);
-static bool file_read(int, const char *, void *, ssize_t);
 
 static const char *headerGetString(Header, rpmTag);
 static const char *headerGetAsString(Header, rpmTag);
@@ -117,6 +115,7 @@ static struct poptOption   installOptionsTable[] = {
 };
 static struct poptOption   *verifyOptionsTable = queryOptionsTable;
 
+static const char *system_dbpath = "/var/lib/rpm";
 
 bool iotpm_backend_init(iotpm_t *iotpm)
 {
@@ -127,6 +126,7 @@ bool iotpm_backend_init(iotpm_t *iotpm)
     char seedpath[IOTPM_PATH_MAX];
     char repackpath[IOTPM_PATH_MAX];
     char manpath[IOTPM_PATH_MAX];
+    char packages[IOTPM_PATH_MAX];
     char errbuf[256];
 
     if (!iotpm)
@@ -137,6 +137,7 @@ bool iotpm_backend_init(iotpm_t *iotpm)
     snprintf(seedpath, sizeof(seedpath), SEED_DIR, iotpm->homedir);
     snprintf(repackpath, sizeof(repackpath), REPACKAGE_DIR, iotpm->homedir);
     iot_manifest_dir(iotpm->userid, manpath, sizeof(manpath));
+    snprintf(packages, sizeof(packages), "%s/Packages", dbdir);
 
     iotpm->backend = NULL;
 
@@ -168,6 +169,13 @@ bool iotpm_backend_init(iotpm_t *iotpm)
         snprintf(errbuf, sizeof(errbuf), "failed to create directory '%s': %s",
                  dir, strerror(errno));
         goto failed;
+    }
+
+    if (access(packages, R_OK|W_OK) < 0 && errno == ENOENT) {
+        if (!database_copy(system_dbpath, dbpath, NULL)) {
+            error = "database initialization failed";
+            goto failed;
+        }
     }
 
     return true;
@@ -842,77 +850,6 @@ static void *seed_read(const char *path, size_t *length_ret)
     return NULL;
 }
 
-static bool file_write(int fd,
-		       const char *file,
-		       const void *data,
-		       ssize_t length)
-{
-    ssize_t l, offs = 0;
-
-    if (fd >= 0 && data && length > 0) {
-        for (;;) {
-	    l = write(fd, (void *)((char *)data + offs), length);
-
-	    if (l < 0) {
-	        if (errno == EINTR)
-		    continue;
-		else
-		    break;
-	    }
-
-	    if (l == 0) {
-	        errno = EIO;
-	        break;
-	    }
-
-	    offs += l;
-
-	    if (offs >= length)
-	        return true;
-	}
-
-	iot_log_error("failed to write file '%s': %s", file, strerror(errno));
-    }
-
-    return false;
-}
-
-static bool file_read(int fd,
-		      const char *file,
-		      void *data,
-		      ssize_t length)
-{
-    ssize_t l, offs = 0;
-
-    if (fd >= 0 && data && length > 0) {
-        for (;;) {
-	    l = read(fd, (void *)((char *)data + offs), length);
-
-	    if (l < 0) {
-	        if (errno == EINTR)
-		    continue;
-		else
-		    break;
-	    }
-
-	    if (l == 0) {
-	        errno = EIO;
-	        break;
-	    }
-
-	    offs += l;
-
-	    if (offs >= length)
-	        return true;
-	}
-
-	iot_log_error("failed to read file '%s': %s", file, strerror(errno));
-    }
-
-    return false;
-}
-
-
 static const char *headerGetString(Header h, rpmTag tag)
 {
     HE_t he = (HE_t)memset(alloca(sizeof(*he)), 0, sizeof(*he));
@@ -1005,3 +942,5 @@ static int log_callback(rpmlogRec rec, rpmlogCallbackData userdata)
 
     return sts;
 }
+
+#include "rpmx-backend.c"
