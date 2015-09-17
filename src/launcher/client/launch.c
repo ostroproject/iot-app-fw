@@ -121,7 +121,7 @@ typedef struct {
     gid_t             *gids;             /* resolved groups */
     int                ngid;
     iot_manifest_t    *m;                /* application manifest */
-    char             **app_argv;         /* (extra) application arguments */
+    const char       **app_argv;         /* (extra) application arguments */
     int                app_argc;         /* number of application arguments */
 
     const char        *pkg;              /* package name */
@@ -897,9 +897,10 @@ static void resolve_manifest(launcher_t *l)
 
 static void override_manifest(launcher_t *l)
 {
-    static char app[128];
-    char pkg[128], *apps[1];
-    int  n;
+    static char  app[128];
+    const  char *apps[1];
+    char         pkg[128];
+    int          n;
 
     /*
      * Notes:
@@ -1046,7 +1047,7 @@ static iot_json_t *create_request(launcher_t *l, const char *type, iot_json_t *r
 
 static iot_json_t *create_setup_request(launcher_t *l)
 {
-    static char *argv[128];
+    static const char *argv[128];
     int          argc, i;
     size_t       size;
     iot_json_t  *req, *dbg;

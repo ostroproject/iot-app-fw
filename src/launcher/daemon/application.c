@@ -347,9 +347,8 @@ static iot_json_t *list_installed(client_t *c)
     iot_manifest_t     *m;
     iot_hashtbl_iter_t  it;
     uid_t               uid;
-    char               *mapps[64], *a, *argv[64];
     int                 nmapp, argc, i;
-    const char         *descr, *desktop;
+    const char         *mapps[64], *a, *argv[64], *descr, *desktop;
     char                appid[1024];
 
     IOT_UNUSED(l);
