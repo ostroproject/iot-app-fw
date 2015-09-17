@@ -215,6 +215,9 @@ int iot_app_event_send(iot_app_t *app, const char *event, iot_json_t *data,
     pending_t  *pnd;
     int         seq;
 
+    req = NULL;
+    pl  = NULL;
+
     if (!event || !*event || !target)
         goto invalid;
 
@@ -284,7 +287,8 @@ static int app_list(iot_app_t *app, int running, iot_app_list_cb_t cb,
     if (transport_connect(app, IOT_APPFW_ADDRESS) < 0)
         return -1;
 
-    pl = iot_json_create(IOT_JSON_OBJECT);
+    req = NULL;
+    pl  = iot_json_create(IOT_JSON_OBJECT);
 
     if (pl == NULL)
         goto failed;
