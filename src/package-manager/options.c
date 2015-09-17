@@ -154,9 +154,9 @@ static void check_configuration(iotpm_t *iotpm)
 
     iot_log_set_mask(iotpm->log_mask);
 
-    if (iotpm->debug_cmd && !iot_debug_set_config(iotpm->debug_cmd)) {
-        fprintf(stderr, "faled to set debug command '%s'\n", iotpm->debug_cmd);
-	exit(EINVAL);
+    if (iotpm->debugging) {
+        iot_log_set_mask(iot_log_set_mask(0) | IOT_LOG_MASK_DEBUG);
+        iot_debug_enable(TRUE);
     }
 }
 
@@ -188,7 +188,8 @@ static void print_usage(iotpm_t *iotpm, int exit_code, char *fmt, ...)
 	               "logfile path\n"
 	    "  -l <levels> or --log-level=<levels> where\n"
 	    "       <levels> is a comma separated list of info, "
-	               "error and warning\n",
+	               "error and warning\n"
+	    "  -d or --debug <site> enable given debug site\n",
 	    iotpm->prognam, iotpm->prognam);
 
     if (exit_code >= 0)
@@ -231,12 +232,7 @@ static void set_log_target(iotpm_t *iotpm, const char *target)
 static void set_debug(iotpm_t *iotpm, const char *debug_cmd)
 {
     if (debug_cmd) {
-        iot_free((void *)iotpm->debug_cmd);
-	iotpm->debug_cmd = iot_strdup(debug_cmd);
-
-	if (!iotpm->debug_cmd) {
-	    fprintf(stderr, "failed to allocate memory for debug command\n");
-	    exit(ENOMEM);
-	}
+        iotpm->debugging = true;
+        iot_debug_set_config(debug_cmd);
     }
 }
