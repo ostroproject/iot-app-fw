@@ -27,25 +27,24 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifdef ENABLE_SECURITY_MANAGER
-#  include <sys/smack.h>
-#  include <security-manager/security-manager.h>
-#endif
-
 #include <iot/config.h>
 #include <iot/common/macros.h>
 #include <iot/common/log.h>
 #include <iot/common/debug.h>
 #include <iot/utils/manifest.h>
 
-#include "package-manager/pkginfo.h"
+#ifdef ENABLE_SECURITY_MANAGER
+#  include <sys/smack.h>
+#  include <security-manager/security-manager.h>
+#endif
 
+#include "package-manager/pkginfo.h"
 
 
 static int type_id(const char *type)
 {
 #define MAP(_type, _sm_type) \
-    if (!strcmp(type, _type) return SECURITY_MANAGER_PATH_##_sm_type)
+    if (!strcmp(type, _type)) return SECURITY_MANAGER_PATH_##_sm_type)
 
     MAP("private"  , PRIVATE  );
     MAP("public"   , PUBLIC   );
@@ -77,7 +76,7 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 
     if (napp < 0)
         goto invalid;
-    if (napp >= IOT_ARRAY_SIZE(apps))
+    if (napp >= (int)IOT_ARRAY_SIZE(apps))
         goto overflow;
 
     for (i = 0; i < (int)napp; i++) {
@@ -92,12 +91,12 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 
         if (nprv < 0)
             goto invalid;
-        if (nprv >= IOT_ARRAY_SIZE(prvs))
+        if (nprv >= (int)IOT_ARRAY_SIZE(prvs))
             goto overflow;
 
         if (argc < 0)
             goto invalid;
-        if (argc >= IOT_ARRAY_SIZE(argv))
+        if (argc >= (int)IOT_ARRAY_SIZE(argv))
             goto overflow;
 
         if (security_manager_app_inst_req_new(&req) != 0)
@@ -170,7 +169,7 @@ int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 
     if (napp < 0)
         goto invalid;
-    if (napp >= IOT_ARRAY_SIZE(apps))
+    if (napp >= (int)IOT_ARRAY_SIZE(apps))
         goto overflow;
 
     for (i = 0; i < (int)napp; i++) {
