@@ -33,6 +33,9 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/xattr.h>
+#include <linux/xattr.h>
+#include <attr/xattr.h>
 
 #include <iot/common/macros.h>
 
@@ -161,6 +164,22 @@ int iot_mkdir(const char *path, mode_t mode, const char *label);
  * @return Returns @buf upon success, @NULL otherwise.
  */
 char *iot_normalize_path(char *buf, size_t size, const char *path);
+
+/**
+ * @brief Set the SMACK label of a file.
+ */
+typedef enum {
+    IOT_LABEL_DEFAULT = 0,               /**< overwrite, create if necessary */
+    IOT_LABEL_CREATE  = XATTR_CREATE,    /**< create, but don't replace */
+    IOT_LABEL_REPLACE = XATTR_REPLACE    /**< replace, but don't create */
+} iot_label_mode_t;
+
+int iot_set_label(const char *path, const char *label, iot_label_mode_t mode);
+
+/**
+ * @brief Get the SMACK label of file.
+ */
+int iot_get_label(const char *path, char *buf, size_t size);
 
 IOT_CDECL_END
 
