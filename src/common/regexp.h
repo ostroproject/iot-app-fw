@@ -65,5 +65,6 @@ bool iot_regexp_matches(iot_regexp_t *re, const char *input, int flags);
 int iot_regexp_exec(iot_regexp_t *re, const char *input, iot_regmatch_t *matches,
                     size_t nmatch, int flags);
 bool iot_regexp_match(iot_regmatch_t *matches, int idx, int *beg, int *end);
+const char *iot_regexp_backend(void);
 
 #endif /* __IOT_REGEXP_H__ */

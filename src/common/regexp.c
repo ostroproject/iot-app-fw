@@ -30,9 +30,163 @@
 #include <iot/config.h>
 #include <iot/common/regexp.h>
 
+
 #if !defined(PCRE_ENABLED)
 #    include "regexp-libc.c"
+#    define BACKEND "posix"
 #else
 #    include "regexp-pcre.c"
+#    define BACKEND "pcre"
 #endif
+
+const char *iot_regexp_backend(void)
+{
+    return BACKEND;
+}
+
+
+int iot_regexp_glob(const char *pattern, char *buf, size_t size)
+{
+    const char *p;
+    char       *q;
+    int         l;
+    int         chidx, stridx;
+
+    if (size < 1)
+        goto overflow;
+
+    p = pattern;
+    q = buf;
+    l = size - 1;
+
+    *q++ = '^';
+    l--;
+
+    chidx = stridx = 0;
+    while (*p && l > 0) {
+        switch (*p) {
+        case '*':
+            if (l < 2)
+                goto overflow;
+            *q++ = '.';
+            *q++ = '*';
+            l -= 2;
+            p++;
+            break;
+
+        case '?':
+            if (l < 2)
+                goto overflow;
+            *q++ = '\\';
+            *q++ = '.';
+            l -= 2;
+            p++;
+            break;
+
+        case '[':
+            chidx = 1;
+            *q++ = '(';
+            l--;
+            p++;
+            break;
+
+        case ']':
+            chidx = 0;
+            *q++ = ')';
+            l--;
+            p++;
+            break;
+
+        case '{':
+            if (l < 2)
+                goto overflow;
+            stridx = 1;
+            *q++ = '(';
+            *q++ = '(';
+            l -= 2;
+            p++;
+            break;
+
+        case '}':
+            if (l < 2)
+                goto overflow;
+            stridx = 0;
+            *q++ = ')';
+            *q++ = ')';
+            l += 2;
+            p++;
+            break;
+
+        case ',':
+            if (stridx) {
+                if (stridx > 1) {
+                    if (l < 3)
+                        goto overflow;
+                    *q++ = ')';
+                    *q++ = '|';
+                    *q++ = '(';
+                    l -= 3;
+                }
+                else {
+                    if (l < 3)
+                        goto overflow;
+                    *q++ = ')';
+                    *q++ = '|';
+                    *q++ = '(';
+                    l -= 3;
+                }
+                p++;
+                stridx++;
+            }
+            else {
+                *q++ = *p++;
+                l--;
+            }
+            break;
+
+        case '.':
+            if (l < 2)
+                goto overflow;
+            *q++ = '\\';
+            *q++ = '.';
+            l -= 2;
+            p++;
+            break;
+
+        default:
+            if (!chidx) {
+                *q++ = *p++;
+                l--;
+            }
+            else {
+                if (chidx) {
+                    if (chidx > 1) {
+                        if (l < 2)
+                            goto overflow;
+                        *q++ = '|';
+                        l--;
+                    }
+                    chidx++;
+                }
+                *q++ = *p++;
+                l--;
+            }
+            break;
+        }
+    }
+
+    if (*p != '\0' || l < 1)
+        goto overflow;
+
+    *q++ = '$';
+    *q = '\0';
+
+    iot_debug("glob '%s' translated to regexp '%s'", pattern, buf);
+
+    return 0;
+
+ overflow:
+    errno = EOVERFLOW;
+    return -1;
+}
 

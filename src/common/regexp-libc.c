@@ -35,20 +35,6 @@
 #include <iot/common/regexp.h>
 
 
-int iot_regexp_glob(const char *pattern, char *buf, size_t size)
-{
-    IOT_UNUSED(pattern);
-    IOT_UNUSED(buf);
-    IOT_UNUSED(size);
-
-    iot_log_error("%s() currently not implemented.", __func__);
-
-    errno = EOPNOTSUPP;
-
-    return -1;
-}
-
-
 iot_regexp_t *iot_regexp_compile(const char *pattern, int flags)
 {
     iot_regexp_t *re;
