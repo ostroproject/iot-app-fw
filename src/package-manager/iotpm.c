@@ -161,7 +161,7 @@ static int install_package(iotpm_t *iotpm)
     if (info->sts < 0 || !(manfile = info->manifest)                   ||
         !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
         !iotpm_backend_seed_create(info)                               ||
-        iotpm_register_package(info, /* Le Manifesto */NULL) < 0)
+        iotpm_register_package(info, man) < 0)
         goto cleanup;
 
     rc = 0;
@@ -185,20 +185,20 @@ static int remove_package(iotpm_t *iotpm)
 {
     iotpm_pkginfo_t *info = NULL;
     const char *pkg = iotpm->argv[0];
+    iot_manifest_t *man = NULL;
+    iotpm_pkginfo_filentry_t *manfile;
     int rc = EIO;
 
     info = iotpm_backend_pkginfo_create(iotpm, false, pkg);
 
-    if (info->sts < 0)
-        goto out;
+    if (info->sts == 0 && (manfile = info->manifest)                 &&
+        (man = iotpm_manifest_load(iotpm, info->name, manfile->path)))
+        iotpm_unregister_package(info, man);
 
     if (!iotpm_backend_remove_package(iotpm, pkg))
         goto out;
 
     if (!iotpm_backend_seed_destroy(info))
-        goto out;
-
-    if (iotpm_unregister_package(info, /* Le Manifesto */NULL) < 0)
         goto out;
 
     rc = 0;
