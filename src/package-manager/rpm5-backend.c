@@ -172,7 +172,7 @@ bool iotpm_backend_init(iotpm_t *iotpm)
     }
 
     if (access(packages, R_OK|W_OK) < 0 && errno == ENOENT) {
-        if (!database_copy(system_dbpath, dbpath, NULL)) {
+        if (!database_copy(system_dbpath, dbdir, NULL)) {
             error = "database initialization failed";
             goto failed;
         }

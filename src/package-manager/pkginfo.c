@@ -44,16 +44,26 @@ static bool verify_files(iotpm_pkginfo_t *info)
     iotpm_pkginfo_filentry_t *f;
     const char *path;
     mode_t mode;
-    char dir[IOTPM_PATH_MAX];
-    size_t len_min, len_max, len, plen;
+    char hdir[IOTPM_PATH_MAX];
+    char mdir[IOTPM_PATH_MAX];
+    size_t len_min, len_max, len, plen, mlen;
     bool home, local, conf;
     int i;
 
     if (!strcmp(iotpm->username, "root"))
         return true;
 
+    if (!info->manifest) {
+        iot_log_error("could not find manifest file in the package");
+        success = false;
+    }
+
     len_min = strlen(iotpm->homedir);
-    len_max = snprintf(dir,sizeof(dir), "%s/%s/", iotpm->homedir, info->name);
+    len_max = snprintf(hdir,sizeof(hdir), "%s/%s/", iotpm->homedir,info->name);
+
+    mlen = snprintf(mdir, sizeof(mdir), "%s", backend->path.manifest);
+    if (mlen > 0 && mdir[mlen-1] == '/')
+        mdir[--mlen] = 0;
 
     for (i = 0;  i < info->nfile;  i++) {
         f = info->files + i;
@@ -74,8 +84,15 @@ static bool verify_files(iotpm_pkginfo_t *info)
                 success = false;
             }
         }
+        else if (!strncmp(path, mdir, plen > mlen ? mlen : plen)) {
+            if (!S_ISDIR(mode)) {
+                iot_log_error("attempt to replace something on path '%s'",
+                              mdir);
+                success = false;
+            }
+        }
         else {
-            if (!strncmp(path, dir, len)) {
+            if (!strncmp(path, hdir, len)) {
                 if (len <= len_min) {
                     home = true;
                     local = false;
@@ -90,14 +107,14 @@ static bool verify_files(iotpm_pkginfo_t *info)
 
             if (!home && !local && !conf) {
                 iot_log_error("'%s' is neither on path '%s' nor on '/etc/'",
-                              path, dir);
+                              path, hdir);
                 success = false;
             }
 
             if (home) {
                 if (!S_ISDIR(mode)) {
                     iot_log_error("attempt to replace something on "
-                                  "path '%s'", dir);
+                                  "path '%s'", hdir);
                     success = false;
                 }
 
@@ -133,11 +150,6 @@ static bool verify_files(iotpm_pkginfo_t *info)
             iot_log_error("setgid flag is set for file '%s'", path);
             success = false;
         }
-    }
-
-    if (!info->manifest) {
-        iot_log_error("could not find manifest file in the package");
-        success = false;
     }
 
     return success;
