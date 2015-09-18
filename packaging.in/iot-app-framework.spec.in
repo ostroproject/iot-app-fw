@@ -12,7 +12,7 @@
 %{!?_with_ecore:%{!?_without_ecore:%define _without_ecore 1}}
 %{!?_with_glib:%{!?_without_glib:%define _with_glib 1}}
 %{!?_with_qt:%{!?_without_qt:%define _without_qt 1}}
-%{!?_with_node:%{!?_without_node:%define _without_node 1}}
+%{!?_with_node:%{!?_without_node:%define _without_node 0}}
 %{!?_with_python:%{!?_without_python:%define _without_python 1}}
 %{!?_with_pm:%{!?_without_pm:%define _with_pm 1}}
 
