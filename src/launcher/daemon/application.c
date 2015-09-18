@@ -174,6 +174,8 @@ iot_json_t *application_setup(client_t *c, iot_json_t *req)
     iot_json_t     *exec, *dbg;
     char            dir[PATH_MAX];
 
+    a = NULL;
+
     if (!iot_json_get_string (req, f="manifest", &manifest) ||
         !iot_json_get_string (req, f="app"     , &app     ) ||
         !iot_json_get_integer(req, f="user"    , &uid     ) ||
