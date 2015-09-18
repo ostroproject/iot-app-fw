@@ -692,11 +692,20 @@ endif
 iotpm_LDFLAGS =	-rdynamic
 
 if BUILD_SAMPLES
+
+MANIFEST_DIR  = package-manager/sample
+MANIFEST_FILE = $(MANIFEST_DIR)/@PKG_PREFIX@hello-world.manifest
+
+BUILT_SOURCES += $(MANIFEST_FILE)
+
+$(MANIFEST_FILE):
+	cp $(MANIFEST_DIR)/hello-world.manifest $@
+
+manifest_DATA = $(MANIFEST_FILE)
+manifestdir = /usr/share/iot/users/@SAMPLE_USER_NAME@
+
 sample_PROGRAMS = hello-world
 sampledir = /home/@SAMPLE_USER_NAME@/@PKG_PREFIX@hello-world
-
-manifest_DATA = package-manager/sample/hello-world.manifest
-manifestdir = /usr/share/iot/users/@SAMPLE_USER_NAME@
 
 hello_world_SOURCES = package-manager/sample/hello-world.c
 hello_world_CFLAGS = $(AM_CFLAGS)
