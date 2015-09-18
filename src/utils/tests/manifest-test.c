@@ -1,25 +1,39 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <stdarg.h>
+#include <errno.h>
 #include <sys/types.h>
-
 #define _GNU_SOURCE
 #include <getopt.h>
-
 
 #include <iot/common/macros.h>
 #include <iot/common/log.h>
 #include <iot/utils/manifest.h>
+#include <iot/utils/identity.h>
+#include <iot/utils/appid.h>
 
 
 typedef struct {
     const char *common;
     const char *user;
+    const char *appid;
+    char        pkg[64];
+    char        app[64];
     int         log_mask;
-    int         argb;
+    int         fidx;
 } config_t;
 
 
-void dump_manifest(iot_manifest_t *m)
+#define test_info iot_log_info
+#define test_error iot_log_error
+#define test_fail(_cfg, ...) do {                       \
+        iot_log_error("fatal error: "__VA_ARGS__);      \
+        exit(1);                                        \
+    } while (0)
+
+
+
+static void dump_manifest(iot_manifest_t *m)
 {
     const char *apps[64], *privs[64], *args[64];
     const char *desktop, *descr;
@@ -64,10 +78,11 @@ static void print_usage(config_t *cfg, const char *argv0, int exit_code,
         printf("\n");
     }
 
-    printf("usage: %s [options]\n\n"
+    printf("usage: %s [options] [file-path-list]\n\n"
            "The possible options are:\n"
            "  -c, --common=<dir>             common manifest directory\n"
            "  -u, --user=<dir>               per-user manifest directiry\n"
+           "  -a, --appid=<pkg:app>          application id\n"
            "  -v, --verbose                  increase logging verbosity\n"
            "  -d, --debug                    enable given debug configuration\n"
            "  -h, --help                     show help on usage\n",
@@ -82,19 +97,24 @@ static void print_usage(config_t *cfg, const char *argv0, int exit_code,
 
 static void config_set_defaults(config_t *cfg)
 {
-    cfg->common   = NULL;
-    cfg->user     = NULL;
+    cfg->common = "./manifests/common";
+    cfg->user   = "./manifests/user";
+    cfg->appid  = NULL;
+    cfg->pkg[0] = '\0';
+    cfg->app[0] = '\0';
+    cfg->fidx   = 1;
+
     cfg->log_mask = IOT_LOG_UPTO(IOT_LOG_INFO);
-    cfg->argb     = 1;
 }
 
 
 static void parse_cmdline(config_t *cfg, int argc, char **argv, char **envp)
 {
-#   define OPTIONS "c:u:vd:h"
+#   define OPTIONS "c:u:a:vd:h"
     struct option options[] = {
         { "common"  , required_argument, NULL, 'c' },
         { "user"    , required_argument, NULL, 'u' },
+        { "appid"   , required_argument, NULL, 'a' },
         { "verbose" , optional_argument, NULL, 'v' },
         { "debug"   , required_argument, NULL, 'd' },
         { "help"    , no_argument      , NULL, 'h' },
@@ -119,6 +139,10 @@ static void parse_cmdline(config_t *cfg, int argc, char **argv, char **envp)
 
         case 'u':
             cfg->user = optarg;
+            break;
+
+        case 'a':
+            cfg->appid = optarg;
             break;
 
         case 'v':
@@ -147,37 +171,44 @@ static void parse_cmdline(config_t *cfg, int argc, char **argv, char **envp)
         exit(0);
     }
 
-    cfg->argb = optind;
+    cfg->fidx = optind;
 }
-
 
 
 int main(int argc, char *argv[], char *env[])
 {
     config_t        cfg;
     iot_manifest_t *m;
-    int             i, status;
+    int             i;
+    const char     *path, *app, *type;
 
     parse_cmdline(&cfg, argc, argv, env);
 
+    if (iot_appid_package(cfg.appid, cfg.pkg, sizeof(cfg.pkg)) == NULL)
+        test_fail(&cfg, "failed to extract app from '%s'", cfg.appid);
+
+    if (iot_appid_package(cfg.appid, cfg.app, sizeof(cfg.app)) == NULL)
+        test_fail(&cfg, "failed to extract app from '%s'", cfg.appid);
+
     iot_manifest_set_directories(cfg.common, cfg.user);
+    iot_manifest_populate_cache();
+    m = iot_manifest_get(getuid(), cfg.pkg);
 
-    for (i = cfg.argb; i < argc; i++) {
-        m = iot_manifest_get(getuid(), argv[i]);
+    if (m == NULL)
+        test_fail(&cfg, "failed to get/load manifest");
 
-        if (m == NULL) {
-            iot_log_error("Failed to get manifest for '%s'.", argv[i]);
-            exit(1);
-        }
+    dump_manifest(m);
 
-        dump_manifest(m);
-        status = iot_manifest_validate(m);
+    for (i = cfg.fidx; i < argc; i++) {
+        path = argv[i];
 
-        if (status != IOT_MANIFEST_OK)
-            iot_log_warning("Manifest failed validation (0x%x)", status);
-
-        iot_manifest_unref(m);
+        if (iot_manifest_filetype(m, path, &app, &type) < 0)
+            test_error("failed to get filetype for '%s'", path);
+        else
+            test_info("'%s': app %s, type %s", path, app, type);
     }
+
+    iot_manifest_unref(m);
 
     return 0;
 }
