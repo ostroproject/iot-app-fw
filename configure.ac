@@ -240,34 +240,34 @@ AC_SUBST(QTCORE_LIBS)
 
 # Check if UV mainloop support was enabled.
 AC_ARG_ENABLE(uv,
-              [  --enable-uv             enable UV mainloop support],
-	      [enable_uv=$enableval], [enable_uv=auto])
+              [  --enable-uv             enable LIBUV mainloop support],
+	      [enable_libuv=$enableval], [enable_libuv=auto])
 
-if test "$enable_uv" != "no"; then
-    PKG_CHECK_MODULES(UV, libuv, [have_uv=yes], [have_uv=no])
-    if test "$have_uv" = "no" -a "$enable_uv" = "yes"; then
-        AC_MSG_ERROR([UV development libraries not found.])
+if test "$enable_libuv" != "no"; then
+    PKG_CHECK_MODULES(LIBUV, libuv, [have_libuv=yes], [have_libuv=no])
+    if test "$have_libuv" = "no" -a "$enable_libuv" = "yes"; then
+        AC_MSG_ERROR([LIBUV development libraries not found.])
     fi
 
-    enable_uv="$have_uv"
-    if test "$have_uv" = "yes"; then
-        standalone_uv="yes"
+    enable_libuv="$have_libuv"
+    if test "$have_libuv" = "yes"; then
+        shared_libuv="yes"
     else
-        standalone_uv="no"
+        shared_libuv="no"
     fi
 else
-    AC_MSG_NOTICE([UV mainloop support is disabled.])
+    AC_MSG_NOTICE([LIBUV mainloop support is disabled.])
 fi
 
 # Check if NodeJS support was enabled.
-CHECK_NODEJS([NODE], [UV])
+CHECK_NODEJS()
 
 echo "NODE_CXXFLAGS: $NODE_CXXFLAGS"
 echo "NODE_LIBS: $NODE_LIBS"
 echo "NODE_PREFIX: $NODE_PREFIX"
-echo "UV_CFLAGS: $UV_CFLAGS"
-echo "UV_LIBS: $UV_LIBS"
-echo "UV_STANDALONE: $UV_STANDALONE"
+echo "LIBUV_CFLAGS: $LIBUV_CFLAGS"
+echo "LIBUV_LIBS: $LIBUV_LIBS"
+echo "LIBUV_SHARED: $LIBUV_SHARED"
 
 # Check for python
 AC_ARG_ENABLE(python,
@@ -567,11 +567,11 @@ fi
 echo "PulseAudio mainloop support: $enable_pulse"
 echo "EFL/ecore mainloop support: $enable_ecore"
 echo "glib mainloop support: $enable_glib"
-echo "UV mainloop support: $UV_ENABLED"
-echo "    * libuv standalone library: $UV_STANDALONE"
-if test "$UV_STANDALONE" = "yes"; then
-    echo "    * libuv CFLAGS: $UV_CFLAGS"
-    echo "    * libuv LIBS: $UV_LIBS"
+echo "LIBUV mainloop support: $enable_libuv"
+echo "    * libuv shared library: $shared_libuv"
+if test "$LIBUV_SHARED" = "yes"; then
+    echo "    * libuv CFLAGS: $LIBUV_CFLAGS"
+    echo "    * libuv LIBS: $LIBUV_LIBS"
 fi
 echo "package manager backend: ${BACKEND_TYPE}"
 echo "build sample packages: ${BUILD_SAMPLES}"

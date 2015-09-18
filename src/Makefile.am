@@ -385,7 +385,7 @@ clean-linker-script::
 iot_uv_headers =			\
 		common/uv-glue.h
 
-if UV_ENABLED
+if LIBUV_ENABLED
 lib_LTLIBRARIES += libiot-uv.la
 EXTRA_DIST      += common/iot-uv.pc
 pkgconfig_DATA  += common/iot-uv.pc
@@ -400,7 +400,7 @@ libiot_uv_la_SOURCES =		\
 
 libiot_uv_la_CFLAGS  =		\
 		$(AM_CFLAGS)	\
-		$(UV_CFLAGS)
+		$(LIBUV_CFLAGS)
 
 libiot_uv_la_LDFLAGS =		\
 		-Wl,-version-script=$(top_srcdir)/linker-script.uv \
@@ -408,7 +408,7 @@ libiot_uv_la_LDFLAGS =		\
 
 libiot_uv_la_LIBADD  =		\
 		libiot-common.la	\
-		$(UV_LIBS)
+		$(LIBUV_LIBS)
 
 libiot_uv_la_DEPENDENCIES =	\
 		$(top_srcdir)/linker-script.uv	\
@@ -560,7 +560,7 @@ agent-install-hook:
 if GLIB_ENABLED
 IOT_GLIB = libiot-glib.la
 endif
-if UV_STANDALONE
+if LIBUV_SHARED
 IOT_UV   = libiot-uv.la
 endif
 
@@ -572,7 +572,7 @@ iot_event_test_SOURCES =		\
 iot_event_test_CFLAGS  =		\
 		$(AM_CFLAGS)		\
 		$(GLIB_CFLAGS)		\
-		$(UV_CFLAGS)
+		$(LIBUV_CFLAGS)
 
 iot_event_test_LDADD   =		\
 		libiot-app.la		\
@@ -595,7 +595,7 @@ iot_event_send_SOURCES =		\
 iot_event_send_CFLAGS  =		\
 		$(AM_CFLAGS)		\
 		$(GLIB_CFLAGS)		\
-		$(UV_CFLAGS)
+		$(LIBUV_CFLAGS)
 
 iot_event_send_LDADD   =		\
 		libiot-app.la		\
@@ -618,7 +618,7 @@ iot_event_catch_SOURCES =		\
 iot_event_catch_CFLAGS  =		\
 		$(AM_CFLAGS)		\
 		$(GLIB_CFLAGS)		\
-		$(UV_CFLAGS)
+		$(LIBUV_CFLAGS)
 
 iot_event_catch_LDADD   =		\
 		libiot-app.la		\
@@ -641,7 +641,7 @@ iot_app_list_SOURCES =			\
 iot_app_list_CFLAGS  =			\
 		$(AM_CFLAGS)		\
 		$(GLIB_CFLAGS)		\
-		$(UV_CFLAGS)
+		$(LIBUV_CFLAGS)
 
 iot_app_list_LDADD   =			\
 		libiot-app.la		\

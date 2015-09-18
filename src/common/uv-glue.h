@@ -33,11 +33,11 @@
 #include <iot/config.h>
 #include <iot/common/mainloop.h>
 
-#ifndef UV_ENABLED
+#ifndef LIBUV_ENABLED
 #    error "libuv support has not been enabled"
 #endif
 
-#ifdef UV_STANDALONE
+#ifdef LIBUV_SHARED
 #    include <uv.h>
 #else
 #    include <node/uv.h>
