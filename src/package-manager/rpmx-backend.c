@@ -101,7 +101,7 @@ static bool file_copy(const char *src, const char *dst, const char *label)
         if (len == 0)
             break;
 
-        if (!file_write(dfd, dst, buf, sizeof(buf)))
+        if (!file_write(dfd, dst, buf, len))
             goto failed;
     }
 
@@ -139,7 +139,7 @@ static int database_copy_callback(const char *src,
     if ((type & IOT_DIRENT_DIR)) {
         iot_debug("copying directory '%s' => '%s", src_path, dst_path);
 
-        iot_mkdir(dbcopy->dst, 0755, dbcopy->label);
+        iot_mkdir(dst_path, 0755, dbcopy->label);
 
         if (!database_copy(src_path, dst_path, dbcopy->label))
             return -1;
