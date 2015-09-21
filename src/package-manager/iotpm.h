@@ -6,11 +6,12 @@
 #include <stdbool.h>
 
 #include <iot/utils/manifest.h>
+#include <iot/utils/identity.h>
 
-#define IOTPM_PATH_MAX   1024
+#define IOTPM_PATH_MAX           1024
 
 #define IOTPM_PACKAGE_HOME       "%s/lib"
-#define IOTPM_MANIFEST_HOME      IOT_MANIFEST_USER_PATH "/%d"
+#define IOTPM_MANIFEST_HOME      IOT_MANIFEST_USER_PATH "/%s"
 
 #define IOTPM_DEFAULT_LABEL      "User"
 

@@ -171,7 +171,10 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
         }
 
         iot_debug("    registering with security framework");
-        if ((se = security_manager_app_install(req)) != 0)
+
+        se = security_manager_app_install(req);
+
+        if (se != 0)
             goto failed;
 
         security_manager_app_inst_req_free(req);
@@ -212,6 +215,7 @@ int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
     const char   *pkg, *apps[256], *app;
     char          fqai[256];
     int           napp, i;
+    int           se = 0;
 
     IOT_UNUSED(pi);
 
@@ -250,10 +254,14 @@ int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
         if (security_manager_app_inst_req_set_uid(req, uid) != 0)
             goto failed;
 
-        if (security_manager_app_uninstall(req))
+        se = security_manager_app_uninstall(req);
+
+        if (se != 0) {
             iot_log_error("Failed to uninstall application '%s'.", fqai);
-        else
-            iot_log_info("Unregistered application '%s'.", fqai);
+            goto failed;
+        }
+
+        iot_log_info("Unregistered application '%s'.", fqai);
 
         security_manager_app_inst_req_free(req);
         req = NULL;
