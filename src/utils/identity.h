@@ -67,6 +67,18 @@ uid_t iot_get_userid(const char *name);
 const char *iot_get_username(uid_t uid, char *namebuf, size_t size);
 
 /**
+ * @brief Convenience function to get the home directory of a user.
+ *
+ * @param [in]  uid      user ID to resolve
+ * @param [out] namebuf  buffer to store user's home directory
+ * @param [in]  size     size of namebuf
+ *
+ * @return Returns namebuf upon success, @NULL otherwise n which case
+ *         @errno is also set.
+ */
+const char *iot_get_userhome(uid_t uid, char *namebuf, size_t size);
+
+/**
  * @brief Convenience function to resolve the group ID for a given group name.
  *
  * Fetch the unique group ID corresponding to the given group name.

@@ -85,6 +85,32 @@ const char *iot_get_username(uid_t uid, char *namebuf, size_t size)
 }
 
 
+const char *iot_get_userhome(uid_t uid, char *namebuf, size_t size)
+{
+    struct passwd pwd, *found;
+    char          buf[4096];
+    int           n;
+
+    if (uid == (uid_t)-1) {
+        snprintf(namebuf, size, "<no-user>");
+        return "<no-user>";
+    }
+
+    if (getpwuid_r(uid, &pwd, buf, sizeof(buf), &found) == 0) {
+        n = snprintf(namebuf, size, "%s", pwd.pw_dir);
+
+        if (n < 0 || n >= (int)size) {
+            errno = ENOSPC;
+            return NULL;
+        }
+
+        return namebuf;
+    }
+
+    return NULL;
+}
+
+
 gid_t iot_get_groupid(const char *name)
 {
     struct group gr, *found;
