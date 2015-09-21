@@ -30,6 +30,8 @@ int main(int argc, char **argv)
     iotpm_t *iotpm;
     int rc;
 
+    iot_switch_userid(IOT_USERID_REAL);
+
     if (!iotpm_init(&iotpm, argc,argv)        ||
 	!iotpm_options_init(iotpm, argc,argv) ||
 	!iotpm_backend_init(iotpm)            ||

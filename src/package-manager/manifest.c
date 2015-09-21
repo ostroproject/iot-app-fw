@@ -7,8 +7,11 @@
 
 #include "manifest.h"
 
+
 bool iotpm_manifest_init(iotpm_t *iotpm)
 {
+    char manhome[IOTPM_PATH_MAX];
+
     if (!iotpm)
         return false;
 
@@ -17,7 +20,24 @@ bool iotpm_manifest_init(iotpm_t *iotpm)
         return false;
     }
 
+    snprintf(manhome, sizeof(manhome), IOTPM_MANIFEST_HOME, iotpm->username);
+
+    iot_switch_userid(IOT_USERID_SUID);
+
+    if (iot_mkdir(IOT_MANIFEST_USER_PATH, 0755, "_") < 0)
+        goto failed;
+
+    iot_switch_userid(IOT_USERID_REAL);
+
+    if (iot_mkdir(manhome, 0755, "User") < 0)
+        goto failed;
+
     return true;
+
+ failed:
+    iot_switch_userid(IOT_USERID_REAL);
+    iot_log_error("failed to create manifest home '%s'", manhome);
+    return false;
 }
 
 void iotpm_manifest_exit(iotpm_t *iotpm)
