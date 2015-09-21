@@ -27,6 +27,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <limits.h>
+
 #include <iot/config.h>
 #include <iot/common/macros.h>
 #include <iot/common/log.h>
@@ -40,6 +44,10 @@
 #endif
 
 #include "package-manager/pkginfo.h"
+
+#ifndef PATH_MAX
+#    define PATH_MAX 1024
+#endif
 
 #ifdef ENABLE_SECURITY_MANAGER
 
@@ -64,8 +72,8 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
     uid_t         uid;
     const char   *pkg, *app, *type, *fapp;
     const char   *apps[256], *prvs[64], *argv[64], *path;
-    char          fqai[256];
-    int           napp, nprv, argc, i, j, t;
+    char          fqai[256], home[PATH_MAX], pkgdir[PATH_MAX];
+    int           napp, nprv, argc, dirlen, i, j, t;
     int           se = 0;
 
     req = NULL;
@@ -84,6 +92,15 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
         goto invalid;
     if (napp >= (int)IOT_ARRAY_SIZE(apps))
         goto overflow;
+
+    if (!iot_get_userhome(uid, home, sizeof(home)))
+        goto invalid;
+
+    dirlen = snprintf(pkgdir, sizeof(pkgdir), "%s/%s", home, pkg);
+    if (dirlen < 0 || dirlen >= sizeof(pkgdir))
+        goto invalid;
+
+    iot_debug("user %u, package %s, top directory: '%s'", uid, pkg, pkgdir);
 
     for (i = 0; i < (int)napp; i++) {
         app = apps[i];
@@ -132,6 +149,13 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
             path = pi->files[i].path;
 
             iot_debug("    checking file '%s'....", pi->files[i].path);
+
+            if (strncmp(path, pkgdir, dirlen) != 0 ||
+                (path[dirlen] != '/' && path[dirlen] != '\0')) {
+                iot_debug("      non-package path... ignored", path);
+                continue;
+            }
+
             if (iot_manifest_filetype(m, path, &fapp, &type) < 0)
                 goto failed;
 
