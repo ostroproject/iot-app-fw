@@ -134,6 +134,7 @@ static int install_package(iotpm_t *iotpm)
     iot_manifest_t *man = NULL;
     iotpm_pkginfo_filentry_t *manfile;
     char name[1024];
+    bool seed_created = false;
     int rc = EIO;
 
     if (!pkg)
@@ -160,9 +161,13 @@ static int install_package(iotpm_t *iotpm)
 
     if (info->sts < 0 || !(manfile = info->manifest)                   ||
         !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
-        !iotpm_backend_seed_create(info)                               ||
-        iotpm_register_package(info, man) < 0)
+        !(seed_created = iotpm_backend_seed_create(info))              ||
+        iotpm_register_package(info, man) < 0                           )
+    {
+        if (seed_created)
+            iotpm_backend_seed_destroy(info);
         goto cleanup;
+    }
 
     rc = 0;
 
