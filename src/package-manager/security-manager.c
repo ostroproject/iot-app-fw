@@ -70,7 +70,7 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 
     req = NULL;
 
-    if (pkg == NULL || m == NULL)
+    if (pi == NULL || m == NULL)
         goto invalid;
 
     uid  = iot_manifest_user(m);
@@ -193,7 +193,7 @@ int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 
     req = NULL;
 
-    if (pkg == NULL || m == NULL)
+    if (pi == NULL || m == NULL)
         goto invalid;
 
     uid  = iot_manifest_user(m);
