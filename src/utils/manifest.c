@@ -48,9 +48,9 @@
 /*
  * path mapping (for mapping file paths to app/'file types')
  */
-#define PATHMAP_ENTRY(app, type) ((((app) << 16) | (type)))
-#define PATHMAP_APP(id)          (((id)) >> 16)
-#define PATHMAP_TYPE(id)         (((id)) & 0xffff)
+#define PATHMAP_ENTRY(app, type) (((app) << 16) | (type))
+#define PATHMAP_APP(id)          ((id) >> 16)
+#define PATHMAP_TYPE(id)         ((id) & 0xffff)
 
 typedef struct {
     iot_regexp_t *re;                    /* compiled regexp */
@@ -887,7 +887,9 @@ static int pathmap_type_insert(pathmap_t *pm, const char *type)
 
 static int pathmap_file_insert(pathmap_t *pm, const char *path, int type)
 {
-    if (iot_hashtbl_add(pm->files, path, (void *)(ptrdiff_t)type, NULL) < 0)
+    void *e = (void *)(ptrdiff_t)(type + 1);
+
+    if (iot_hashtbl_add(pm->files, path, e, NULL) < 0)
         return -1;
     else
         return 0;
@@ -1045,7 +1047,7 @@ static int pathmap_file_lookup(pathmap_t *pm, const char *path)
 
     e = iot_hashtbl_lookup(pm->files, path, IOT_HASH_COOKIE_NONE);
 
-    return ((int)(ptrdiff_t)e);
+    return ((int)(ptrdiff_t)e) - 1;
 }
 
 
