@@ -31,8 +31,8 @@ fi
 
 if test "$with_node" != "no"; then
     NODE_PREFIX="$(pkg-config --variable=variables_node_prefix $node)"
-    NODE_CXXFLAGS="$NODE_CFLAGS -I$NODE_PREFIX/include"
-    NODE_CXXFLAGS="$NODE_CXXFLAGS -I$NODE_PREFIX/include/node"
+    NODE_CXXFLAGS="$NODE_CFLAGS -I$PKG_CONFIG_SYSROOT_DIR$NODE_PREFIX/include"
+    NODE_CXXFLAGS="$NODE_CXXFLAGS -I$PKG_CONFIG_SYSROOT_DIR$NODE_PREFIX/include/node"
     shared_libuv="$(pkg-config --variable=variables_node_shared_libuv $node)"
     
     if test "$shared_libuv" = "true"; then
