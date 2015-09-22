@@ -146,9 +146,9 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
         }
 
         for (j = 0; j < pi->nfile; j++) {
-            path = pi->files[i].path;
+            path = pi->files[j].path;
 
-            iot_debug("    checking file '%s'....", pi->files[i].path);
+            iot_debug("    checking file '%s'....", path);
 
             if (strncmp(path, pkgdir, dirlen) != 0 ||
                 (path[dirlen] != '/' && path[dirlen] != '\0')) {
