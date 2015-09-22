@@ -515,13 +515,17 @@ AC_ARG_WITH(package-prefix,
 AC_SUBST(PKG_PREFIX, $pkg_prefix)
 
 # test user
-AC_ARG_WITH(sample-user, 
-            [  --with-sample-user       user for sample packages],
-            [sample_user="${with_sample_user}"], [sample_user=$USER])
-AC_SUBST(SAMPLE_USER_NAME, [$sample_user])
-AC_SUBST(SAMPLE_USER_ID, `id -u $sample_user`)
-AM_CONDITIONAL(BUILD_SAMPLES, test "${SAMPLE_USER_NAME}x" != "x")
 
+if test "$backend_type" != "none"; then
+    AC_ARG_WITH(sample-user, 
+                [  --with-sample-user       user for sample packages],
+                [sample_user="${with_sample_user}"], [sample_user=$USER])
+    AC_SUBST(SAMPLE_USER_NAME, [$sample_user])
+    AC_SUBST(SAMPLE_USER_ID, `id -u $sample_user`)
+fi
+
+AM_CONDITIONAL(BUILD_SAMPLES,
+               [test "${SAMPLE_USER_NAME}x" != "x" -a "$backend_type" != "none"])
 
 # Set up IoT CFLAGS and LIBS.
 IOT_CFLAGS=""
@@ -579,8 +583,10 @@ if test "$LIBUV_SHARED" = "yes"; then
     echo "    * libuv LIBS: $LIBUV_LIBS"
 fi
 echo "package manager backend: ${BACKEND_TYPE}"
-echo "sample user: ${SAMPLE_USER_NAME}(${SAMPLE_USER_ID})"
-echo "build sample packages: ${BUILD_SAMPLES}"
+if test "$backend_type" != "none"; then
+    echo "sample user: ${SAMPLE_USER_NAME}(${SAMPLE_USER_ID})"
+    echo "build sample packages: ${BUILD_SAMPLES}"
+fi
 echo "NodeJS bindings: ${NODEJS_ENABLED:-no}"
 if test "$NODEJS_ENABLED" = "yes"; then
     echo "    * NodeJS prefix: $NODE_PREFIX"
