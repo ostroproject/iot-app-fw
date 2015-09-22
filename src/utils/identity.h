@@ -27,7 +27,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __IOT_UTILS_IDENTITIY_H__
+#ifndef __IOT_UTILS_IDENTITY_H__
 #define __IOT_UTILS_IDENTITY_H__
 
 #include <iot/config.h>
