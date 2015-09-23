@@ -172,6 +172,7 @@ static int install_package(iotpm_t *iotpm)
     }
 
     rc = 0;
+    goto out;
 
  cleanup:
     iotpm_backend_remove_package(iotpm, info->name);
