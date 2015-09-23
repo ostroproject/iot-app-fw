@@ -34,6 +34,7 @@
 #include <stdarg.h>
 #include <limits.h>
 
+#include <iot/config.h>
 #include <iot/common/macros.h>
 #include <iot/common/mm.h>
 #include <iot/common/list.h>
