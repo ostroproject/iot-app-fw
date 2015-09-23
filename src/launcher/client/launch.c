@@ -218,14 +218,13 @@ static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
 
     printf("usage:\n");
     printf("To start an application:\n");
-    printf("  %s [options] --app <pkg>[:<app>] [-- extra-args]\n", base);
+    printf("  %s [options] <pkg>[:<app>] [-- extra-args]\n", base);
     printf("To stop an application:\n");
-    printf("  %s [options] --stop --app <pkg>[:<app>]\n", base);
+    printf("  %s [options] --stop <pkg>[:<app>]\n", base);
     printf("To clean up after an application has exited:\n");
     printf("  %s [options] [--cleanup] <cgroup-path>\n\n", base);
     printf("The possible options are:\n"
            "  -s, --server=<SERVER>        server transport address\n"
-           "  -a, --app=<APPID>            application to start\n"
            "  -l, --log-level=<LEVELS>     what messages to log\n"
            "    LEVELS is a comma-separated list of info, error and warning\n"
            "  -t, --log-target=<TARGET>    where to log messages\n"
@@ -286,7 +285,7 @@ static void config_set_defaults(launcher_t *l, const char *argv0)
 
 static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 {
-#   define STDOPTS "s:a:k:cQ::l:t:v::d:h"
+#   define STDOPTS "s:k:cQ::l:t:v::d:h"
 #   define DEVOPTS "SUBL:U:G:P:M:"
 #   define STDOPTIONS                                                   \
         { "server"           , required_argument, NULL, 's' },          \
@@ -335,10 +334,6 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         switch (opt) {
         case 's':
             l->addr = optarg;
-            break;
-
-        case 'a':
-            l->appid = optarg;
             break;
 
         case 'k':
@@ -436,8 +431,14 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         exit(0);
     }
 
-    l->argc = argc - optind;
-    l->argv = argv + optind;
+    if (l->mode == LAUNCHER_SETUP || l->mode == LAUNCHER_STOP) {
+        if (optind >= argc)
+            print_usage(l, EINVAL, "error: application id not specified");
+
+        l->appid = argv[optind];
+        l->argc  = argc - (optind + 1);
+        l->argv  = argv + (optind + 1);
+    }
 }
 
 
@@ -872,6 +873,9 @@ static void resolve_manifest(launcher_t *l)
 {
     static char app[128];
     char pkg[128];
+
+    if (l->appid == NULL)
+        print_usage(l, EINVAL, "No appid, cannot resolve manifest.");
 
     /*
      * Notes:
