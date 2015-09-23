@@ -1435,7 +1435,15 @@ static int cache_populate(const char *common, const char *user)
     if (cache_create() < 0)
         return -1;
 
-    return (cache_scan(common, false) < 0 || cache_scan(user, true)) ? -1 : 0;
+    if (cache_scan(common, false) < 0)
+        if (errno != ENOENT && errno != EACCES)
+            return -1;
+
+    if (cache_scan(user, true) < 0)
+        if (errno != ENOENT && errno != EACCES)
+            return -1;
+
+    return 0;
 }
 
 
