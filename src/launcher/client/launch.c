@@ -146,10 +146,13 @@ typedef struct {
 } launcher_t;
 
 
-/* XXX temporary hack */
 static bool iot_development_mode(void)
 {
-    return true;
+#ifdef DEVEL_MODE_ENABLED
+    return (getuid() == 0);              /* XXX temporary hack */
+#else
+    return false;
+#endif
 }
 
 
@@ -234,6 +237,7 @@ static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
            "    SITE can be of the form 'function', '@file-name', or '*'\n"
            "  -h, --help                   show this help message\n");
 
+#ifdef DEVEL_MODE_ENABLED
     if (!iot_development_mode())
         goto out;
 
@@ -248,6 +252,7 @@ static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
            "  -M, --manifest=<PATH>        run with the given manifest\n");
 
  out:
+#endif /* DEVEL_MODE_ENABLED */
     if (exit_code < 0)
         return;
     else
@@ -283,7 +288,8 @@ static void config_set_defaults(launcher_t *l, const char *argv0)
 }
 
 
-static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
+static void get_valid_options(launcher_t *l, const char **optstr,
+                              struct option **options)
 {
 #   define STDOPTS "s:k:cQ::l:t:v::d:h"
 #   define DEVOPTS "SUBL:U:G:P:M:"
@@ -309,26 +315,42 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         { "manifest"         , required_argument, NULL, 'M' }
 #   define ENDOPTIONS { NULL , 0, NULL, 0 }
 
-    struct option stdopts[] = { STDOPTIONS, ENDOPTIONS };
-    struct option devopts[] = { STDOPTIONS, DEVOPTIONS, ENDOPTIONS };
+    IOT_UNUSED(l);
 
+#ifdef DEVEL_MODE_ENABLED
+    static struct option  stdopts[] = { STDOPTIONS, ENDOPTIONS };
+    static struct option  devopts[] = { STDOPTIONS, DEVOPTIONS, ENDOPTIONS };
+
+    if (iot_development_mode()) {
+        *optstr  = STDOPTS""DEVOPTS;
+        *options = devopts;
+    }
+    else {
+        *optstr  = STDOPTS;
+        *options = stdopts;
+    }
+#else /* !DEVEL_MODE_ENABLED */
+    static struct option stdopts[] = { STDOPTIONS, ENDOPTIONS };
+
+    *optstr  = STDOPTS;
+    *options = stdopts;
+#endif /* !DEVEL_MODE_ENABLED */
+}
+
+
+static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
+{
     const char    *OPTIONS;
     struct option *options;
 
     int opt, help;
 
     IOT_UNUSED(envp);
+    IOT_UNUSED(iot_development_mode);
 
     help = FALSE;
 
-    if (!iot_development_mode()) {
-        OPTIONS = STDOPTS;
-        options = stdopts;
-    }
-    else {
-        OPTIONS = STDOPTS""DEVOPTS;
-        options = devopts;
-    }
+    get_valid_options(l, &OPTIONS, &options);
 
     while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
         switch (opt) {
@@ -386,6 +408,7 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
             help++;
             break;
 
+#ifdef DEVEL_MODE_ENABLED
             /*
              * development mode options
              */
@@ -420,6 +443,7 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         case 'M':
             l->manifest = optarg;
             break;
+#endif
 
         default:
             print_usage(l, EINVAL, "invalid option '%c'", opt);
@@ -589,6 +613,7 @@ static void security_setup(launcher_t *l)
 {
     iot_switch_userid(IOT_USERID_SUID);
 
+#ifdef DEVEL_MODE_ENABLED
     if (l->label || l->user || l->groups || l->privileges) {
         if (!iot_development_mode())
             launch_fail(l, EINVAL, false, "Hmm... not in development mode.");
@@ -608,24 +633,26 @@ static void security_setup(launcher_t *l)
         if (drop_privileges(l) < 0)
             launch_fail(l, errno, false, "Failed to drop privileges (%d: %s).",
                         errno, strerror(errno));
+
+        return;
     }
-    else {
-        if (security_manager_set_process_label_from_appid(l->fqai) != 0)
-            launch_fail(l, 1, false, "Failed to set SMACK label.");
+#endif /* DEVEL_MODE_ENABLED */
 
-        if (security_manager_set_process_groups_from_appid(l->fqai) != 0)
-            launch_fail(l, 1, false, "Failed to set groups.");
+    if (security_manager_set_process_label_from_appid(l->fqai) != 0)
+        launch_fail(l, 1, false, "Failed to set SMACK label.");
 
-        if (iot_switch_userid(IOT_USERID_DROP) < 0)
-            launch_fail(l, errno, false, "Failed to switch user id (%d: %s).",
-                        errno, strerror(errno));
+    if (security_manager_set_process_groups_from_appid(l->fqai) != 0)
+        launch_fail(l, 1, false, "Failed to set groups.");
 
-        if (security_manager_drop_process_privileges() != 0)
-            launch_fail(l, 1, false, "Failed to drop privileges.");
-    }
+    if (iot_switch_userid(IOT_USERID_DROP) < 0)
+        launch_fail(l, errno, false, "Failed to switch user id (%d: %s).",
+                    errno, strerror(errno));
+
+    if (security_manager_drop_process_privileges() != 0)
+        launch_fail(l, 1, false, "Failed to drop privileges.");
 }
 
-#else
+#else /* !ENABLE_SECURITY_MANAGER */
 
 static void security_setup(launcher_t *l)
 {
@@ -647,7 +674,7 @@ static void security_setup(launcher_t *l)
 
 }
 
-#endif
+#endif /* !ENABLE_SECURITY_MANAGER */
 
 static int launch_process(launcher_t *l)
 {
