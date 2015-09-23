@@ -66,6 +66,16 @@ static int type_id(const char *type)
 }
 
 
+static int app_topdir(char *buf, size_t size, const char *home, const char *pkg)
+{
+#ifdef IOTPM_APPDIR
+    return snprintf(buf, size, "%s/%s/%s", home, IOTPM_APPDIR, pkg);
+#else
+    return snprintf(buf, size, "%s/%s", home, pkg);
+#endif
+}
+
+
 int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 {
     app_inst_req *req;
@@ -96,7 +106,7 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
     if (!iot_get_userhome(uid, home, sizeof(home)))
         goto invalid;
 
-    dirlen = snprintf(pkgdir, sizeof(pkgdir), "%s/%s", home, pkg);
+    dirlen = app_topdir(pkgdir, sizeof(pkgdir), home, pkg);
     if (dirlen < 0 || dirlen >= sizeof(pkgdir))
         goto invalid;
 
