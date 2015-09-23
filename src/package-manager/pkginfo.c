@@ -46,7 +46,7 @@ static bool verify_files(iotpm_pkginfo_t *info)
     mode_t mode;
     char hdir[IOTPM_PATH_MAX];
     char mdir[IOTPM_PATH_MAX];
-    size_t len_min, len_max, len, plen, mlen;
+    size_t len_min, len_max, len, plen, mlen, alen;
     bool home, local, conf;
     int i;
 
@@ -58,8 +58,11 @@ static bool verify_files(iotpm_pkginfo_t *info)
         success = false;
     }
 
-    len_min = strlen(iotpm->homedir);
-    len_max = snprintf(hdir,sizeof(hdir), "%s/%s/", iotpm->homedir,info->name);
+    alen = strlen(IOTPM_APPDIR);
+
+    len_min = strlen(iotpm->homedir) + (alen > 0 ? 1 : 0) + alen;
+    len_max = snprintf(hdir, sizeof(hdir), IOTPM_APPLICATION_HOME,
+                       iotpm->homedir, info->name);
 
     mlen = snprintf(mdir, sizeof(mdir), "%s", backend->path.manifest);
     if (mlen > 0 && mdir[mlen-1] == '/')

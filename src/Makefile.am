@@ -705,10 +705,10 @@ manifest_DATA = $(MANIFEST_FILE)
 manifestdir = /usr/share/iot/users/@SAMPLE_USER_NAME@
 
 sample_PROGRAMS = hello-world
-sampledir = /home/@SAMPLE_USER_NAME@/@PKG_PREFIX@hello-world
+sampledir = /home/@SAMPLE_USER_NAME@/@APPDIR@/@PKG_PREFIX@hello-world
 
 hello_world_SOURCES = package-manager/sample/hello-world.c
-hello_world_CFLAGS = $(AM_CFLAGS)
+hello_world_CFLAGS = $(AM_CFLAGS) -DIOTPM_APPDIR=@APPDIR@
 endif
 
 endif

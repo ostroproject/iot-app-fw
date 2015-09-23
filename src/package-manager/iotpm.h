@@ -8,10 +8,15 @@
 #include <iot/utils/manifest.h>
 #include <iot/utils/identity.h>
 
+#ifndef IOTPM_APPDIR
+#define IOTPM_APPDIR             "apps_rw"
+#endif
+
 #define IOTPM_PATH_MAX           1024
 
 #define IOTPM_PACKAGE_HOME       "%s/lib"
 #define IOTPM_MANIFEST_HOME      IOT_MANIFEST_USER_PATH "/%s"
+#define IOTPM_APPLICATION_HOME   "%s/" IOTPM_APPDIR "/%s"
 
 #define IOTPM_DEFAULT_LABEL      "User"
 

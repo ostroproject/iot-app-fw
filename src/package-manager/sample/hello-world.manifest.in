@@ -3,6 +3,6 @@
     "application": "@PKG_PREFIX@hello-world",
     "description": "test application to see if the infra worked",
     "privileges": [ "LocalNetworkAccess", "ConfigurationQuery" ],
-    "execute": [ "/home/@SAMPLE_USER_NAME@/@PKG_PREFIX@hello-world/hello-world" ]
+    "execute": [ "/home/@SAMPLE_USER_NAME@/@APPDIR@/@PKG_PREFIX@hello-world/hello-world" ]
   }
 ]

@@ -514,6 +514,11 @@ AC_ARG_WITH(package-prefix,
             [pkg_prefix="${with_package_prefix}-"], [pkg_prefix=""])
 AC_SUBST(PKG_PREFIX, $pkg_prefix)
 
+AC_ARG_WITH(appdir,
+            [  --with-appdir            application directory under HOME],
+            [appdir=${with_appdir}], [appdir=""])
+AC_SUBST(APPDIR, $appdir)
+
 # test user
 
 if test "$backend_type" != "none"; then
