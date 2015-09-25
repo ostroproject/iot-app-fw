@@ -529,8 +529,20 @@ if test "$backend_type" != "none"; then
     AC_SUBST(SAMPLE_USER_ID, `id -u $sample_user`)
 fi
 
-AM_CONDITIONAL(BUILD_SAMPLES,
-               [test "${SAMPLE_USER_NAME}x" != "x" -a "$backend_type" != "none"])
+# Enable/disable sample application.
+AC_ARG_ENABLE(sample-app,
+              [  --enable-sample-app    enable sample application],
+	      [enable_sample=$enableval], [enable_sample=auto])
+
+if test "enable_sample" = "auto"; then
+    if test "${SAMPLE_USER_NAME}x" != "x" -a "$backend_type" != "none"; then
+        enable_sample=yes
+    else
+        enable_sample=no
+    fi
+fi
+
+AM_CONDITIONAL(BUILD_SAMPLES, [test "$enable_sample" = "yes" ])
 
 # Set up IoT CFLAGS and LIBS.
 IOT_CFLAGS=""
