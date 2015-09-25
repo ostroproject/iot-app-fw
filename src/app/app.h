@@ -37,6 +37,15 @@
 IOT_CDECL_BEGIN
 
 /**
+ * \addtogroup IoTCommonInfra
+ * @{
+ *
+ * @file app.h
+ *
+ * IoT Application Framework library.
+ */
+
+/**
  * @brief Opaque IoT application context.
  */
 typedef struct iot_app_s iot_app_t;
@@ -52,7 +61,7 @@ typedef struct iot_app_s iot_app_t;
  * @param [in] ml        mainloop abstraction to use
  * @param [in] app_data  opaque application data to associate with the context
  *
- * @return Returns the newly created application context, or @NULL upon error-
+ * @return Returns the newly created application context, or NULL upon error.
  */
 iot_app_t *iot_app_create(iot_mainloop_t *ml, void *data);
 
@@ -75,7 +84,7 @@ void iot_app_destroy(iot_app_t *app);
  *
  * @param [in] app  application context to get mainloop for
  *
- * @return Returns the mainloop associated with @app.
+ * @return Returns the mainloop associated with app.
  */
 iot_mainloop_t *iot_app_get_mainloop(iot_app_t *app);
 
@@ -131,7 +140,7 @@ typedef void (*iot_app_status_cb_t)(iot_app_t *app, int seqno, int status,
  * before trying to subscribe to any events.
  *
  * @param [in] app     IoT application context
- * @param [in] events  events, @NULL-terminate array of event names
+ * @param [in] events  events, NULL-terminate array of event names
  *
  * @return Returns > 0 request number of the subscription request sent to
  *         the server, or -1 upon failure.
@@ -143,7 +152,7 @@ int iot_app_event_subscribe(iot_app_t *app, char **events,
  * @brief Request the delivery of certain signals as as IoT events.
  *
  * Request the delivery of SIGHUP and SIGTERM signals as IoT events. Note
- * that you must set up an evnet handler using @iot_app_event_set_handler
+ * that you must set up an evnet handler using \ref iot_app_event_set_handler
  * before trying to bridge these signals as events.
  *
  * @param [in] app  IoT application context
@@ -172,16 +181,16 @@ typedef struct {
 /**
  * @brief Send an IoT event to one or more IoT applications.
  *
- * Send the specified @event with @data attached to all the applications
- * matching @target for which sending an event is allowed by security layer.
- * If @notify is specified it will be called once emitting the event(s, not
+ * Send the specified event with data attached to all the applications
+ * matching target for which sending an event is allowed by security layer.
+ * If notify is specified it will be called once emitting the event(s, not
  * processing by the receivers) has finished.
  *
  * @param [in] app        IoT application context
  * @param [in] event      name of the event to send
  * @param [in] data       JSON data to attach to the event
- * @param [in] notify     callback to call once sending is finished, or @NULL
- * @param [in] user_data  opaque data to pass to @notify
+ * @param [in] notify     callback to call once sending is finished, or NULL
+ * @param [in] user_data  opaque data to pass to notify
  *
  * @return Returns a non-zero event id on success, 0 upon synchronous failure.
  *         Note that asynchronous failure can be reported/detected only via
@@ -218,7 +227,7 @@ typedef void (*iot_app_list_cb_t)(iot_app_t *app, int id, int status,
  *
  * @param [in] app        IoT application context
  * @param [in] notify     callback to call with the list of applications
- * @param [in] user_data  opaque data to pass to @notify
+ * @param [in] user_data  opaque data to pass to notify
  *
  * @return Returns a non-zero request id on success, 0 upon synchronous
  *         failure. Note that asynchronous errors are reported via the
@@ -234,7 +243,7 @@ int iot_app_list_running(iot_app_t *app, iot_app_list_cb_t notify,
  *
  * @param [in] app        IoT application context
  * @param [in] notify     callback to call with the list of applications
- * @param [in] user_data  opaque data to pass to @notify
+ * @param [in] user_data  opaque data to pass to notify
  *
  * @return Returns a non-zero request id on success, 0 upon synchronous
  *         failure. Note that asynchronous errors are reported via the
@@ -243,6 +252,9 @@ int iot_app_list_running(iot_app_t *app, iot_app_list_cb_t notify,
 int iot_app_list_all(iot_app_t *app, iot_app_list_cb_t notify,
                      void *user_data);
 
+/**
+ * @}
+ */
 
 IOT_CDECL_END
 
