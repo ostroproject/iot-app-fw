@@ -463,6 +463,10 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         l->argc  = argc - (optind + 1);
         l->argv  = argv + (optind + 1);
     }
+    else if (l->mode == LAUNCHER_CLEANUP) {
+        l->argc = argc - optind;
+        l->argv = argv + optind;
+    }
 }
 
 
