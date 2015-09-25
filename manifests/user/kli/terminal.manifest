@@ -1,0 +1,30 @@
+
+[
+  {
+    "application": "x",
+    "description": "X Terminal, the one and only.",
+    "privileges": [ "foo", "bar", "foobar", "barfoo" ],
+    "execute": [ "/usr/bin/xterm" ],
+    "desktop": "/usr/share/applications/xterm.desktop",
+  },
+  {
+    "application": "gnome",
+    "description": "Terminal for/by Quasimodo.",
+    "privileges": [ "foo", "bar" ],
+    "execute": [ "/usr/bin/gnome-terminal" ],
+  },
+  {
+    "application": "rxvt",
+    "description": "RXVT Terminal Emulator.",
+    "privileges": [ "foo", "bar", "barfoo" ],
+    "execute": [ "/usr/bin/rxvt" ],
+    "file-types": {
+        "private": [ "/usr/share/rxvt/foo", "/usr/share/rxvt/bar" ],
+        "public": [ "/usr/share/rxvt/public/foo-public" ],
+        "public-ro": [ "/usr/share/rxvt/public-ro/foo-ro" ],
+        "rw": [ "/usr/share/rxvt/rw/foo-rw" ],
+        "ro": [ "/usr/share/rxvt/ro/foo-ro" ],
+    }
+  },
+
+]

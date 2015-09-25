@@ -1,0 +1,16 @@
+
+[
+  {
+    "application": "emacs",
+    "description": "One Precious, Precious Editor To Rule Them All...",
+    "privileges": [ "foo", "bar", "foobar", "barfoo" ],
+    "execute": [ "/usr/bin/emacs" ],
+    "desktop": "/usr/share/applications/emacs.desktop",
+  },
+  {
+    "application": "vi",
+    "description": "Pfffft... losers.",
+    "privileges": [ "foo", "bar" ],
+    "execute": [ "/usr/bin/vim" ],
+  }
+]
