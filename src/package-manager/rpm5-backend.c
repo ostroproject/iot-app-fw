@@ -771,7 +771,6 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
     qargv[++qargc] = "--define";
     qargv[++qargc] = "_rollback_transaction_on_failure 1";
 #endif
-    qargv[++qargc] = "--nodeps";
     qargv[++qargc] = upgrade ? "-U" : "-i";
     qargv[++qargc] = file;
     qargv[++qargc] = NULL;
