@@ -659,7 +659,8 @@ static void pending_notify(iot_app_t *app, int seqno, int status,
             continue;
 
         if (!strcmp(type, "send-event")) {
-            pnd->notify.send(app, seq, status, msg, pnd->user_data);
+            if (pnd->notify.send != NULL)
+                pnd->notify.send(app, seq, status, msg, pnd->user_data);
         }
         else if (!strcmp(type, "list")) {
             napp = 0;
@@ -681,7 +682,8 @@ static void pending_notify(iot_app_t *app, int seqno, int status,
             free_applist(napp, apps);
         }
         else {
-            pnd->notify.status(app, seq, status, msg, data, pnd->user_data);
+            if (pnd->notify.status != NULL)
+                pnd->notify.status(app, seq, status, msg, data, pnd->user_data);
         }
 
         pending_deq(pnd);
