@@ -531,7 +531,7 @@ static int extract_applist(iot_json_t *data, iot_app_info_t **appsptr)
 
     apps = iot_alloc_array(iot_app_info_t, napp);
 
-    if (app == NULL)
+    if (apps == NULL)
         goto failed;
 
     for (i = 0; i < napp; i++) {
