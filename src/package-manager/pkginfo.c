@@ -81,6 +81,12 @@ static bool verify_files(iotpm_pkginfo_t *info)
                 success = false;
             }
 
+            if (strcmp(f->user, "root")) {
+                iot_log_error("manifest file '%s' supposed to be owned "
+                              "by 'root' not '%s'", f->path, f->user);
+                success = false;
+            }
+
             if ((mode & 0777) != 0644) {
                 iot_log_error("manifest file '%s' mode supposed to be 644 "
                               "not %03o", path, (mode & 0777));
