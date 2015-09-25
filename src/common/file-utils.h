@@ -35,8 +35,11 @@
 #include <sys/stat.h>
 #include <sys/xattr.h>
 #include <linux/xattr.h>
-#include <attr/xattr.h>
 
+#include <iot/config.h>
+#ifdef ENABLE_SECURITY_MANAGER
+#    include <attr/xattr.h>        /* Hmm... is this really necessary ? */
+#endif
 #include <iot/common/macros.h>
 
 IOT_CDECL_BEGIN
