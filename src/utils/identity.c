@@ -38,6 +38,7 @@
 #include <sys/types.h>
 
 #include <iot/common/macros.h>
+#include <iot/common/debug.h>
 #include <iot/utils/identity.h>
 
 
@@ -189,19 +190,40 @@ static IOT_INIT void save_userid(void)
 
 int iot_switch_userid(iot_userid_t which)
 {
+    const char *type;
+
+    IOT_UNUSED(type);           /* if debug were not enabled */
+
     switch (which) {
     case IOT_USERID_REAL:
-        return setreuid(-1, _iot_ruid);
+        type = "real";
+        if (setreuid(-1, _iot_ruid) < 0)
+            goto failed;
+        break;
     case IOT_USERID_SUID:
-        return setreuid(-1, _iot_suid);
+        type = "suid";
+        if (setreuid(-1, _iot_suid) < 0)
+            goto failed;
+        break;
     case IOT_USERID_DROP:
+        type = "drop";
         if (setresuid(_iot_ruid, _iot_ruid, _iot_ruid) < 0)
-            return -1;
+            goto failed;
         _iot_suid = _iot_ruid;
-        return 0;
+        break;
     default:
-        return -1;
+        type = "unknown";
+        goto failed;
     }
+
+    iot_debug("switched to userid '%s'", type);
+
+    return 0;
+
+ failed:
+    iot_debug("failed to switch userid to '%s' (%d: %s)",
+              type, errno, strerror(errno));
+    return -1;
 }
 
 
