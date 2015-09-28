@@ -265,7 +265,7 @@ static iot_json_t *object_create(va_list *ap)
     if (o == NULL)
         return NULL;
 
-    while ((name = va_arg(ap, const char *)) != NULL) {
+    while ((name = va_arg(*ap, const char *)) != NULL) {
         type = va_arg(*ap, int);
 
         switch (type) {
