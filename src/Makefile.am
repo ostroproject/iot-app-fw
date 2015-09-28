@@ -519,10 +519,6 @@ iot_launch_daemon_LDADD   =		\
 iot_launch_daemon_LDFLAGS = 		\
 		-rdynamic
 
-install-data-hook::
-#	rm -f $(DESTDIR)/$(sysconfdir)/iot-launch/??*
-#	mkdir -p $(DESTDIR)/$(sysconfdir)/iot-launch
-
 ###################################
 # iot-launch
 #
@@ -717,6 +713,7 @@ endif
 # NodeJS bindings
 #
 
+
 if NODEJS_ENABLED
 nodejs_LTLIBRARIES = libiot-nodejs.la
 nodejsdir = $(NODE_PREFIX)/lib/node_modules/iot
@@ -739,14 +736,8 @@ libiot_nodejs_la_LIBADD  = 		\
 nodejs-post-build-hook: libiot-nodejs.la
 	cp $(top_builddir)/src/.libs/libiot-nodejs.so \
 	    $(top_builddir)/src/.libs/iot-appfw.node
-
-nodejs-install-hook:
-	cp $(DESTDIR)/$(nodejsdir)/libiot-nodejs.so \
-	    $(DESTDIR)/$(nodejsdir)/iot-appfw.node
-	rm -f $(DESTDIR)/$(nodejsdir)/libiot-nodejs.so*
 else
 nodejs-post-build-hook:
-nodejs-install-hook:
 endif
 
 ###################################
@@ -813,7 +804,14 @@ endif
 all-local: nodejs-post-build-hook python-bindings-build
 
 # Extra local eactions to perform after (binary) installation.
-install-exec-hook: agent-install-hook nodejs-install-hook python-install-hook
+install-data-hook: agent-install-hook python-install-hook
+if NODEJS_ENABLED
+	cp $(DESTDIR)/$(nodejsdir)/libiot-nodejs.so \
+	    $(DESTDIR)/$(nodejsdir)/iot-appfw.node
+	rm -f $(DESTDIR)/$(nodejsdir)/libiot-nodejs.so*
+	rm -f $(DESTDIR)/$(nodejsdir)/libiot-nodejs.la*
+endif
+
 
 # cleanup
 clean-local: python-bindings-clean
