@@ -17,7 +17,8 @@
 static bool iotpm_init(iotpm_t **, int, char **);
 static void iotpm_exit(iotpm_t *);
 
-static int install_package(iotpm_t *);
+static int post_install_package(iotpm_t *);
+static int pre_install_package(iotpm_t *);
 static int upgrade_package(iotpm_t *);
 static int remove_package(iotpm_t *);
 static int db_check(iotpm_t *);
@@ -41,13 +42,14 @@ int main(int argc, char **argv)
     }
 
     switch (iotpm->mode) {
-    case IOTPM_MODE_INSTALL:  rc = install_package(iotpm);       break;
-    case IOTPM_MODE_UPGRADE:  rc = upgrade_package(iotpm);       break;
-    case IOTPM_MODE_REMOVE:   rc = remove_package(iotpm);        break;
-    case IOTPM_MODE_DBCHECK:  rc = db_check(iotpm);              break;
-    case IOTPM_MODE_DBPLANT:  rc = db_plant(iotpm);              break;
-    case IOTPM_MODE_LIST:     rc = list(iotpm);                  break;
-    default:                  rc = EIO;                          break;
+    case IOTPM_MODE_POSTINST:  rc = post_install_package(iotpm);  break;
+    case IOTPM_MODE_PREINST:   rc = pre_install_package(iotpm);   break;
+    case IOTPM_MODE_UPGRADE:   rc = upgrade_package(iotpm);       break;
+    case IOTPM_MODE_REMOVE:    rc = remove_package(iotpm);        break;
+    case IOTPM_MODE_DBCHECK:   rc = db_check(iotpm);              break;
+    case IOTPM_MODE_DBPLANT:   rc = db_plant(iotpm);              break;
+    case IOTPM_MODE_LIST:      rc = list(iotpm);                  break;
+    default:                   rc = EIO;                          break;
     }
 
     iotpm_manifest_exit(iotpm);
@@ -129,7 +131,7 @@ static void iotpm_exit(iotpm_t *iotpm)
     }
 }
 
-static int install_package(iotpm_t *iotpm)
+static int post_install_package(iotpm_t *iotpm)
 {
     const char *pkg = iotpm->argv[0];
     iotpm_pkginfo_t *info = NULL;
@@ -176,6 +178,34 @@ static int install_package(iotpm_t *iotpm)
 
  cleanup:
     iotpm_backend_remove_package(iotpm, info->name);
+ out:
+    iotpm_backend_pkginfo_destroy(info);
+    iotpm_manifest_free(man);
+    return rc;
+}
+
+static int pre_install_package(iotpm_t *iotpm)
+{
+    const char *pkg = iotpm->argv[0];
+    iotpm_pkginfo_t *info = NULL;
+    iot_manifest_t *man = NULL;
+    iotpm_pkginfo_filentry_t *manfile;
+    int rc = EIO;
+
+    if (!pkg)
+        goto out;
+
+    info = iotpm_backend_pkginfo_create(iotpm, false, pkg);
+
+    if (info->sts < 0 || !(manfile = info->manifest)                   ||
+        !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
+        iotpm_register_package(info, man) < 0                           )
+    {
+        goto out;
+    }
+
+    rc = 0;
+
  out:
     iotpm_backend_pkginfo_destroy(info);
     iotpm_manifest_free(man);

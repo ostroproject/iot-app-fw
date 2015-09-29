@@ -33,7 +33,8 @@ typedef struct iotpm_pkginfo_s              iotpm_pkginfo_t;
 
 enum iotpm_mode_e {
     IOTPM_MODE_NONE = 0,
-    IOTPM_MODE_INSTALL,
+    IOTPM_MODE_POSTINST,
+    IOTPM_MODE_PREINST,
     IOTPM_MODE_UPGRADE,
     IOTPM_MODE_REMOVE,
     IOTPM_MODE_DBCHECK,
