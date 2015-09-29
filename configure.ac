@@ -534,7 +534,7 @@ AC_ARG_ENABLE(sample-app,
               [  --enable-sample-app    enable sample application],
 	      [enable_sample=$enableval], [enable_sample=auto])
 
-if test "enable_sample" = "auto"; then
+if test "$enable_sample" = "auto"; then
     if test "${SAMPLE_USER_NAME}x" != "x" -a "$backend_type" != "none"; then
         enable_sample=yes
     else
@@ -602,8 +602,8 @@ fi
 echo "package manager backend: ${BACKEND_TYPE}"
 if test "$backend_type" != "none"; then
     echo "sample user: ${SAMPLE_USER_NAME}(${SAMPLE_USER_ID})"
-    echo "build sample packages: ${BUILD_SAMPLES}"
 fi
+echo "build sample packages: ${enable_sample}"
 echo "NodeJS bindings: ${NODEJS_ENABLED:-no}"
 if test "$NODEJS_ENABLED" = "yes"; then
     echo "    * NodeJS prefix: $NODE_PREFIX"
