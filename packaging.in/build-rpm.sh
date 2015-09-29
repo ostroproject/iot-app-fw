@@ -81,4 +81,4 @@ mv $PKG-$VERSION.tar.gz ~/rpmbuild/SOURCES
 mv $PKG.spec ~/rpmbuild/SPECS
 
 rpmbuild $debug -bb ~/rpmbuild/SPECS/$PKG.spec
-mv -v ~/rpmbuild/RPMS/*/${PKG%-framework}*$VERSION* .
+mv -v ~/rpmbuild/RPMS/*/{${PKG%-framework},hello-world}*$VERSION* .

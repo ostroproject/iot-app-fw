@@ -17,6 +17,7 @@
 %{!?_with_pm:%{!?_without_pm:%define _with_pm 1}}
 
 %define systemddir /lib/systemd
+%define username %(id -un)
 
 Summary: IoT Application Framework
 Name: iot-app-framework
@@ -98,6 +99,11 @@ Summary: Various test binaries for IoT Application Framework
 Group: Development/Debug
 Requires: %{name} = %{version}
 
+%package -n hello-world
+Summary: Sample package to test package-manager
+Group: Development/Debug
+Requires: %{name} = %{version}
+
 %description
 This package contains the basic runtime libraries.
 
@@ -139,6 +145,9 @@ glib mainloop library.
 %description tests
 This package contains various test binaries for the IoT Application Framework.
 
+%description -n hello-world
+Sample package for hello-world application
+
 %prep
 %setup -q
 
@@ -148,7 +157,7 @@ export CFLAGS="-O0 -g3"
 V="V=1"
 #%endif
 
-CONFIG_OPTIONS="--disable-security"
+CONFIG_OPTIONS="--disable-security --with-sample-user=%{username}"
 
 %if %{?_with_pulse:1}%{!?_with_pulse:0}
 CONFIG_OPTIONS="$CONFIG_OPTIONS --enable-pulse"
@@ -297,6 +306,10 @@ ldconfig
 %{_bindir}/iot-event-test
 %{_bindir}/iot-event-send
 %{_bindir}/iot-event-catch
+
+%files -n hello-world
+/home/%{username}/hello-world
+%{_datadir}/iot/users/%{username}
 
 %changelog
 * Mon Jun 08 2015 Krisztian Litkey <krisztian.litkey@intel.com> -
