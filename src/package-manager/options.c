@@ -20,6 +20,7 @@ static void parse_cmdline(iotpm_t *, int, char **);
 static void check_configuration(iotpm_t *);
 static void print_usage(iotpm_t *, int, char *, ...);
 static void set_mode(iotpm_t *, iotpm_mode_t);
+static void set_flag(iotpm_t *, iotpm_flag_t);
 static void set_log_mask(iotpm_t *, const char *);
 static void set_log_target(iotpm_t *, const char *);
 static void set_debug(iotpm_t *iotpm, const char *);
@@ -72,17 +73,17 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
 #define INVALID "inavlid option '%c'", opt
 
     static struct option options[] = {
-        { "install"   ,  no_argument      ,  NULL,  'i' },
-	{ "upgrade"   ,  no_argument      ,  NULL,  'u' },
-	{ "remove"    ,  no_argument      ,  NULL,  'r' },
-	{ "db-check"  ,  no_argument      ,  NULL,  'c' },
-	{ "db-plant"  ,  no_argument      ,  NULL,  'p' },
-	{ "list"      ,  no_argument      ,  NULL,  'L' },
-	{ "log-level" ,  required_argument,  NULL,  'l' },
-	{ "log-target",  required_argument,  NULL,  't' },
-	{ "debug"     ,  required_argument,  NULL,  'd' },
-	{ "help"      ,  no_argument      ,  NULL,  'h' },
-	{   NULL      ,       0           ,  NULL,   0  }
+        { "install"      ,  no_argument      ,  NULL,  'i' },
+	{ "upgrade"      ,  no_argument      ,  NULL,  'u' },
+	{ "remove"       ,  no_argument      ,  NULL,  'r' },
+	{ "db-check"     ,  no_argument      ,  NULL,  'c' },
+	{ "db-plant"     ,  no_argument      ,  NULL,  'p' },
+	{ "list"         ,  no_argument      ,  NULL,  'L' },
+	{ "log-level"    ,  required_argument,  NULL,  'l' },
+	{ "log-target"   ,  required_argument,  NULL,  't' },
+	{ "debug"        ,  required_argument,  NULL,  'd' },
+	{ "help"         ,  no_argument      ,  NULL,  'h' },
+	{   NULL         ,       0           ,  NULL,   0  }
     };
 
     int opt, i;
@@ -90,18 +91,18 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
     while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
         switch (opt) {
 
-        case 'i':    set_mode(iotpm, IOTPM_MODE_INSTALL);     break;
-        case 'u':    set_mode(iotpm, IOTPM_MODE_UPGRADE);     break;
-	case 'r':    set_mode(iotpm, IOTPM_MODE_REMOVE);      break;
-	case 'c':    set_mode(iotpm, IOTPM_MODE_DBCHECK);     break;
-	case 'p':    set_mode(iotpm, IOTPM_MODE_DBPLANT);     break;
-	case 'L':    set_mode(iotpm, IOTPM_MODE_LIST);        break;
-        case 'l':    set_log_mask(iotpm, optarg);             break;
-        case 't':    set_log_target(iotpm, optarg);           break;
-	case 'd':    set_debug(iotpm, optarg);                break;
-	case 'h':    print_usage(iotpm, 0, NULL);             break;
+        case 'i':    set_mode(iotpm, IOTPM_MODE_INSTALL);         break;
+        case 'u':    set_mode(iotpm, IOTPM_MODE_UPGRADE);         break;
+	case 'r':    set_mode(iotpm, IOTPM_MODE_REMOVE);          break;
+	case 'c':    set_mode(iotpm, IOTPM_MODE_DBCHECK);         break;
+	case 'p':    set_mode(iotpm, IOTPM_MODE_DBPLANT);         break;
+	case 'L':    set_mode(iotpm, IOTPM_MODE_LIST);            break;
+        case 'l':    set_log_mask(iotpm, optarg);                 break;
+        case 't':    set_log_target(iotpm, optarg);               break;
+	case 'd':    set_debug(iotpm, optarg);                    break;
+	case 'h':    print_usage(iotpm, 0, NULL);                 break;
 
-	default:     print_usage(iotpm, EINVAL, INVALID);     break;
+	default:     print_usage(iotpm, EINVAL, INVALID);         break;
 
 	} /* switch opt */
     }
@@ -205,6 +206,16 @@ static void set_mode(iotpm_t *iotpm, iotpm_mode_t mode)
         print_usage(iotpm, EINVAL, "attempt to set multiple modes");
 
     iotpm->mode = mode;
+}
+
+static void set_flag(iotpm_t *iotpm, iotpm_flag_t flag)
+{
+    if (flag) {
+        if ((iotpm->flags & flag) ==  flag)
+            print_usage(iotpm, EINVAL, "attempt to set option multiple times");
+
+        iotpm->flags |= flag;
+    }
 }
 
 static void set_log_mask(iotpm_t *iotpm, const char *level)
