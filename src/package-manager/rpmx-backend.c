@@ -1,3 +1,48 @@
+void iotpm_backend_pkginfo_destroy(iotpm_pkginfo_t *info)
+{
+    iotpm_pkginfo_filentry_t *f;
+
+    if (info) {
+        if (info->files) {
+	    for (f = info->files;  f->path;  f++) {
+	        iot_free((void *)f->path);
+	        iot_free((void *)f->user);
+	        iot_free((void *)f->group);
+	        iot_free((void *)f->link);
+            }
+
+	    iot_free((void *)info->files);
+	}
+
+        iot_free((void *)info->name);
+        iot_free((void *)info->ver);
+        iot_free(info->data);
+
+	if (info != &failed_info)
+	    iot_free((void *)info);
+    }
+}
+
+void iotpm_backend_pkglist_destroy(iotpm_pkglist_t *list)
+{
+    iotpm_pkglist_entry_t *e;
+
+    if (list) {
+        if (list->entries) {
+            for (e = list->entries;  e->name;  e++) {
+                iot_free((void *)e->name);
+                iot_free((void *)e->version);
+            }
+
+            iot_free((void *)list->entries);
+        }
+
+        if (list != &failed_list)
+            iot_free((void *)list);
+    }
+}
+
+
 static bool file_write(int fd,
 		       const char *file,
 		       const void *data,

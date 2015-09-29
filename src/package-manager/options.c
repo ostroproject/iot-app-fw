@@ -79,7 +79,7 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
 	{ "remove"           ,  no_argument      ,  NULL,  'r' },
 	{ "db-check"         ,  no_argument      ,  NULL,  'c' },
 	{ "db-plant"         ,  no_argument      ,  NULL,  'p' },
-	{ "list"             ,  no_argument      ,  NULL,  'L' },
+	{ "list"             ,  optional_argument,  NULL,  'L' },
 	{ "log-level"        ,  required_argument,  NULL,  'l' },
 	{ "log-target"       ,  required_argument,  NULL,  't' },
 	{ "debug"            ,  required_argument,  NULL,  'd' },
@@ -147,10 +147,14 @@ static void check_configuration(iotpm_t *iotpm)
 
     case IOTPM_MODE_DBCHECK:
     case IOTPM_MODE_DBPLANT:
-    case IOTPM_MODE_LIST:
         if (iotpm->argc)
 	    print_usage(iotpm, EINVAL, "can't specify <package>");
 	break;
+
+    case IOTPM_MODE_LIST:
+        if (iotpm->argc > 1)
+	    print_usage(iotpm, EINVAL, "to many filetring pattern");
+        break;
 
     default:
         print_usage(iotpm, EINVAL, "missing <mode-option>");

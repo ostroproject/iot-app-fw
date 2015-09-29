@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <errno.h>
 #include <pwd.h>
 #include <libgen.h>
@@ -49,7 +50,7 @@ int main(int argc, char **argv)
     case IOTPM_MODE_DBCHECK:   rc = db_check(iotpm);              break;
     case IOTPM_MODE_DBPLANT:   rc = db_plant(iotpm);              break;
     case IOTPM_MODE_LIST:      rc = list(iotpm);                  break;
-    default:                   rc = EIO;                          break;
+    default:                   rc = EINVAL;                       break;
     }
 
     iotpm_manifest_exit(iotpm);
@@ -277,5 +278,86 @@ static int db_plant(iotpm_t *iotpm)
 
 static int list(iotpm_t *iotpm)
 {
-    return 0;
+#define NAME   "Package"
+#define VERS   "Version"
+#define TIME   "Installation time"
+#define TFMT   "%d-%b-%y %T"
+
+    iotpm_pkglist_t *list;
+    iotpm_pkglist_entry_t *e;
+    iot_regexp_t *re = NULL;
+    char *pattern;
+    char buf[256];
+    char sep[1024];
+    time_t epoch;
+    struct tm tm;
+    int sw, nw, vw, tw;
+    int i;
+    int rc;
+
+    if (iotpm->argc == 1 && (pattern = iotpm->argv[0])) {
+        if (iot_regexp_glob(pattern, buf, sizeof(buf)) < 0) {
+            iot_log_error("invalid package pattern '%s'", pattern);
+            return EINVAL;
+        }
+
+        if (!(re = iot_regexp_compile(buf, 0))) {
+            iot_log_error("failed to compile regular expression '%s'", buf);
+            return EINVAL;
+        }
+    }
+
+    if (!(list = iotpm_backend_pkglist_create(iotpm, re)) || list->sts < 0)
+        rc = EIO;
+    else {
+        if (list->nentry > 0) {
+            epoch = 0;
+            localtime_r(&epoch, &tm);
+
+            if ((nw = -list->max_width.name) > -(sizeof(NAME) - 1))
+                nw = -(sizeof(NAME) - 1);
+
+            if ((vw = -list->max_width.version) > -(sizeof(VERS) - 1))
+                vw = -(sizeof(VERS) - 1);
+
+            if ((tw = -strftime(buf,sizeof(buf),TFMT,&tm)) > -(sizeof(TIME)-1))
+                tw = -(sizeof(TIME) - 1);
+
+            if ((sw = 2 + -nw + 3 + -vw + 3 + -tw + 2) > sizeof(sep) - 1)
+                sw = sizeof(sep) - 1;
+
+            memset(sep, '-', sw);
+            sep[sw] = '\0';
+            sep[(i = 0)] = '+';
+            sep[(i += 2 + -nw + 1)] = '+';
+            sep[(i += 2 + -vw + 1)] = '+';
+            sep[(i += 2 + -tw + 1)] = '+';
+
+
+            printf("%s\n", sep);
+            printf("| %*s | %*s | %*s |\n", nw,NAME, vw,VERS, tw,TIME);
+            printf("%s\n", sep);
+
+            for (e = list->entries;  e->name;   e++) {
+                localtime_r(&e->install_time, &tm);
+                strftime(buf, sizeof(buf), TFMT, &tm);
+
+                printf("| %*s | %*s | %*s |\n",
+                       nw,e->name, vw,e->version, tw,buf);
+            }
+
+            printf("%s\n", sep);
+        }
+    }
+
+    iotpm_backend_pkglist_destroy(list);
+    iot_regexp_free(re);
+
+    return rc;
+
+#undef TFMT
+#undef TFMT
+#undef NAME
+#undef VERS
+#undef TIME
 }
