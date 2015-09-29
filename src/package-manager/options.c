@@ -69,21 +69,22 @@ static void set_defaults(iotpm_t *iotpm, int argc, char **argv)
 
 static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
 {
-#define OPTIONS "iurcpLl:t:d:h"
+#define OPTIONS "isurcpLl:t:d:h"
 #define INVALID "inavlid option '%c'", opt
 
     static struct option options[] = {
-        { "install"      ,  no_argument      ,  NULL,  'i' },
-	{ "upgrade"      ,  no_argument      ,  NULL,  'u' },
-	{ "remove"       ,  no_argument      ,  NULL,  'r' },
-	{ "db-check"     ,  no_argument      ,  NULL,  'c' },
-	{ "db-plant"     ,  no_argument      ,  NULL,  'p' },
-	{ "list"         ,  no_argument      ,  NULL,  'L' },
-	{ "log-level"    ,  required_argument,  NULL,  'l' },
-	{ "log-target"   ,  required_argument,  NULL,  't' },
-	{ "debug"        ,  required_argument,  NULL,  'd' },
-	{ "help"         ,  no_argument      ,  NULL,  'h' },
-	{   NULL         ,       0           ,  NULL,   0  }
+        { "install"          ,  no_argument      ,  NULL,  'i' },
+        { "register-security",  no_argument      ,  NULL,  's' },
+	{ "upgrade"          ,  no_argument      ,  NULL,  'u' },
+	{ "remove"           ,  no_argument      ,  NULL,  'r' },
+	{ "db-check"         ,  no_argument      ,  NULL,  'c' },
+	{ "db-plant"         ,  no_argument      ,  NULL,  'p' },
+	{ "list"             ,  no_argument      ,  NULL,  'L' },
+	{ "log-level"        ,  required_argument,  NULL,  'l' },
+	{ "log-target"       ,  required_argument,  NULL,  't' },
+	{ "debug"            ,  required_argument,  NULL,  'd' },
+	{ "help"             ,  no_argument      ,  NULL,  'h' },
+	{   NULL             ,       0           ,  NULL,   0  }
     };
 
     int opt, i;
@@ -91,7 +92,8 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
     while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
         switch (opt) {
 
-        case 'i':    set_mode(iotpm, IOTPM_MODE_INSTALL);         break;
+        case 'i':    set_mode(iotpm, IOTPM_MODE_POSTINST);        break;
+        case 's':    set_mode(iotpm, IOTPM_MODE_PREINST);         break;
         case 'u':    set_mode(iotpm, IOTPM_MODE_UPGRADE);         break;
 	case 'r':    set_mode(iotpm, IOTPM_MODE_REMOVE);          break;
 	case 'c':    set_mode(iotpm, IOTPM_MODE_DBCHECK);         break;
@@ -127,11 +129,20 @@ static void check_configuration(iotpm_t *iotpm)
 
     switch (iotpm->mode) {
 
-    case IOTPM_MODE_INSTALL:
+    case IOTPM_MODE_POSTINST:
     case IOTPM_MODE_UPGRADE:
+        if ((n = iotpm->argc) != 1) {
+	    print_usage(iotpm, EINVAL, "%s <package file>",
+                        n ? "too many" : "missing");
+        }
+        break;
+
+    case IOTPM_MODE_PREINST:
     case IOTPM_MODE_REMOVE:
-        if ((n = iotpm->argc) != 1)
-	    print_usage(iotpm, EINVAL, "%s <package>", n?"too many":"missing");
+        if ((n = iotpm->argc) != 1) {
+	    print_usage(iotpm, EINVAL, "%s <package name>",
+                        n ? "too many" :"missing");
+        }
 	break;
 
     case IOTPM_MODE_DBCHECK:
@@ -175,24 +186,23 @@ static void print_usage(iotpm_t *iotpm, int exit_code, char *fmt, ...)
     }
 
     fprintf(stderr, "usage:\n"
-	    "  %s <mode-option> [<log-options>] [<package>]\n"
-	    "  %s {-h | --help}\n\n"
-	    "where <mode-option> is one of\n"
-	    "  -i or --install    (<package> is path to package file)\n"
-	    "  -u or --upgrade    (<package> is path to package file)\n"
-	    "  -r or --remove     (<package> is the name of the package)\n"
-	    "  -c or --db-check   (no <package> can be specified)\n"
-	    "  -p or --db-plant   (no <package> can be specified)\n"
-	    "  -L or --list       (no <package> can be specified\n"
-	    "<log-options> are\n"
-	    "  -t <target>  or --log-target=<target> where\n"
-	    "       <target> is one of stderr,stdout,syslog or a "
-	               "logfile path\n"
-	    "  -l <levels> or --log-level=<levels> where\n"
-	    "       <levels> is a comma separated list of info, "
-	               "error and warning\n"
-	    "  -d or --debug <site> enable given debug site\n",
-	    iotpm->prognam, iotpm->prognam);
+        "  %s <mode-option> [<log-options>] [<package>]\n"
+	"  %s {-h | --help}\n\n"
+	"where <mode-option> is one of\n"
+	"  -i or --install           (<package> is path to package file)\n"
+	"  -s or --register-security (<package> is the name of the package)\n"
+	"  -u or --upgrade           (<package> is path to package file)\n"
+	"  -r or --remove            (<package> is the name of the package)\n"
+	"  -c or --db-check          (no <package> can be specified)\n"
+	"  -p or --db-plant          (no <package> can be specified)\n"
+	"  -L or --list              (no <package> can be specified\n"
+	"<log-options> are\n"
+	"  -t <target>  or --log-target=<target> where\n"
+	"       <target> is one of stderr,stdout,syslog or a logfile path\n"
+	"  -l <levels> or --log-level=<levels> where\n"
+	"       <levels> is a comma separated list of info, error or warning\n"
+	"  -d or --debug <site> enable given debug site\n",
+	iotpm->prognam, iotpm->prognam);
 
     if (exit_code >= 0)
         exit(exit_code);
