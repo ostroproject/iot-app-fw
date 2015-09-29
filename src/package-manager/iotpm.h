@@ -21,6 +21,7 @@
 #define IOTPM_DEFAULT_LABEL      "User"
 
 typedef enum   iotpm_mode_e                 iotpm_mode_t;
+typedef enum   iotpm_flag_e                 iotpm_flag_t;
 typedef struct iotpm_s                      iotpm_t;
 
 typedef struct iotpm_backend_s              iotpm_backend_t;
@@ -40,6 +41,10 @@ enum iotpm_mode_e {
     IOTPM_MODE_LIST,
 };
 
+enum iotpm_flag_e {
+    IOTPM_FLAGS_NONE = 0,
+};
+
 struct iotpm_s {
     const char *prognam;
     uid_t userid;
@@ -50,6 +55,7 @@ struct iotpm_s {
     bool debugging;
     iotpm_backend_t *backend;
     iotpm_mode_t mode;
+    iotpm_flag_t flags;
     const char *default_label;  /* default SMACK label for dirs, files */
     int argc;
     char **argv;
