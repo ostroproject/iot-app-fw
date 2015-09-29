@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <alloca.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -53,6 +54,7 @@
 extern const char *rpmioRootDir;
 
 static int pkginfo_fill(QVA_t, rpmts, Header);
+static int pkglist_fill(QVA_t, rpmts, Header);
 
 static bool install_package(iotpm_t *, bool, const char *);
 
@@ -60,6 +62,7 @@ static void *seed_read(const char *, size_t *);
 
 static const char *headerGetString(Header, rpmTag);
 static const char *headerGetAsString(Header, rpmTag);
+static uint32_t *headerGetUint32Array(Header, rpmTag, uint32_t *);
 static rpmTag headerNextTag(HeaderIterator);
 static void headerDelete(Header, rpmTag);
 
@@ -70,6 +73,12 @@ static int log_callback(rpmlogRec, rpmlogCallbackData);
 static iotpm_pkginfo_t  failed_info = {
     .sts = -1
 };
+static iotpm_pkglist_t  failed_list = {
+    .sts = -1
+};
+
+
+
 static struct poptOption   queryOptionsTable[] = {
     { /* longName   */  NULL,
       /* shortName  */  '\0',
@@ -208,6 +217,7 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
 					      bool file,
 					      const char *pkg)
 {
+    iotpm_pkginfo_t *info;
     iotpm_backend_t *backend;
     rpmts ts = NULL;
     QVA_t qva = &rpmQVKArgs;
@@ -219,7 +229,6 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
     const char *n;
     poptContext optCtx;
     bool gst;
-    iotpm_pkginfo_t *info;
 
     if (!iotpm || !(backend = iotpm->backend))
         return NULL;
@@ -276,30 +285,6 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
     rpmcliFini(optCtx);
 
     return info;
-}
-
-void iotpm_backend_pkginfo_destroy(iotpm_pkginfo_t *info)
-{
-    iotpm_pkginfo_filentry_t *f;
-
-    if (info) {
-        if (info->files) {
-	    for (f = info->files;  f->path;  f++) {
-	        iot_free((void *)f->path);
-	        iot_free((void *)f->user);
-	        iot_free((void *)f->group);
-	        iot_free((void *)f->link);
-            }
-
-	    iot_free((void *)info->name);
-	    iot_free((void *)info->ver);
-	    iot_free((void *)info->files);
-	    iot_free(info->data);
-	}
-
-	if (info != &failed_info)
-	    iot_free((void *)info);
-    }
 }
 
 bool iotpm_backend_install_package(iotpm_t *iotpm, const char *pkg)
@@ -629,6 +614,52 @@ bool iotpm_backend_verify_db(iotpm_t *iotpm)
 }
 
 
+iotpm_pkglist_t *iotpm_backend_pkglist_create(iotpm_t *iotpm, iot_regexp_t *re)
+{
+    iotpm_pkglist_t *list;
+    iotpm_backend_t *backend;
+    rpmts ts = NULL;
+    QVA_t qva = &rpmQVKArgs;
+    int qargc;
+    char *qargv[16];
+    poptContext optCtx;
+
+    if (!iotpm || !(backend = iotpm->backend))
+        return NULL;
+
+    if (!(list = iot_allocz(sizeof(iotpm_pkglist_t))))
+        return &failed_list;
+
+    list->sts = -1;
+    list->backend = backend;
+    list->re = re;
+
+    qargv[qargc=0] = POPT_PROGNAM;
+    qargv[++qargc] = "--define";
+    qargv[++qargc] = backend->path.db;
+    qargv[++qargc] = "-q";
+    qargv[++qargc] = "-a";
+    qargv[++qargc] = NULL;
+
+    memset(qva, 0, sizeof(*qva));
+    qva->qva_showPackage = pkglist_fill;
+    qva->qva_queryFormat = (char *)list;
+
+    optCtx = rpmcliInit(qargc, qargv, queryOptionsTable);
+
+    ts = rpmtsCreate();
+    rpmtsSetRootDir(ts, rpmioRootDir);
+
+    if (rpmcliQuery(ts, qva, NULL) == 0)
+        list->sts = 0;
+
+    rpmtsFree(ts);
+    rpmcliFini(optCtx);
+
+    return list;
+}
+
+
 static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
 {
     iotpm_pkginfo_t *info = (iotpm_pkginfo_t *)qva->qva_queryFormat;
@@ -733,6 +764,55 @@ static int pkginfo_fill(QVA_t qva, rpmts ts, Header h)
 
     return sts;
 }
+
+static int pkglist_fill(QVA_t qva, rpmts ts, Header h)
+{
+    iotpm_pkglist_t *list = (iotpm_pkglist_t *)qva->qva_queryFormat;
+    iotpm_pkglist_entry_t *e;
+    const char *name;
+    const char *version;
+    uint32_t *array;
+    uint32_t dim;
+    time_t install_time;
+    size_t size;
+    int len;
+
+    IOT_UNUSED(ts);
+
+    if (!(name = headerGetAsString(h, RPMTAG_NAME))      ||
+	!(version = headerGetAsString(h, RPMTAG_VERSION)) )
+        return -1;
+
+    if (!(array = headerGetUint32Array(h, RPMTAG_INSTALLTIME, &dim)))
+        install_time = 0;
+    else {
+        install_time = array[0];
+        free(array);
+    }
+
+    if (!list->re || iot_regexp_matches(list->re, name, 0)) {
+        size = sizeof(iotpm_pkglist_entry_t) * (list->nentry + 2);
+
+        if (!(list->entries = iot_realloc(list->entries, size)))
+            return -1;
+
+        e = list->entries + list->nentry++;
+        memset(e, 0, sizeof(iotpm_pkglist_entry_t) * 2);
+
+        e->name = name;
+        e->version = version;
+        e->install_time = install_time;
+
+        if ((len = strlen(name)) > list->max_width.name)
+            list->max_width.name = len;
+
+        if ((len = strlen(version)) > list->max_width.version)
+            list->max_width.version = len;
+    }
+
+    return 0;
+}
+
 
 static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
 {
@@ -869,6 +949,27 @@ static const char *headerGetAsString(Header h, rpmTag tag)
     const char *str = headerGetString(h, tag);
 
     return str ? iot_strdup(str) : NULL;
+}
+
+static uint32_t *headerGetUint32Array(Header h,rpmTag tag,uint32_t *dim)
+{
+    HE_t he = (HE_t)memset(alloca(sizeof(*he)), 0, sizeof(*he));
+
+    if (!h || !he)
+        return NULL;
+
+    if (dim)
+        *dim = 0;
+
+    he->tag = tag;
+
+    if (!headerGet(h, he, 0) || he->t != RPM_UINT32_TYPE || he->c < 1)
+        return NULL;
+
+    if (dim)
+        *dim = he->c;
+
+    return he->p.ui32p;
 }
 
 static rpmTag headerNextTag(HeaderIterator hi)
