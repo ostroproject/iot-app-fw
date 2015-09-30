@@ -172,7 +172,8 @@ static void check_configuration(iotpm_t *iotpm)
     iot_log_set_mask(iotpm->log_mask);
 
     if (iotpm->debugging) {
-        iot_log_set_mask(iot_log_set_mask(0) | IOT_LOG_MASK_DEBUG);
+        iotpm->log_mask |= IOT_LOG_MASK_DEBUG;
+        iot_log_set_mask(iotpm->log_mask);
         iot_debug_enable(TRUE);
     }
 }
