@@ -24,18 +24,12 @@ bool iotpm_manifest_init(iotpm_t *iotpm)
 
     iot_switch_userid(IOT_USERID_SUID);
 
-#if 1
-    if (iot_mkdir(IOT_MANIFEST_USER_PATH, 0755, "_") < 0)
+    if (iot_mkdir(manhome, 0755, "_")           < 0 ||
+        chown(manhome, iotpm->userid, getgid()) < 0 ||
+        iot_set_label(manhome, "User", 0)       < 0  )
+    {
         goto failed;
-
-    iot_switch_userid(IOT_USERID_REAL);
-
-    if (iot_mkdir(manhome, 0755, "User") < 0)
-        goto failed;
-#else
-    if (iot_mkdir(manhome, 0755, "_") < 0)
-        goto failed;
-#endif
+    }
 
     iot_switch_userid(IOT_USERID_REAL);
 
