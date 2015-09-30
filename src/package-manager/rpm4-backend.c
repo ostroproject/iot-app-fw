@@ -140,8 +140,7 @@ bool iotpm_backend_init(iotpm_t *iotpm)
     error = errbuf;
 
     if (iot_mkdir((dir = dbpath)  , 0755, iotpm->default_label) < 0 ||
-        iot_mkdir((dir = seedpath), 0755, iotpm->default_label) < 0 ||
-	iot_mkdir((dir = manpath) , 0755, iotpm->default_label) < 0  )
+        iot_mkdir((dir = seedpath), 0755, iotpm->default_label) < 0  )
     {
         snprintf(errbuf, sizeof(errbuf), "failed to create directory '%s': %s",
                  dir, strerror(errno));
