@@ -78,17 +78,6 @@ typedef struct {
  * identification information for an application
  */
 
-typedef struct {
-    char  *label;                        /* SMACK label */
-    char  *appid;                        /* application ID */
-    char  *binary;                       /* executable path */
-    uid_t  user;                         /* user ID */
-    gid_t  group;                        /* (primary) group ID */
-    pid_t  process;                      /* process ID */
-    char  *cgroup;                       /* IoT cgroup relative path */
-} appid_t;
-
-
 #define NO_UID ((uid_t)-1)
 #define NO_GID ((gid_t)-1)
 #define NO_PID ((pid_t) 0)
