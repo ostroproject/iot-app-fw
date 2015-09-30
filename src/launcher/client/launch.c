@@ -71,6 +71,7 @@
  * logging and debugging macros
  */
 
+#define launch_print printf
 #define launch_info  iot_log_info
 #define launch_error iot_log_error
 #define launch_warn  iot_log_warning
@@ -724,12 +725,12 @@ static void list_apps(launcher_t *l, iot_json_t *data)
         iot_json_get_array  (a, "argv"       , &argv);
         iot_json_array_get_string(argv, 0, &argv0);
 
-        iot_log_info("Application '%s':", app ? app : "?");
-        iot_log_info("    description: '%s'", descr);
-        iot_log_info("    desktop: '%s'", desktop && *desktop ? desktop : "-");
-        iot_log_info("    user id: %d (%s)", uid,
-                     iot_get_username(uid, user, sizeof(user)));
-        iot_log_info("    argv[0]: '%s'", argv0);
+        printf("Application '%s':\n", app ? app : "?");
+        printf("    description: '%s'\n", descr);
+        printf("    desktop: '%s'\n", desktop && *desktop ? desktop : "-");
+        printf("    user id: %d (%s)\n", uid,
+               iot_get_username(uid, user, sizeof(user)));
+        printf("    argv[0]: '%s'\n", argv0);
     }
 }
 
