@@ -704,6 +704,23 @@ static int launch_process(launcher_t *l)
 }
 
 
+static void stop_app_check(launcher_t *l, const char *message, iot_json_t *data)
+{
+    IOT_UNUSED(l);
+    IOT_UNUSED(data);
+
+    if (!strcmp(message, "OK")) {
+        printf("Application stopped.\n");
+        exit(0);
+    }
+
+    if (!strcmp(message, "SIGNALLED")) {
+        printf("Application signalled.\n");
+        return;
+    }
+}
+
+
 static void list_apps(launcher_t *l, iot_json_t *data)
 {
     iot_json_t *a, *argv;
@@ -759,48 +776,71 @@ static void closed_cb(iot_transport_t *t, int error, void *user_data)
 }
 
 
-static void recv_cb(iot_transport_t *t, iot_json_t *rpl, void *user_data)
+static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
 {
     launcher_t *l = (launcher_t *)user_data;
     int         seqno, status;
-    const char *message;
+    const char *message, *type, *event;
     iot_json_t *data;
 
     IOT_UNUSED(t);
 
-    launch_debug("received message: %s", iot_json_object_to_string(rpl));
+    launch_debug("received message: %s", iot_json_object_to_string(msg));
 
-    status = msg_reply_parse(rpl, &seqno, &message, &data);
+    type = msg_type(msg);
 
-    if (status < 0)
-        launch_fail(l, -1, false, "Request failed.");
+    if (type == NULL)
+        return;
 
-    if (status != 0)
-        launch_fail(l, status, false,
-                    "Request failed (%d: %s).", status, message);
+    if (!strcmp(type, "status")) {
+        status = msg_reply_parse(msg, &seqno, &message, &data);
 
-    switch (l->mode) {
-    case LAUNCHER_SETUP:
-        security_setup(l);
-        exit(launch_process(l));
-        break;
+        if (status < 0)
+            launch_fail(l, -1, false, "Request failed.");
 
-    case LAUNCHER_STOP:
-        exit(0);
-        break;
+        if (status != 0)
+            launch_fail(l, status, false,
+                        "Request failed (%d: %s).", status, message);
 
-    case LAUNCHER_CLEANUP:
-        exit(0);
-        break;
+        switch (l->mode) {
+        case LAUNCHER_SETUP:
+            security_setup(l);
+            exit(launch_process(l));
+            break;
 
-    case LAUNCHER_LIST_INSTALLED:
-    case LAUNCHER_LIST_RUNNING:
-        list_apps(l, data);
-        exit(0);
-        break;
+        case LAUNCHER_STOP:
+            stop_app_check(l, message, data);
+            break;
 
-    default:
-        break;
+        case LAUNCHER_CLEANUP:
+            exit(0);
+            break;
+
+        case LAUNCHER_LIST_INSTALLED:
+        case LAUNCHER_LIST_RUNNING:
+            list_apps(l, data);
+            exit(0);
+            break;
+
+        default:
+            break;
+        }
+
+        return;
+    }
+
+    if (!strcmp(type, "event")) {
+        status = msg_event_parse(msg, &event, &data);
+
+        if (status < 0)
+            return;
+
+        if (!strcmp(event, "stopped")) {
+            if (l->mode == LAUNCHER_STOP) {
+                printf("Application stopped.\n");
+                exit(0);
+            }
+        }
     }
 }
 
@@ -1125,9 +1165,21 @@ static iot_json_t *create_setup_request(launcher_t *l)
 
 static iot_json_t *create_stop_request(launcher_t *l)
 {
-    IOT_UNUSED(l);
+    iot_json_t *req = iot_json_create(IOT_JSON_OBJECT);
+    char        appid[512];
+    int         n;
 
-    launch_fail(l, EOPNOTSUPP, false, "Stop request not implemented... yet.");
+    if (req == NULL)
+        launch_fail(l, ENOMEM, false, "Failed to create stop request.");
+
+    n = snprintf(appid, sizeof(appid), "%s:%s", l->pkg, l->app);
+
+    if (n < 0 || n >= (int)sizeof(appid))
+        launch_fail(l, EINVAL, false, "Failed to create appid.");
+
+    iot_json_add_string(req, "app", appid);
+
+    return create_request(l, "stop", req);
 }
 
 
