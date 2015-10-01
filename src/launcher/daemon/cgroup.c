@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <sys/types.h>
@@ -136,6 +137,71 @@ int cgroup_rmdir(launcher_t *l, const char *dir)
         return -1;
 
     return 0;
+}
+
+
+int cgroup_signal(launcher_t *l, const char *dir, int sig)
+{
+    char  path[PATH_MAX], buf[4096], *p;
+    int   n, fd;
+    pid_t pid;
+    int   tries;
+
+    n = snprintf(path, sizeof(path), "%s/%s/tasks", l->cgdir, dir);
+
+    if (n < 0 || n >= (int)sizeof(path))
+        return -1;
+
+    tries = 0;
+    while (tries++ < 3) {
+        fd = open(path, O_RDONLY);
+
+        if (fd < 0)
+            goto failed;
+
+        n = read(fd, buf, sizeof(buf) - 1);
+
+        if (n < 0) {
+            if (errno == EINTR || errno == EAGAIN) {
+                close(fd);
+                continue;
+            }
+            else
+                goto failed;
+        }
+
+        close(fd);
+
+        buf[n] = '\0';
+
+        pid = 0;
+        p   = buf;
+
+        while (*p) {
+            if (*p == '\n') {
+                iot_debug("sending pid %u the %s (%d) signal...", pid,
+                          strsignal(sig), sig);
+                kill(pid, sig);
+                pid = 0;
+            }
+            else {
+                pid *= 10;
+                pid += *p - '0';
+            }
+
+            p++;
+        }
+
+        if (n < (int)sizeof(buf) - 1)
+            break;
+    }
+
+    return 0;
+
+ failed:
+    if (fd >= 0)
+        close(fd);
+    return -1;
 }
 
 

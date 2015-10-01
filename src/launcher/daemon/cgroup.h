@@ -42,6 +42,7 @@ int cgroup_exit(launcher_t *l);
 int cgroup_mkdir(launcher_t *l, uid_t uid, const char *base, pid_t pid,
                  char *idbuf, size_t idsize);
 int cgroup_rmdir(launcher_t *l, const char *dir);
+int cgroup_signal(launcher_t *l, const char *dir, int sig);
 
 char *cgroup_path(char *buf, size_t size, const char *name, pid_t pid);
 
