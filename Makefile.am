@@ -47,6 +47,8 @@ if SYSTEMD_ENABLED
 	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
 	$(substcp) $(top_srcdir)/packaging.in/iot-launch.socket.in	      \
 	    > $(DESTDIR)/lib/systemd/system/iot-launch.socket
+	$(substcp) $(top_srcdir)/packaging.in/iotpm-register-apps.service.in  \
+	    > $(DESTDIR)/lib/systemd/system/iotpm-register-apps.service
 else
 	$(substcp) $(top_srcdir)/packaging.in/iot-launch.service.in	      \
 	    > $(DESTDIR)/lib/systemd/system/iot-launch.service

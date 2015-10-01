@@ -562,23 +562,28 @@ AC_SUBST(SYSCONFDIR, [$sysconfdir])
 SHAVE_INIT([build-aux], [enable])
 
 # Generate output.
-AC_CONFIG_FILES([build-aux/shave
-                 build-aux/shave-libtool
-                 Makefile
-                 utils/Makefile
-                 src/Makefile
-                 src/common/iot-common.pc
-                 src/app/iot-app.pc
-                 src/utils/iot-utils.pc
-                 src/common/iot-pulse.pc
-                 src/common/iot-ecore.pc
-                 src/common/iot-glib.pc
-                 src/common/iot-uv.pc
-                 src/common/iot-qt.pc
-                 src/nodejs/binding.gyp
-                 src/python/setup.py
-                 src/package-manager/sample/hello-world.manifest
-		 ])
+AC_CONFIG_FILES([
+        build-aux/shave
+        build-aux/shave-libtool
+        Makefile
+        utils/Makefile
+        src/Makefile
+        src/common/iot-common.pc
+        src/app/iot-app.pc
+        src/utils/iot-utils.pc
+        src/common/iot-pulse.pc
+        src/common/iot-ecore.pc
+        src/common/iot-glib.pc
+        src/common/iot-uv.pc
+        src/common/iot-qt.pc
+        src/nodejs/binding.gyp
+        src/python/setup.py
+        src/package-manager/register/register-preinstalled-apps
+        src/package-manager/sample/hello-world.manifest
+    ], [
+        chmod +x src/package-manager/register/register-preinstalled-apps
+    ]
+)
 AC_OUTPUT
 
 # Display the configuration.

@@ -1,0 +1,28 @@
+#!/bin/sh
+MANIFEST_HOME=/usr/share/iot/users
+LOG=/var/log/register-preinstalled-apps.log
+
+cat /dev/null > $LOG
+
+pushd $MANIFEST_HOME > /dev/null
+
+for u in * ; do
+    if [ -d $u -a "`id -u $u 2>/dev/null`x" != "x" ] ; then
+        pushd $u > /dev/null
+
+        for m in *.manifest ; do
+            if [ $m != "*.manifest" ] ; then
+                p=`echo $m | sed -e s/\.manifest//`
+
+                if [ ! -f /home/$u/lib/rpm/seed/$p ] ; then
+                    echo "Registering $u user's $p package" >> $LOG
+                    su -l --command="iotpm -s $p" $u >> $LOG 2>&1
+                fi
+            fi
+        done
+        
+        popd > /dev/null
+    fi
+done
+
+popd > /dev/null

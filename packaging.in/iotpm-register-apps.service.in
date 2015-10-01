@@ -1,0 +1,13 @@
+[Unit]
+Description=registers the pre-installed applications with Security Manager
+Requires=security-manager.socket
+After=security-manager.socket
+
+[Service]
+type=oneshot
+RemainAfterExit=no
+TimeoutSec=0
+ExecStart=@bindir@/register-preinstalled-apps
+
+[install]
+WantedBy=multi-user.target

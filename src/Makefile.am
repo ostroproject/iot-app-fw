@@ -6,6 +6,7 @@ pkgconfigdir     = ${libdir}/pkgconfig
 
 bin_PROGRAMS     =
 sbin_PROGRAMS    =
+bin_SCRIPTS      =
 libexec_PROGRAMS =
 noinst_PROGRAMS  =
 
@@ -656,6 +657,7 @@ iot_app_list_LDFLAGS =			\
 if !BACKEND_DISABLED
 
 bin_PROGRAMS += iotpm
+bin_SCRIPTS += package-manager/register/register-preinstalled-apps
 
 iotpm_SOURCES =			 				\
 		package-manager/iotpm.c				\
