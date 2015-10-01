@@ -124,6 +124,8 @@ typedef struct {
     iot_manifest_t  *m;                  /* application manifest */
     char            *app;                /* application within manifest */
     identity_t       id;                 /* application identity */
+    iot_timer_t     *stop;               /* stopping timer */
+    pid_t            killer;             /* process that sent stop request */
 } application_t;
 
 

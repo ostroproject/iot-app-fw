@@ -235,8 +235,8 @@ static handler_t request_handler(const char *type)
         { "setup"           , application_setup   },
         { "cleanup"         , application_cleanup },
         { "list"            , application_list    },
-#if 0
         { "stop"            , application_stop    },
+#if 0
         { "query"           , application_query   },
 #endif
         { "send-event"      , event_route         },

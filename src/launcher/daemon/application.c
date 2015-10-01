@@ -32,12 +32,15 @@
 
 #include <iot/common/macros.h>
 #include <iot/common/log.h>
+#include <iot/utils/appid.h>
 
 #include "launcher/daemon/launcher.h"
 #include "launcher/daemon/transport.h"
 #include "launcher/daemon/msg.h"
-#include "launcher/daemon/message.h"
+#include "launcher/daemon/event.h"
 #include "launcher/daemon/cgroup.h"
+
+#define STOPPED_EVENT "stopped"
 
 
 /* list for collecting auto-registered application-handling hooks */
@@ -49,6 +52,8 @@ typedef enum {
     HOOK_STARTUP,
     HOOK_CLEANUP
 } hook_event_t;
+
+static int application_sigterm(application_t *app);
 
 
 void application_hook_register(app_hook_t *h)
@@ -100,6 +105,8 @@ int application_init(launcher_t *l)
 
     if (hook_trigger(l, NULL, HOOK_INIT) < 0)
         return -1;
+
+    event_register(STOPPED_EVENT);
 
     return 0;
 }
@@ -227,6 +234,7 @@ iot_json_t *application_setup(client_t *c, iot_json_t *req)
         goto fail;
     }
 
+    a->id.app  = a->app;
     a->id.cgrp = iot_strdup(dir);
 
     if (a->id.cgrp == NULL) {
@@ -255,6 +263,78 @@ iot_json_t *application_setup(client_t *c, iot_json_t *req)
 }
 
 
+iot_json_t *application_stop(client_t *c, iot_json_t *req)
+{
+    launcher_t *l = c->l;
+    application_t *app, *a;
+    iot_list_hook_t *p, *n;
+    const char *appid;
+    char pkg[128], id[128];
+
+    if (!iot_json_get_string(req, "app", &appid))
+        goto invalid;
+
+    if (iot_appid_parse(appid, NULL, 0, pkg, sizeof(pkg), id, sizeof(id)) < 0)
+        goto invalid;
+
+    app = NULL;
+    iot_list_foreach(&l->apps, p, n) {
+        a = iot_list_entry(p, typeof(*a), hook);
+
+        if (c->id.uid != a->id.uid && c->id.uid != 0)
+            continue;
+
+        if (!strcmp(iot_manifest_package(a->m), pkg) && !strcmp(a->id.app, id)) {
+            app = a;
+            break;
+        }
+    }
+
+    if (app == NULL)
+        goto notfound;
+
+    if (app->killer != 0)
+        goto busy;
+
+    app->killer = c->id.pid;
+    application_sigterm(app);
+
+    return msg_status_create(0, NULL, "SIGNALLED");
+
+ invalid:
+    return msg_status_error(EINVAL, "invalid stop request");
+
+ notfound:
+    return msg_status_error(ENOENT, "no such process");
+
+ busy:
+    return msg_status_error(EBUSY, "already being stopped");
+}
+
+
+static void application_sigkill(iot_timer_t *t, void *user_data)
+{
+    application_t *app = (application_t *)user_data;
+
+    IOT_UNUSED(t);
+
+    cgroup_signal(app->l, app->id.cgrp, SIGKILL);
+}
+
+
+static int application_sigterm(application_t *app)
+{
+    int timeout = 3 * 1000;
+
+    app->stop = iot_timer_add(app->l->ml, timeout, application_sigkill, app);
+
+    if (cgroup_signal(app->l, app->id.cgrp, SIGTERM) == 0 && app->stop != NULL)
+        return 0;
+    else
+        return -1;
+}
+
+
 static application_t *application_for_cgroup(launcher_t *l, const char *cgrp)
 {
     iot_list_hook_t *p, *n;
@@ -268,6 +348,25 @@ static application_t *application_for_cgroup(launcher_t *l, const char *cgrp)
     }
 
     return NULL;
+}
+
+
+static void send_stopped_event(application_t *a)
+{
+    iot_json_t *e;
+    char        appid[256];
+
+    e = iot_json_create(IOT_JSON_OBJECT);
+
+    if (e == NULL)
+        return;
+
+    snprintf(appid, sizeof(appid), "%s:%s",
+             iot_manifest_package(a->m), a->id.app);
+
+    iot_json_add_string (e, "appid", appid);
+
+    event_send(a->l, a->killer, STOPPED_EVENT, e);
 }
 
 
@@ -288,12 +387,16 @@ iot_json_t *application_cleanup(client_t *c, iot_json_t *req)
     if (a == NULL)
         return msg_status_ok(NULL);
 
+    iot_timer_del(a->stop);
+    a->stop = NULL;
     iot_list_delete(&a->hook);
     hook_trigger(l, a, HOOK_CLEANUP);
 
+    send_stopped_event(a);
+
     cgroup_rmdir(l, cgrp);
 
-    return msg_status_ok(NULL);
+     return msg_status_ok(NULL);
 }
 
 

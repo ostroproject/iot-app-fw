@@ -38,6 +38,7 @@ int application_init(launcher_t *l);
 void application_exit(launcher_t *l);
 
 iot_json_t *application_setup(client_t *c, iot_json_t *req);
+iot_json_t *application_stop(client_t *c, iot_json_t *req);
 iot_json_t *application_cleanup(client_t *c, iot_json_t *req);
 iot_json_t *application_list(client_t *c, iot_json_t *req);
 
