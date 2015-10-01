@@ -111,6 +111,7 @@ typedef struct {
     const char        *addr;             /* address we listen on */
     const char        *argv0;            /* us, the launcher client */
     launcher_mode_t    mode;             /* start/stop/cleanup */
+    bool               foreground;       /* stay in foreground */
 
     /* application options */
     const char        *appid;            /* application id */
@@ -229,6 +230,7 @@ static void print_usage(launcher_t *l, int exit_code, const char *fmt, ...)
     printf("  %s [options] [--cleanup] <cgroup-path>\n\n", base);
     printf("The possible options are:\n"
            "  -s, --server=<SERVER>        server transport address\n"
+           "  -F, --fork                   fork before execing\n"
            "  -l, --log-level=<LEVELS>     what messages to log\n"
            "    LEVELS is a comma-separated list of info, error and warning\n"
            "  -t, --log-target=<TARGET>    where to log messages\n"
@@ -268,6 +270,7 @@ static void config_set_defaults(launcher_t *l, const char *argv0)
     l->argv0      = argv0;
     l->addr       = IOT_LAUNCH_ADDRESS;
     l->mode       = is_cgroup_agent(argv0) ? LAUNCHER_CLEANUP : LAUNCHER_SETUP;
+    l->foreground = true;
     l->log_mask   = IOT_LOG_UPTO(IOT_LOG_WARNING);
     l->log_target = "stderr";
 
@@ -292,11 +295,11 @@ static void config_set_defaults(launcher_t *l, const char *argv0)
 static void get_valid_options(launcher_t *l, const char **optstr,
                               struct option **options)
 {
-#   define STDOPTS "s:k:cQ::l:t:v::d:h"
+#   define STDOPTS "s:Fk:cQ::l:t:v::d:h"
 #   define DEVOPTS "SUBL:U:G:P:M:"
 #   define STDOPTIONS                                                   \
         { "server"           , required_argument, NULL, 's' },          \
-        { "app"              , required_argument, NULL, 'a' },          \
+        { "fork"             , no_argument      , NULL, 'F' },          \
         { "stop"             , no_argument      , NULL, 'k' },          \
         { "cleanup"          , no_argument      , NULL, 'c' },          \
         { "list"             , optional_argument, NULL, 'Q' },          \
@@ -357,6 +360,10 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
         switch (opt) {
         case 's':
             l->addr = optarg;
+            break;
+
+        case 'F':
+            l->foreground = false;
             break;
 
         case 'k':
@@ -699,6 +706,19 @@ static int launch_process(launcher_t *l)
     }
 
     remove_signal_handlers(l);
+
+    if (!l->foreground) {
+        switch (fork()) {
+        case 0:
+            break;
+        case -1:
+            launch_fail(l, errno, false, "fork() failed (%d: %s).",
+                        errno, strerror(errno));
+            break;
+        default:
+            return 0;
+        }
+    }
 
     return execv(argv[0], argv);
 }
