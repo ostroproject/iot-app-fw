@@ -117,6 +117,38 @@ const char *event_name(int id)
 }
 
 
+int event_send(launcher_t *l, pid_t pid, const char *event, iot_json_t *data)
+{
+    client_t        *t;
+    iot_list_hook_t *p, *n;
+    iot_json_t      *e;
+
+
+    iot_list_foreach(&l->clients, p, n) {
+        t = iot_list_entry(p, typeof(*t), hook);
+
+        if (t->id.pid != pid)
+            continue;
+
+        e = msg_event_create(event, data);
+
+        if (e == NULL)
+            return -1;
+
+        iot_debug("sending event: '%s'", iot_json_object_to_string(e));
+
+        transport_send(t, e);
+
+        iot_json_unref(e);
+
+        return 0;
+    }
+
+    errno = ENOENT;
+    return -1;
+}
+
+
 iot_json_t *event_route(client_t *c, iot_json_t *req)
 {
     launcher_t      *l = c->l;
@@ -162,6 +194,8 @@ iot_json_t *event_route(client_t *c, iot_json_t *req)
 
         if (e == NULL && (e = msg_event_create(event, data)) == NULL)
             return msg_status_error(EINVAL, "failed to create event message");
+
+        iot_debug("sending event: '%s'", iot_json_object_to_string(e));
 
         transport_send(t, e);
         cnt++;
