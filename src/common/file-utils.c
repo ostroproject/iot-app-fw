@@ -364,7 +364,7 @@ int iot_set_label(const char *path, const char *label, iot_label_mode_t mode)
     }
     else {
         old[len] = '\0';
-        if (!strcmp(label, old))
+        if (label != NULL && !strcmp(label, old))
             return 0;
     }
 
