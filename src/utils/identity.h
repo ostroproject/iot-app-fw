@@ -105,6 +105,18 @@ gid_t iot_get_groupid(const char *name);
 int iot_get_groups(const char *names, gid_t *gids, size_t size);
 
 /**
+ * @brief Convenience function to read our own SMACK label.
+ *
+ * Read our SMACK label and copy it to the supplied buffer.
+ *
+ * @param [out] buf   buffer to copy SMACK label into
+ * @param [in]  size  size of buffer
+ *
+ * @return Returns buf upon success, NULL upon failure.
+ */
+char *iot_get_ownlabel(char *buf, size_t size);
+
+/**
  * @brief Enumeration for selecting active/effective user id.
  *
  * This enumeration specifies which user id @iot_switch_userid will

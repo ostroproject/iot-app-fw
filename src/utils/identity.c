@@ -35,11 +35,15 @@
 #include <errno.h>
 #include <pwd.h>
 #include <grp.h>
+#include <fcntl.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #include <iot/common/macros.h>
 #include <iot/common/debug.h>
 #include <iot/utils/identity.h>
+
+#define PROC_LABEL_PATH "/proc/self/attr/current"
 
 
 uid_t iot_get_userid(const char *name)
@@ -175,6 +179,35 @@ int iot_get_groups(const char *names, gid_t *gids, size_t size)
     }
 
     return i;
+}
+
+
+char *iot_get_ownlabel(char *buf, size_t size)
+{
+    char label[1024];
+    int  fd, n;
+
+    fd = open(PROC_LABEL_PATH, O_RDONLY);
+
+    if (fd < 0)
+        return NULL;
+
+    n = read(fd, label, sizeof(label));
+
+    close(fd);
+
+    if (n < 0)
+        return NULL;
+
+    if (n >= (int)sizeof(label) || (int)size < n + 1) {
+        errno = ENOSPC;
+        return NULL;
+    }
+
+    label[n] = '\0';
+
+    strcpy(buf, label);
+    return buf;
 }
 
 
