@@ -54,6 +54,10 @@ else
 	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
 endif
 
+# generate documentation
+generate-docs: Doxyfile
+	doxygen $<
+
 # cleanup
 clean-local:
 	rm -f *~
