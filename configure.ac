@@ -448,7 +448,7 @@ AC_ARG_ENABLE(security,
 	      [enable_security=$enableval], [enable_security=yes])
 
 if test "$enable_security" = "yes"; then
-    PKG_CHECK_MODULES(SECURITY, security-manager libsmack,
+    PKG_CHECK_MODULES(SECURITY, security-manager cynara-client libsmack,
                       [have_security=yes], [have_security=no])
     if test "$have_security" = "no"; then
         AC_MSG_ERROR([security-manager development libraries not found.])
@@ -463,6 +463,9 @@ if test "$enable_security" = "yes"; then
 fi
 AM_CONDITIONAL(ENABLE_SECURITY_MANAGER, [test "$enable_security" = "yes"])
 AM_CONDITIONAL(ENABLE_SMACK,            [test "$enable_security" = "yes"])
+
+AC_SUBST(SECURITY_CFLAGS)
+AC_SUBST(SECURITY_LIBS)
 
 # Check for package manager backend
 AC_ARG_WITH(backend,

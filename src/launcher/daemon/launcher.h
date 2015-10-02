@@ -71,6 +71,7 @@ typedef struct {
     const char      *cgagent;            /* our cgroup release agent */
     int              lnc_fd;             /* systemd-passed socket for lnc */
     int              app_fd;             /* systemd-passed socket for app */
+    void            *cyn;                /* cynara context */
 } launcher_t;
 
 

@@ -27,77 +27,82 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <errno.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#define __USE_GNU
-#include <sys/socket.h>
-
-#define _GNU_SOURCE
-#include <getopt.h>
-
-#include <iot/config.h>
-#include <iot/common/macros.h>
-#include <iot/common/mm.h>
-#include <iot/common/log.h>
-#include <iot/common/debug.h>
-#include <iot/common/mainloop.h>
-#include <iot/common/transport.h>
-#include <iot/common/json.h>
-#include <iot/common/utils.h>
-
-#include "launcher/iot-launch.h"
-#include "launcher/daemon/config.h"
-#include "launcher/daemon/signal.h"
-#include "launcher/daemon/transport.h"
-#include "launcher/daemon/application.h"
-#include "launcher/daemon/cgroup.h"
+#include "launcher/daemon/launcher.h"
 #include "launcher/daemon/privilege.h"
 
+#ifdef ENABLE_SECURITY_MANAGER
 
-static void launcher_init(launcher_t *l)
+#include <cynara/cynara-client.h>
+
+int privilege_init(launcher_t *l)
 {
-    iot_clear(l);
-    iot_list_init(&l->clients);
-    iot_list_init(&l->apps);
+    if (l->cyn != NULL)
+        return 0;
 
-    l->ml = iot_mainloop_create();
-}
-
-
-static void daemonize(launcher_t *l)
-{
-    if (l->foreground)
-        iot_log_info("Staying in the foreground.");
-    else {
-        iot_log_info("Switching to daemon mode.");
-        iot_daemonize("/", "/dev/null", "/dev/null");
-    }
-}
-
-
-int main(int argc, char *argv[], char **envp)
-{
-    launcher_t l;
-
-    launcher_init(&l);
-    signal_init(&l);
-    config_parse(&l, argc, argv, envp);
-    application_init(&l);
-    transport_init(&l);
-    cgroup_init(&l);
-    privilege_init(&l);
-    daemonize(&l);
-
-    iot_mainloop_run(l.ml);
-
-    privilege_exit(&l);
-    cgroup_exit(&l);
+    if (cynara_initialize((cynara **)&l->cyn, NULL) != CYNARA_API_SUCCESS)
+        return -1;
 
     return 0;
 }
+
+
+void privilege_exit(launcher_t *l)
+{
+    if (l->cyn != NULL)
+        cynara_finish(l->cyn);
+
+    l->cyn = NULL;
+}
+
+
+int privilege_check(launcher_t *l, const char *label, uid_t uid,
+                    const char *privilege)
+{
+    char user[128];
+    int  ok = CYNARA_API_ACCESS_ALLOWED;
+
+    if (l->cyn == NULL)
+        goto nocynara;
+
+    if (iot_get_username(uid, user, sizeof(user)) == NULL)
+        return -1;
+
+    if (cynara_simple_check(l->cyn, label, "connection", user, privilege) == ok)
+        return 1;
+    else
+        return 0;
+
+ nocynara:
+    errno = ENOTCONN;
+    return -1;
+}
+
+#else /* !ENABLE_SECURITY_MANAGER */
+
+int privilege_init(launcher_t *l)
+{
+    l->cyn = NULL;
+
+    return 0;
+}
+
+
+void privilege_exit(launcher_t *l)
+{
+    l->cyn = NULL;
+}
+
+
+int privilege_check(launcher_t *l, const char *label, uid_t uid,
+                    const char *privilege)
+{
+    IOT_UNUSED(l);
+    IOT_UNUSED(label);
+    IOT_UNUSED(uid);
+    IOT_UNUSED(privilege);
+
+    return 1;
+}
+
+#endif /* !ENABLE_SECURITY_MANAGER */
 

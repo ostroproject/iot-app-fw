@@ -36,6 +36,7 @@
 #include "launcher/daemon/launcher.h"
 #include "launcher/daemon/msg.h"
 #include "launcher/daemon/transport.h"
+#include "launcher/daemon/privilege.h"
 #include "launcher/daemon/event.h"
 
 
@@ -166,6 +167,9 @@ iot_json_t *event_route(client_t *c, iot_json_t *req)
 
     if (id < 0)
         return msg_status_error(EINVAL, "unknown event '%s'", event);
+
+    if (privilege_check(l, c->id.label, c->id.uid, IOT_PRIV_SEND_EVENT) != 1)
+        return msg_status_error(EPERM, "permission denied");
 
     iot_clear(&dst);
     dst.uid = NO_UID;

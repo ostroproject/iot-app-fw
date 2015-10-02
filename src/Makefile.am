@@ -500,6 +500,7 @@ iot_launch_daemon_SOURCES =				\
 		launcher/daemon/msg.c			\
 		launcher/daemon/nftables.c		\
 		launcher/daemon/security-manager.c	\
+		launcher/daemon/privilege.c		\
 		launcher/daemon/event.c			\
 		launcher/daemon/client.c		\
 		launcher/daemon/valgrind.c
@@ -509,13 +510,15 @@ iot_launch_daemon_CFLAGS  =		\
 		$(BUILTIN_CFLAGS)	\
 		$(JSON_CFLAGS)		\
 		$(SYSTEMD_CFLAGS)	\
-		-DLIBEXECDIR=\"@libexecdir@\"
+		-DLIBEXECDIR=\"@libexecdir@\" \
+		$(SECURITY_CFLAGS)
 
 iot_launch_daemon_LDADD   =		\
 		libiot-common.la	\
 		libiot-utils.la		\
 		$(JSON_LIBS)		\
-		$(SYSTEMD_LIBS)
+		$(SYSTEMD_LIBS)		\
+		$(SECURITY_LIBS)
 
 iot_launch_daemon_LDFLAGS = 		\
 		-rdynamic
