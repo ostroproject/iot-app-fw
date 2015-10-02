@@ -162,7 +162,7 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 
             if (strncmp(path, pkgdir, dirlen) != 0 ||
                 (path[dirlen] != '/' && path[dirlen] != '\0')) {
-                iot_debug("      non-package path... ignored", path);
+                iot_debug("      non-package path '%s' ignored", path);
                 continue;
             }
 
