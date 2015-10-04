@@ -680,11 +680,11 @@ iotpm_LDADD =							\
 
 if BACKEND_RPM5
 iotpm_CFLAGS +=	$(LIBRPM_CFLAGS) $(POPT_CFLAGS)
-iotpm_LDADD += $(LIBRPM_LIBS) $(POPT_LIBS) -lpcreposix
+iotpm_LDADD += $(LIBRPM_LIBS) $(POPT_LIBS) -lpcreposix -ldb
 endif
 if BACKEND_RPM4
 iotpm_CFLAGS +=	$(LIBRPM_CFLAGS) $(POPT_CFLAGS)
-iotpm_LDADD += $(LIBRPM_LIBS) $(POPT_LIBS)
+iotpm_LDADD += $(LIBRPM_LIBS) $(POPT_LIBS) -ldb
 endif
 
 iotpm_LDFLAGS =	-rdynamic
