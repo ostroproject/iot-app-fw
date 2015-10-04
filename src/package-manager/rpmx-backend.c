@@ -386,7 +386,7 @@ static bool db_copy_prepare(const char *name,
     /*
      * sync the DB file
      */
-    if (!dbfile_sync(dbcopy->env, name))
+    if (dbfile_sync(dbcopy->env, name) < 0)
         return false;
 
     return true;
@@ -519,7 +519,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
 
 
     /*
-     * copy regular files; synch DBs
+     * copy regular files; synch source DBs
      */
     iot_switch_userid(IOT_USERID_SUID);
 
@@ -577,7 +577,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
         goto out;
 
     for (f = files;  f->name;  f++) {
-        if (!dbfile_reset(env, f->src)) {
+        if (dbfile_reset(env, f->name) < 0) {
             success = false;
             goto out;
         }
