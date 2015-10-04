@@ -119,7 +119,7 @@ static bool file_read(int fd,
                     DB_INIT_TXN  | DB_RECOVER  )
 
 static bool dbdir_copy_prepare(DB_ENV *, const char *, const char *,
-                               const char *, size_t *, const char **);
+                               const char *, size_t *, dbfile_t **);
 
 static DB_ENV *dbenv_join(const char *home)
 {
@@ -167,7 +167,7 @@ static int dbenv_remove(const char *home)
 
     iot_debug("removing env '%s'", home);
 
-    if (db_env_create(&env, 0) != 0) {
+    if ((ret = db_env_create(&env, 0)) != 0) {
         iot_log_error("failed to obtain DB environment: %s", db_strerror(ret));
         return -1;
     }
@@ -319,6 +319,11 @@ static bool file_copy(const char *src,
         goto failed;
     }
 
+    if (iot_set_label(dst, label, 0) < 0) {
+        iot_log_error("failed to set label of file '%s' to '%s'", dst, label);
+        goto failed;
+    }
+
     for (;;) {
         if ((len = read(sfd, buf, sizeof(buf))) < 0) {
             if (errno == EINTR)
@@ -340,8 +345,6 @@ static bool file_copy(const char *src,
     close(dfd);
 
     sfd = dfd = -1;
-
-    // set label here ...
 
     return true;
 
@@ -367,7 +370,7 @@ static bool db_copy_prepare(const char *name,
     /*
      * append an entry to the dbfile list
      */
-    if (!(files = iot_realloc(files, sizeof(dbfile_t) * (files + 2))))
+    if (!(files = iot_realloc(files, sizeof(dbfile_t) * (nfile + 2))))
         goto no_mem;
 
     memset((f = files + nfile), 0, sizeof(dbfile_t) * 2);
@@ -471,7 +474,7 @@ static bool dbdir_copy_prepare(DB_ENV *env,
         dbcopy->env = env;
         dbcopy->dst = dst;
         dbcopy->label = label;
-        dbcopy->nfiles = nfiles;
+        dbcopy->nfile = nfile;
         dbcopy->files = files;
 
         sts = iot_scan_dir(src, PATTERN, FILTER,
@@ -544,7 +547,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
         if (f->name)
             break;
 
-        if (env_remove(src) < 0)
+        if (dbenv_remove(src) < 0)
             break;
 
         success = true;
@@ -561,7 +564,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
      * copy DB files
      */
     for (f = files;  f->name;  f++) {
-        if (!file_copy(f->src, f->dst, label)) {
+        if (!file_copy(f->src, f->dst, label, false)) {
             success = false;
             goto out;
         }
@@ -570,7 +573,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
     /*
      * reset DB files
      */
-    if (!(env = dbenv_create(dst)))
+    if (!(env = dbenv_join(dst)))
         goto out;
 
     for (f = files;  f->name;  f++) {
@@ -580,7 +583,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
         }
     }
 
-    if (env_close(env) < 0) {
+    if (dbenv_close(env) < 0) {
         success = false;
         goto out;
     }
@@ -593,7 +596,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
         iot_free((void *)f->src);
         iot_free((void *)f->dst);
     }
-    iot_free((void *)files;
+    iot_free((void *)files);
 
     if (success)
         iot_log_info("RPM database successfully copied");
