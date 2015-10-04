@@ -180,7 +180,10 @@ bool iotpm_backend_init(iotpm_t *iotpm)
     }
 
     if (access(packages, R_OK|W_OK) < 0 && errno == ENOENT) {
-        if (!database_copy(system_dbpath, dbdir, "User")) {
+        uid_t uid = iotpm->userid;
+        gid_t gid = iotpm->groupid;
+
+        if (!database_copy(system_dbpath, dbdir, uid,gid,"User")) {
             error = "database initialization failed";
             goto failed;
         }

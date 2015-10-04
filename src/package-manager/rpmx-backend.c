@@ -119,7 +119,8 @@ static bool file_read(int fd,
                     DB_INIT_TXN  | DB_RECOVER  )
 
 static bool dbdir_copy_prepare(DB_ENV *, const char *, const char *,
-                               const char *, size_t *, dbfile_t **);
+                               uid_t, gid_t, const char *,
+                               size_t *, dbfile_t **);
 
 static DB_ENV *dbenv_join(const char *home)
 {
@@ -291,6 +292,8 @@ static bool is_database(const char *file)
 
 static bool file_copy(const char *src,
                       const char *dst,
+                      uid_t uid,
+                      gid_t gid,
                       const char *label,
                       bool silent)
 {
@@ -316,6 +319,12 @@ static bool file_copy(const char *src,
 
     if ((dfd = open(dst, O_RDWR|O_CREAT|O_EXCL, 0644)) < 0) {
         iot_log_error("failed to open '%s': %s", dst, strerror(errno));
+        goto failed;
+    }
+
+    if (chown(dst, uid, gid) < 0) {
+        iot_log_error("failed to set owner of file '%s' to %d:%d",
+                      dst, (int)uid, (int)gid);
         goto failed;
     }
 
@@ -422,7 +431,7 @@ static int dbdir_copy_prepare_callback(const char *src,
 
         copied = dbdir_copy_prepare(dbcopy->env,
                                     src_path, dst_path,
-                                    dbcopy->label,
+                                    dbcopy->uid, dbcopy->gid, dbcopy->label,
                                     dbcopy->nfile, dbcopy->files);
         if (!copied)
             return -1;
@@ -438,7 +447,9 @@ static int dbdir_copy_prepare_callback(const char *src,
                 copied = db_copy_prepare(entry, src_path, dst_path, dbcopy);
             }
             else {
-                copied = file_copy(src_path, dst_path, dbcopy->label, false);
+                copied = file_copy(src_path, dst_path,
+                                   dbcopy->uid, dbcopy->gid, dbcopy->label,
+                                   false);
             }
 
             if (!copied)
@@ -453,6 +464,8 @@ static int dbdir_copy_prepare_callback(const char *src,
 static bool dbdir_copy_prepare(DB_ENV *env,
                                const char *src,
                                const char *dst,
+                               uid_t uid,
+                               gid_t gid,
                                const char *label,
                                size_t *nfile,
                                dbfile_t **files)
@@ -473,6 +486,8 @@ static bool dbdir_copy_prepare(DB_ENV *env,
     else {
         dbcopy->env = env;
         dbcopy->dst = dst;
+        dbcopy->uid = uid;
+        dbcopy->gid = gid;
         dbcopy->label = label;
         dbcopy->nfile = nfile;
         dbcopy->files = files;
@@ -491,7 +506,11 @@ static bool dbdir_copy_prepare(DB_ENV *env,
 #undef PATTERN
 }
 
-static bool database_copy(const char *src, const char *dst, const char *label)
+static bool database_copy(const char *src,
+                          const char *dst,
+                          uid_t uid,
+                          gid_t gid,
+                          const char *label)
 {
     DB_ENV *env = NULL;
     size_t nfile = 0;
@@ -515,7 +534,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
     snprintf(src_path, sizeof(src_path), "%s/%s", src, DB_CONFIG_FILE);
     snprintf(dst_path, sizeof(dst_path), "%s/%s", dst, DB_CONFIG_FILE);
 
-    file_copy(src_path, dst_path, label, true);
+    file_copy(src_path, dst_path, uid, gid, label, true);
 
 
     /*
@@ -529,7 +548,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
         if (!(env = dbenv_join(src)))
             break;
 
-        if (!dbdir_copy_prepare(env, src, dst, label, &nfile, &files))
+        if (!dbdir_copy_prepare(env, src, dst, uid,gid,label, &nfile,&files))
             break;
 
         if (dbenv_close(env) < 0)
@@ -564,7 +583,7 @@ static bool database_copy(const char *src, const char *dst, const char *label)
      * copy DB files
      */
     for (f = files;  f->name;  f++) {
-        if (!file_copy(f->src, f->dst, label, false)) {
+        if (!file_copy(f->src, f->dst, uid, gid, label, false)) {
             success = false;
             goto out;
         }

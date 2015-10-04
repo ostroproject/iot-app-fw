@@ -51,6 +51,7 @@ enum iotpm_flag_e {
 struct iotpm_s {
     const char *prognam;
     uid_t userid;
+    gid_t groupid;
     const char *username;
     const char *homedir;
     int log_mask;

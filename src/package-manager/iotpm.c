@@ -110,6 +110,7 @@ static bool iotpm_init(iotpm_t **iotpm_ret, int argc, char **argv)
         goto failed;
 
     iotpm->userid = userid;
+    iotpm->groupid = pwd->pw_gid;
 
     *iotpm_ret = iotpm;
     return true;
