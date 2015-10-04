@@ -114,8 +114,149 @@ static bool file_read(int fd,
 }
 
 #define DB_CONFIG_FILE "DB_CONFIG"
+#define JOIN_FLAGS (DB_CREATE    | DB_JOINENV  | DB_USE_ENVIRON |    \
+                    DB_INIT_LOCK | DB_INIT_LOG | DB_INIT_MPOOL  |    \
+                    DB_INIT_TXN  | DB_RECOVER  )
 
-static bool dbdir_copy(const char *, const char *, const char *);
+static bool dbdir_copy_prepare(DB_ENV *, const char *, const char *,
+                               const char *, size_t *, const char **);
+
+static DB_ENV *dbenv_join(const char *home)
+{
+    DB_ENV *env = NULL;
+    u_int32_t flags = JOIN_FLAGS;
+    int ret;
+
+    iot_debug("joining environment '%s'", home);
+
+    if ((ret = db_env_create(&env, 0)) != 0) {
+        iot_log_error("failed to create DB environment: %s", db_strerror(ret));
+        return NULL;
+    }
+
+    if ((ret = env->open(env, home, flags, 0)) != 0) {
+        iot_log_error("DB open failed: %s", db_strerror(ret));
+        env->close(env, 0);
+        return NULL;
+    }
+
+    iot_debug("successfully joined environment %p", env);
+
+    return env;
+}
+
+static int dbenv_close(DB_ENV *env)
+{
+    int ret;
+
+    iot_debug("closing environment %p", env);
+
+    if ((ret = env->close(env, 0)) != 0) {
+        iot_log_error("failed to close DB environment: %s", db_strerror(ret));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int dbenv_remove(const char *home)
+{
+    DB_ENV *env = NULL;
+    int ret;
+
+    iot_debug("removing env '%s'", home);
+
+    if (db_env_create(&env, 0) != 0) {
+        iot_log_error("failed to obtain DB environment: %s", db_strerror(ret));
+        return -1;
+    }
+
+    return env->remove(env, home, DB_USE_ENVIRON);
+}
+
+static int dbfile_log_reset(DB_ENV *env, const char *file)
+{
+    int ret;
+
+    iot_debug("resetting LSN of DB file '%s'", file);
+
+    if ((ret = env->lsn_reset(env, file, 0)) != 0) {
+        iot_log_error("failed to reset LSN of DB file '%s': %s",
+                      file, db_strerror(ret));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int dbfile_id_reset(DB_ENV *env, const char *file)
+{
+    int ret;
+
+    iot_debug("resetting file ID of DB file '%s'", file);
+
+    if ((ret = env->fileid_reset(env, file, 0)) != 0) {
+        iot_log_error("failed to reset file ID of DB file '%s': %s",
+                      file, db_strerror(ret));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int dbfile_reset(DB_ENV *env, const char *file)
+{
+    iot_debug("resetting DB file '%s'", file);
+
+    if (dbfile_id_reset(env, file)  < 0 ||
+        dbfile_log_reset(env, file) < 0  )
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int dbfile_sync(DB_ENV *env, const char *file)
+{
+    DB *db;
+    int ret;
+
+    iot_debug("syncing DB file '%s'", file);
+
+    if ((ret = db_create(&db, env, 0)) != 0) {
+        iot_log_error("failed to obtain DB (file '%s', environment %p): %s",
+                      file, env, db_strerror(ret));
+        return -1;
+    }
+
+    if ((ret = db->open(db, NULL, file, NULL, DB_UNKNOWN, 0, 0)) != 0) {
+        iot_log_error("failed to open DB file '%s': %s",
+                      file, db_strerror(ret));
+        return -1;
+    }
+
+    if ((ret = db->sync(db, 0)) != 0) {
+        iot_log_error("failed to sync DB file '%s': %s",
+                      file, db_strerror(ret));
+        return -1;
+    }
+
+    if ((ret = db->close(db, 0)) != 0) {
+        iot_log_error("can't close DB file '%s': %s",
+                      file, db_strerror(ret));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+
 
 static bool is_database(const char *file)
 {
@@ -161,13 +302,17 @@ static bool file_copy(const char *src,
     if (!src || !dst)
         goto failed;
 
-    iot_debug("copying file '%s' => '%s", src, dst);
+    if (!silent)
+        iot_debug("copying file '%s' => '%s", src, dst);
 
     if ((sfd = open(src, O_RDONLY)) < 0) {
         if (!silent)
             iot_log_error("failed to open '%s': %s", src, strerror(errno));
         goto failed;
     }
+
+    if (silent)
+        iot_debug("copying file '%s' => '%s", src, dst);
 
     if ((dfd = open(dst, O_RDWR|O_CREAT|O_EXCL, 0644)) < 0) {
         iot_log_error("failed to open '%s': %s", dst, strerror(errno));
@@ -210,47 +355,48 @@ static bool file_copy(const char *src,
     return false;
 }
 
-static bool db_copy(const char *src, const char *dst, const char *label)
+static bool db_copy_prepare(const char *name,
+                            const char *src,
+                            const char *dst,
+                            dbcopy_t *dbcopy)
 {
-    FILE *stream;
-    char buf[IOTPM_PATH_MAX];
-    char *home, *dbfile;
-    char cmd[IOTPM_PATH_MAX * 2 + 128];
-    char log[1024];
+    size_t nfile = *(dbcopy->nfile);
+    dbfile_t *files = *(dbcopy->files);
+    dbfile_t *f;
 
-    if (!src || src[0] != '/' || !dst || dst[0] != '/')
+    /*
+     * append an entry to the dbfile list
+     */
+    if (!(files = iot_realloc(files, sizeof(dbfile_t) * (files + 2))))
+        goto no_mem;
+
+    memset((f = files + nfile), 0, sizeof(dbfile_t) * 2);
+
+    if (!(f->name = iot_strdup(name)) ||
+        !(f->src = iot_strdup(src))   ||
+        !(f->dst = iot_strdup(dst))    )
+        goto no_mem;
+
+    *(dbcopy->nfile) = nfile + 1;
+    *(dbcopy->files) = files;
+
+    /*
+     * sync the DB file
+     */
+    if (!dbfile_sync(dbcopy->env, name))
         return false;
-
-    strncpy(buf, dst, sizeof(buf));
-    buf[sizeof(buf) - 1] = 0;
-
-    home = buf;
-    if (!(dbfile = strrchr(buf, '/')) || dbfile == buf)
-        return false;
-    *dbfile++ = 0;
-
-    iot_debug("copying database '%s' => '%s", src, dst);
-
-    snprintf(cmd, sizeof(cmd), "db_dump %s | db_load -h %s %s",
-             src, home, dbfile);
-
-    if (!(stream = popen(cmd, "r"))) {
-        iot_log_error("failed to execute '%s': %s", cmd, strerror(errno));
-        return false;
-    }
-
-    while (fgets(log, sizeof(log), stream))
-        iot_log_info("%s", log);
-
-    pclose(stream);
 
     return true;
+
+ no_mem:
+    iot_log_error("can't allocate memory while copying RPM DB");
+    return false;
 }
 
-static int dbdir_copy_callback(const char *src,
-                               const char *entry,
-                               iot_dirent_type_t type,
-                               void *user_data)
+static int dbdir_copy_prepare_callback(const char *src,
+                                       const char *entry,
+                                       iot_dirent_type_t type,
+                                       void *user_data)
 {
     dbcopy_t *dbcopy = (dbcopy_t *)user_data;
     char src_path[IOTPM_PATH_MAX];
@@ -263,9 +409,19 @@ static int dbdir_copy_callback(const char *src,
     if ((type & IOT_DIRENT_DIR)) {
         iot_debug("copying directory '%s' => '%s", src_path, dst_path);
 
-        iot_mkdir(dst_path, 0755, dbcopy->label);
+        if (iot_mkdir(dst_path, 0755, dbcopy->label)  < 0 ||
+            chown(dst_path, dbcopy->uid, dbcopy->gid) < 0  )
+        {
+            iot_log_error("failed to create directory '%s': %s",
+                          dst_path, strerror(errno));
+            return -1;
+        }
 
-        if (!dbdir_copy(src_path, dst_path, dbcopy->label))
+        copied = dbdir_copy_prepare(dbcopy->env,
+                                    src_path, dst_path,
+                                    dbcopy->label,
+                                    dbcopy->nfile, dbcopy->files);
+        if (!copied)
             return -1;
     } else
 
@@ -275,10 +431,12 @@ static int dbdir_copy_callback(const char *src,
             strncmp(entry, "log.", 4)     &&
             entry[0] != '.'                )
         {
-            if (is_database(src_path))
-                copied = db_copy(src_path, dst_path, dbcopy->label);
-            else
+            if (is_database(src_path)) {
+                copied = db_copy_prepare(entry, src_path, dst_path, dbcopy);
+            }
+            else {
                 copied = file_copy(src_path, dst_path, dbcopy->label, false);
+            }
 
             if (!copied)
                 return -1;
@@ -289,21 +447,36 @@ static int dbdir_copy_callback(const char *src,
 }
 
 
-static bool dbdir_copy(const char *src, const char *dst, const char *label)
+static bool dbdir_copy_prepare(DB_ENV *env,
+                               const char *src,
+                               const char *dst,
+                               const char *label,
+                               size_t *nfile,
+                               dbfile_t **files)
 {
 #define PATTERN   "^[^.].*"
 #define FILTER    (IOT_DIRENT_DIR | IOT_DIRENT_REG | IOT_DIRENT_IGNORE_LNK)
 
     dbcopy_t *dbcopy;
     bool success = true;
+    int sts;
 
-    if (!(dbcopy = iot_allocz(sizeof(dbcopy_t))))
+    if (!(dbcopy = iot_allocz(sizeof(dbcopy_t)))                   ||
+        (!files && !(files = iot_allocz(sizeof(const char *)))) )
+    {
+        iot_log_error("can't allocate memory while copying DB");
         success = false;
+    }
     else {
+        dbcopy->env = env;
         dbcopy->dst = dst;
         dbcopy->label = label;
+        dbcopy->nfiles = nfiles;
+        dbcopy->files = files;
 
-        if (iot_scan_dir(src, PATTERN,FILTER, dbdir_copy_callback, dbcopy) < 0)
+        sts = iot_scan_dir(src, PATTERN, FILTER,
+                           dbdir_copy_prepare_callback, dbcopy);
+        if (sts < 0)
             success = false;
 
         iot_free(dbcopy);
@@ -317,19 +490,110 @@ static bool dbdir_copy(const char *src, const char *dst, const char *label)
 
 static bool database_copy(const char *src, const char *dst, const char *label)
 {
+    DB_ENV *env = NULL;
+    size_t nfile = 0;
+    dbfile_t *files = iot_allocz(sizeof(dbfile_t));
     char src_path[IOTPM_PATH_MAX];
     char dst_path[IOTPM_PATH_MAX];
+    dbfile_t *f;
 
     bool success;
 
     iot_log_info("copy RPM database '%s' => '%s'", src, dst);
 
+    if (!files) {
+        iot_log_error("can't allocate memory when copying RPM DB");
+        return false;
+    }
+
+    /*
+     * copy the config file, if any
+     */
     snprintf(src_path, sizeof(src_path), "%s/%s", src, DB_CONFIG_FILE);
     snprintf(dst_path, sizeof(dst_path), "%s/%s", dst, DB_CONFIG_FILE);
 
     file_copy(src_path, dst_path, label, true);
 
-    success = dbdir_copy(src, dst, label);
+
+    /*
+     * copy regular files; synch DBs
+     */
+    iot_switch_userid(IOT_USERID_SUID);
+
+    do {
+        success = false;
+
+        if (!(env = dbenv_join(src)))
+            break;
+
+        if (!dbdir_copy_prepare(env, src, dst, label, &nfile, &files))
+            break;
+
+        if (dbenv_close(env) < 0)
+            break;
+
+        if (!(env = dbenv_join(src)))
+            break;
+
+
+        for (f = files;  f->name;  f++) {
+            if (dbfile_log_reset(env, f->name) < 0)
+                break;
+        }
+
+        if (f->name)
+            break;
+
+        if (env_remove(src) < 0)
+            break;
+
+        success = true;
+    } while(0);
+
+
+    iot_switch_userid(IOT_USERID_REAL);
+
+    if (!success)
+        goto out;
+
+
+    /*
+     * copy DB files
+     */
+    for (f = files;  f->name;  f++) {
+        if (!file_copy(f->src, f->dst, label)) {
+            success = false;
+            goto out;
+        }
+    }
+
+    /*
+     * reset DB files
+     */
+    if (!(env = dbenv_create(dst)))
+        goto out;
+
+    for (f = files;  f->name;  f++) {
+        if (!dbfile_reset(env, f->src)) {
+            success = false;
+            goto out;
+        }
+    }
+
+    if (env_close(env) < 0) {
+        success = false;
+        goto out;
+    }
+
+    success = true;
+
+ out:
+    for (f = files;  f->name;  f++) {
+        iot_free((void *)f->name);
+        iot_free((void *)f->src);
+        iot_free((void *)f->dst);
+    }
+    iot_free((void *)files;
 
     if (success)
         iot_log_info("RPM database successfully copied");
