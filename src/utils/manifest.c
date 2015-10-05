@@ -659,12 +659,21 @@ static int validate_manifest_data(const char *pkg, iot_json_t *data,
                 else {
                     struct stat st;
 
-                    if (stat(s, &st) < 0 && errno != EACCES)
+                    iot_debug("checking executability of '%s'...", s);
+
+                    if (stat(s, &st) < 0 && errno != EACCES) {
                         status |= IOT_MANIFEST_INVALID_BINARY;
+                        iot_debug("couldn't stat '%s' (%d: %s)", s, errno,
+                                  strerror(errno));
+                    }
                     else {
                         /* Hmm... maybe with SMACK this is not a good idea... */
-                        if (!S_ISREG(st.st_mode) || access(s, X_OK) < 0)
+                        if (!S_ISREG(st.st_mode) || access(s, X_OK) < 0) {
                             status |= IOT_MANIFEST_INVALID_BINARY;
+
+                            iot_debug("%s is unexecutable (%d: %s)", s,
+                                      errno, strerror(errno));
+                        }
                     }
                 }
 
@@ -691,6 +700,7 @@ static int validate_manifest_data(const char *pkg, iot_json_t *data,
             continue;
         }
 
+        iot_debug("unknown field '%s'", key);
         status |= IOT_MANIFEST_INVALID_FIELD;
     }
 
