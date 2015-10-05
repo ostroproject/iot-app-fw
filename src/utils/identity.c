@@ -52,7 +52,7 @@ uid_t iot_get_userid(const char *name)
     char          buf[4096], *e;
     int           id;
 
-    if (getpwnam_r(name, &pwd, buf, sizeof(buf), &found) == 0)
+    if (getpwnam_r(name, &pwd, buf, sizeof(buf), &found) == 0 && found)
         return pwd.pw_uid;
 
     id = strtol(name, &e, 10);
@@ -75,7 +75,7 @@ const char *iot_get_username(uid_t uid, char *namebuf, size_t size)
         return "<no-user>";
     }
 
-    if (getpwuid_r(uid, &pwd, buf, sizeof(buf), &found) == 0) {
+    if (getpwuid_r(uid, &pwd, buf, sizeof(buf), &found) == 0 && found) {
         n = snprintf(namebuf, size, "%s", pwd.pw_name);
 
         if (n < 0 || n >= (int)size) {
@@ -101,7 +101,7 @@ const char *iot_get_userhome(uid_t uid, char *namebuf, size_t size)
         return "<no-user>";
     }
 
-    if (getpwuid_r(uid, &pwd, buf, sizeof(buf), &found) == 0) {
+    if (getpwuid_r(uid, &pwd, buf, sizeof(buf), &found) == 0 && found) {
         n = snprintf(namebuf, size, "%s", pwd.pw_dir);
 
         if (n < 0 || n >= (int)size) {
@@ -122,7 +122,7 @@ gid_t iot_get_groupid(const char *name)
     char         buf[4096], *e;
     int          id;
 
-    if (getgrnam_r(name, &gr, buf, sizeof(buf), &found) == 0)
+    if (getgrnam_r(name, &gr, buf, sizeof(buf), &found) == 0 && found)
         return gr.gr_gid;
 
     id = strtol(name, &e, 10);
