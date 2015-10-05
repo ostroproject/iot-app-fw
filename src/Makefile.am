@@ -554,6 +554,25 @@ agent-install-hook:
 		$(DESTDIR)$(libexecdir)/iot-launcher/iot-launch-agent
 
 ###################################
+# iot-adduser
+#
+
+bin_PROGRAMS += iot-adduser
+
+iot_adduser_SOURCES =			\
+		adduser/adduser.c
+
+iot_adduser_CFLAGS  =			\
+		$(AM_CFLAGS)		\
+		$(SECURITY_CFLAGS)
+
+iot_adduser_LDADD   =			\
+		libiot-utils.la		\
+		libiot-common.la	\
+		$(LIBCAP_LIBS)		\
+		$(SECURITY_LIBS)
+
+###################################
 # iot-event-test
 #
 
