@@ -663,8 +663,7 @@ static int validate_manifest_data(const char *pkg, iot_json_t *data,
                         status |= IOT_MANIFEST_INVALID_BINARY;
                     else {
                         /* Hmm... maybe with SMACK this is not a good idea... */
-                        if (!S_ISREG(st.st_mode) ||
-                            !(st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
+                        if (!S_ISREG(st.st_mode) || access(s, X_OK) < 0)
                             status |= IOT_MANIFEST_INVALID_BINARY;
                     }
                 }
