@@ -213,11 +213,15 @@ char *iot_get_ownlabel(char *buf, size_t size)
 
 static uid_t _iot_suid = -1;
 static uid_t _iot_ruid = -1;
+static gid_t _iot_sgid = -1;
+static gid_t _iot_rgid = -1;
 
 static IOT_INIT void save_userid(void)
 {
     _iot_suid = geteuid();
     _iot_ruid = getuid();
+    _iot_sgid = getegid();
+    _iot_rgid = getgid();
 }
 
 
@@ -230,17 +234,18 @@ int iot_switch_userid(iot_userid_t which)
     switch (which) {
     case IOT_USERID_REAL:
         type = "real";
-        if (setreuid(-1, _iot_ruid) < 0)
+        if (setreuid(-1, _iot_ruid) < 0 || setregid(-1, _iot_rgid) < 0)
             goto failed;
         break;
     case IOT_USERID_SUID:
         type = "suid";
-        if (setreuid(-1, _iot_suid) < 0)
+        if (setreuid(-1, _iot_suid) < 0 || setregid(-1, _iot_sgid) < 0)
             goto failed;
         break;
     case IOT_USERID_DROP:
         type = "drop";
-        if (setresuid(_iot_ruid, _iot_ruid, _iot_ruid) < 0)
+        if (setresuid(_iot_ruid, _iot_ruid, _iot_ruid) < 0 ||
+            setresgid(_iot_rgid, _iot_rgid, _iot_rgid) < 0)
             goto failed;
         _iot_suid = _iot_ruid;
         break;
@@ -249,12 +254,12 @@ int iot_switch_userid(iot_userid_t which)
         goto failed;
     }
 
-    iot_debug("switched to userid '%s'", type);
+    iot_debug("switched to user/group id '%s'", type);
 
     return 0;
 
  failed:
-    iot_debug("failed to switch userid to '%s' (%d: %s)",
+    iot_debug("failed to switch user/group id to '%s' (%d: %s)",
               type, errno, strerror(errno));
     return -1;
 }
