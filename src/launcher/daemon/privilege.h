@@ -33,6 +33,7 @@
 #include <launcher/daemon/launcher.h>
 
 #define IOT_PRIV_SEND_EVENT "ApplicationManagement"
+#define IOT_PRIV_LIST_APPS  "ApplicationManagement"
 
 
 int privilege_init(launcher_t *l);

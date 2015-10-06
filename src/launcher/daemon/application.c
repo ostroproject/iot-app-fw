@@ -39,6 +39,7 @@
 #include "launcher/daemon/msg.h"
 #include "launcher/daemon/event.h"
 #include "launcher/daemon/cgroup.h"
+#include "launcher/daemon/privilege.h"
 
 #define STOPPED_EVENT "stopped"
 
@@ -517,10 +518,14 @@ static iot_json_t *list_installed(client_t *c)
 
 iot_json_t *application_list(client_t *c, iot_json_t *req)
 {
+    launcher_t *l = c->l;
     const char *which;
 
     if (!iot_json_get_string(req, "type", &which))
         return msg_status_error(EINVAL, "invalid list request");
+
+    if (privilege_check(l, c->id.label, c->id.uid, IOT_PRIV_LIST_APPS) != 1)
+        return msg_status_error(EPERM, "permission denied");
 
     if (!strcmp(which, "running"))
         return list_running(c);
