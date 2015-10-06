@@ -9,5 +9,5 @@ RemainAfterExit=no
 TimeoutSec=0
 ExecStart=@bindir@/register-preinstalled-apps
 
-[install]
+[Install]
 WantedBy=multi-user.target
