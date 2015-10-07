@@ -47,7 +47,9 @@ static bool verify_files(iotpm_pkginfo_t *info)
     char hdir[IOTPM_PATH_MAX];
     char mdir[IOTPM_PATH_MAX];
     size_t len_min, len_max, len, plen, mlen, alen;
-    bool home, local, conf;
+    bool home = false;
+    bool conf = false;
+    bool local = false;
     int i;
 
     if (!strcmp(iotpm->username, "root"))
