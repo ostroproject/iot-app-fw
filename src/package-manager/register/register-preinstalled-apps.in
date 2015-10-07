@@ -1,6 +1,7 @@
 #!/bin/sh
 MANIFEST_HOME=/usr/share/iot/users
 LOG=/var/log/register-preinstalled-apps.log
+SHELL=/bin/bash
 
 cat /dev/null > $LOG
 
@@ -16,7 +17,21 @@ for u in * ; do
 
                 if [ ! -f /home/$u/lib/rpm/seed/$p ] ; then
                     echo "Registering $u user's $p package" >> $LOG
+
+                    s=`grep $u /etc/passwd | cut -d : -f 7`
+
+                    if [ "$s" != "$SHELL" ] ; then
+                        echo "   changing shell to $SHELL" >> $LOG
+                        usermod -s $SHELL $u
+                    fi
+
+                    echo "   registering with security framework" >> $LOG
                     su -l --command="iotpm -s $p" $u >> $LOG 2>&1
+
+                    if [ "$s" != "$SHELL" ] ; then
+                        echo "   restoring shell $s" >> $LOG
+                        usermod -s $s $u
+                    fi
                 fi
             fi
         done
