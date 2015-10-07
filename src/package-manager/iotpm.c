@@ -118,6 +118,7 @@ static bool iotpm_init(iotpm_t **iotpm_ret, int argc, char **argv)
  failed:
     iot_log_error("%s", error);
     *iotpm_ret = NULL;
+    iotpm_exit(iotpm);
     return false;
 }
 
