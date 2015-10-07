@@ -166,7 +166,7 @@ static void free_arguments(char **argv)
     if (argv == NULL)
         return;
 
-    for (i = 0; argv[0] != NULL; i++)
+    for (i = 0; argv[i] != NULL; i++)
         iot_free(argv[i]);
 
     iot_free(argv);
