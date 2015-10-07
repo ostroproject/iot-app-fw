@@ -795,8 +795,11 @@ static int pkglist_fill(QVA_t qva, rpmts ts, Header h)
     if (!list->re || iot_regexp_matches(list->re, name, 0)) {
         size = sizeof(iotpm_pkglist_entry_t) * (list->nentry + 2);
 
-        if (!(list->entries = iot_realloc(list->entries, size)))
+        if (!(list->entries = iot_realloc(list->entries, size))) {
+            free(version);
+            free(name);
             return -1;
+        }
 
         e = list->entries + list->nentry++;
         memset(e, 0, sizeof(iotpm_pkglist_entry_t) * 2);
@@ -810,6 +813,10 @@ static int pkglist_fill(QVA_t qva, rpmts ts, Header h)
 
         if ((len = strlen(version)) > list->max_width.version)
             list->max_width.version = len;
+    }
+    else {
+        free(version);
+        free(name);
     }
 
     return 0;
