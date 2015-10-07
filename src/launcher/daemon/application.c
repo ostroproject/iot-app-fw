@@ -152,6 +152,9 @@ static int copy_arguments(iot_json_t *args, char ***argvp)
  fail:
     for (i = 0; i < argc; i++)
         iot_free(argv[i]);
+
+    iot_free(argv);
+
     return -1;
 }
 
