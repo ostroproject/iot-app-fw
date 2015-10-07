@@ -295,7 +295,7 @@ static int list(iotpm_t *iotpm)
     struct tm tm;
     int sw, nw, vw, tw;
     int i;
-    int rc;
+    int rc = 0;
 
     if (iotpm->argc == 1 && (pattern = iotpm->argv[0])) {
         if (iot_regexp_glob(pattern, buf, sizeof(buf)) < 0) {
