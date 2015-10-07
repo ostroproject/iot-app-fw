@@ -473,7 +473,7 @@ static bool dbdir_copy_prepare(DB_ENV *env,
 #define PATTERN   "^[^.].*"
 #define FILTER    (IOT_DIRENT_DIR | IOT_DIRENT_REG | IOT_DIRENT_IGNORE_LNK)
 
-    dbcopy_t *dbcopy;
+    dbcopy_t *dbcopy = NULL;
     bool success = true;
     int sts;
 
@@ -496,9 +496,10 @@ static bool dbdir_copy_prepare(DB_ENV *env,
                            dbdir_copy_prepare_callback, dbcopy);
         if (sts < 0)
             success = false;
-
-        iot_free(dbcopy);
     }
+
+    if (dbcopy != NULL)
+        iot_free(dbcopy);
 
     return success;
 
