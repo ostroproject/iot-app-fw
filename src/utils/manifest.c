@@ -1195,7 +1195,7 @@ int iot_manifest_filetype(iot_manifest_t *m, const char *path,
 
         n = iot_manifest_applications(m, apps, IOT_ARRAY_SIZE(apps));
 
-        if (n < 0 || a > (int)IOT_ARRAY_SIZE(apps))
+        if (n < 0 || a >= (int)IOT_ARRAY_SIZE(apps))
             goto invalid;
 
         *app = apps[a];
