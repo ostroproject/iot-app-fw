@@ -41,3 +41,5 @@ for u in * ; do
 done
 
 popd > /dev/null
+
+touch /var/lock/iotpm.ready

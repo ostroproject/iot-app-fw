@@ -1,7 +1,7 @@
 [Unit]
 Description=registers the pre-installed applications with Security Manager
-Requires=security-manager.socket
-After=security-manager.socket
+Requires=security-manager.socket tlm.service
+After=tlm.service
 
 [Service]
 type=oneshot
