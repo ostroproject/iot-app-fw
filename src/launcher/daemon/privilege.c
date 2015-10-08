@@ -64,7 +64,9 @@ int privilege_check(launcher_t *l, const char *label, uid_t uid,
     if (l->cyn == NULL)
         goto nocynara;
 
-    if (iot_get_username(uid, user, sizeof(user)) == NULL)
+    iot_debug("checking acces from cynara: %s, %d, %s", label, uid, privilege);
+
+    if (snprintf(user, sizeof(user), "%d", uid) < 0)
         return -1;
 
     if (cynara_simple_check(l->cyn, label, "connection", user, privilege) == ok)
