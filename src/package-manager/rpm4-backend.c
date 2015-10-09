@@ -42,9 +42,6 @@ static int log_callback(rpmlogRec, rpmlogCallbackData);
 
 
 
-static iotpm_pkginfo_t  failed_info = {
-    .sts = -1
-};
 static iotpm_pkglist_t  failed_list = {
     .sts = -1
 };
@@ -184,8 +181,8 @@ void iotpm_backend_exit(iotpm_t *iotpm)
 
 
 iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
-					      bool file,
-					      const char *pkg)
+                                              bool file,
+                                              const char *pkg)
 {
     iotpm_backend_t *backend;
     rpmts ts = NULL;
@@ -204,7 +201,7 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
         return NULL;
 
     if (!(info = iot_allocz(sizeof(iotpm_pkginfo_t))))
-        return &failed_info;
+        return NULL;
 
     info->sts = -1;
     info->backend = backend;

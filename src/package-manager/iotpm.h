@@ -20,17 +20,18 @@
 
 #define IOTPM_DEFAULT_LABEL      "User"
 
-typedef enum   iotpm_mode_e                 iotpm_mode_t;
-typedef enum   iotpm_flag_e                 iotpm_flag_t;
-typedef struct iotpm_s                      iotpm_t;
+typedef enum   iotpm_mode_e                   iotpm_mode_t;
+typedef enum   iotpm_flag_e                   iotpm_flag_t;
+typedef struct iotpm_s                        iotpm_t;
 
-typedef struct iotpm_backend_s              iotpm_backend_t;
-typedef struct iotpm_pkglist_s              iotpm_pkglist_t;
-typedef struct iotpm_pkglist_entry_s        iotpm_pkglist_entry_t;
+typedef struct iotpm_backend_s                iotpm_backend_t;
+typedef struct iotpm_pkglist_s                iotpm_pkglist_t;
+typedef struct iotpm_pkglist_entry_s          iotpm_pkglist_entry_t;
 
-typedef enum   iotpm_pkginfo_processing_e   iotpm_pkginfo_processing_t;
-typedef struct iotpm_pkginfo_filentry_s     iotpm_pkginfo_filentry_t;
-typedef struct iotpm_pkginfo_s              iotpm_pkginfo_t;
+typedef enum   iotpm_pkginfo_processing_e     iotpm_pkginfo_processing_t;
+typedef enum   iotpm_pkginfo_filentry_type_e  iotpm_pkginfo_filentry_type_t;
+typedef struct iotpm_pkginfo_filentry_s       iotpm_pkginfo_filentry_t;
+typedef struct iotpm_pkginfo_s                iotpm_pkginfo_t;
 
 
 enum iotpm_mode_e {

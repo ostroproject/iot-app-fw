@@ -16,9 +16,54 @@ struct script_s {
     const char *name;
 };
 
-
+static void set_file_types(iotpm_pkginfo_t *);
 static bool verify_files(iotpm_pkginfo_t *);
 static bool verify_scripts(iotpm_pkginfo_t *);
+
+static iotpm_pkginfo_t  failed_info = {
+    .sts = -1
+};
+
+iotpm_pkginfo_t *iotpm_pkginfo_create(iotpm_t *iotpm,bool file,const char *pkg)
+{
+    iotpm_pkginfo_t *info = iotpm_backend_pkginfo_create(iotpm, file, pkg);
+
+    if (!info)
+        info = &failed_info;
+    else {
+        if (info->sts == 0)
+            set_file_types(info);
+    }
+
+    return info;
+}
+
+void iotpm_pkginfo_destroy(iotpm_pkginfo_t *info)
+{
+    iotpm_pkginfo_filentry_t *f;
+
+    if (info) {
+        if (info->files) {
+	    for (f = info->files;  f->path;  f++) {
+	        iot_free((void *)f->path);
+	        iot_free((void *)f->user);
+	        iot_free((void *)f->group);
+	        iot_free((void *)f->link);
+            }
+
+	    iot_free((void *)info->files);
+	}
+
+        iot_free((void *)info->name);
+        iot_free((void *)info->ver);
+        iot_free(info->data);
+
+	if (info != &failed_info)
+	    iot_free((void *)info);
+    }
+}
+
+
 
 bool iotpm_pkginfo_verify(iotpm_pkginfo_t *info)
 {
@@ -33,6 +78,49 @@ bool iotpm_pkginfo_verify(iotpm_pkginfo_t *info)
     success &= verify_scripts(info);
 
     return success;
+}
+
+
+static void set_file_types(iotpm_pkginfo_t *info)
+{
+    iotpm_backend_t *backend = info->backend;
+    iotpm_t *iotpm = backend->iotpm;
+    iotpm_pkginfo_filentry_t *f;
+    const char *path;
+    char hdir[IOTPM_PATH_MAX];
+    char mdir[IOTPM_PATH_MAX];
+    size_t len_min, len_max, len, plen, mlen, alen;
+    int i;
+
+    alen = strlen(IOTPM_APPDIR);
+
+    len_min = strlen(iotpm->homedir) + (alen > 0 ? 1 : 0) + alen;
+    len_max = snprintf(hdir, sizeof(hdir), IOTPM_APPLICATION_HOME,
+                       iotpm->homedir, info->name);
+
+    mlen = snprintf(mdir, sizeof(mdir), "%s", backend->path.manifest);
+    if (mlen > 0 && mdir[mlen-1] == '/')
+        mdir[--mlen] = 0;
+
+    for (i = 0;  i < info->nfile;  i++) {
+        f = info->files + i;
+        path = f->path;
+        plen = strlen(path);
+        len  = (plen > len_max) ? len_max : plen;
+
+        f->type = IOTPM_FILENTRY_UNKNOWN;
+
+        if (f && f == info->manifest)
+            f->type = IOTPM_FILENTRY_MANIFEST;
+        else if (!strncmp(path, mdir, plen > mlen ? mlen : plen))
+            f->type = IOTPM_FILENTRY_FOREIGN;
+        else if (!strncmp(path, hdir, len)) {
+            if (len <= len_min)
+                f->type = IOTPM_FILENTRY_FOREIGN;
+            else
+                f->type = IOTPM_FILENTRY_USER;
+        }
+    }
 }
 
 
@@ -60,6 +148,8 @@ static bool verify_files(iotpm_pkginfo_t *info)
         success = false;
     }
 
+    /* TODO: rewrite this to utilise file types */
+    
     alen = strlen(IOTPM_APPDIR);
 
     len_min = strlen(iotpm->homedir) + (alen > 0 ? 1 : 0) + alen;
