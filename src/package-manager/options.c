@@ -69,22 +69,23 @@ static void set_defaults(iotpm_t *iotpm, int argc, char **argv)
 
 static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
 {
-#define OPTIONS "isurcpLl:t:d:h"
+#define OPTIONS "isurcpLfl:t:d:h"
 #define INVALID "inavlid option '%c'", opt
 
     static struct option options[] = {
         { "install"          ,  no_argument      ,  NULL,  'i' },
         { "register-security",  no_argument      ,  NULL,  's' },
-	{ "upgrade"          ,  no_argument      ,  NULL,  'u' },
-	{ "remove"           ,  no_argument      ,  NULL,  'r' },
-	{ "db-check"         ,  no_argument      ,  NULL,  'c' },
-	{ "db-plant"         ,  no_argument      ,  NULL,  'p' },
-	{ "list"             ,  optional_argument,  NULL,  'L' },
-	{ "log-level"        ,  required_argument,  NULL,  'l' },
-	{ "log-target"       ,  required_argument,  NULL,  't' },
-	{ "debug"            ,  required_argument,  NULL,  'd' },
-	{ "help"             ,  no_argument      ,  NULL,  'h' },
-	{   NULL             ,       0           ,  NULL,   0  }
+        { "upgrade"          ,  no_argument      ,  NULL,  'u' },
+        { "remove"           ,  no_argument      ,  NULL,  'r' },
+        { "db-check"         ,  no_argument      ,  NULL,  'c' },
+        { "db-plant"         ,  no_argument      ,  NULL,  'p' },
+        { "list"             ,  optional_argument,  NULL,  'L' },
+        { "files"            ,  required_argument,  NULL,  'f' },
+        { "log-level"        ,  required_argument,  NULL,  'l' },
+        { "log-target"       ,  required_argument,  NULL,  't' },
+        { "debug"            ,  required_argument,  NULL,  'd' },
+        { "help"             ,  no_argument      ,  NULL,  'h' },
+        {   NULL             ,       0           ,  NULL,   0  }
     };
 
     int opt, i;
@@ -95,18 +96,19 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
         case 'i':    set_mode(iotpm, IOTPM_MODE_POSTINST);        break;
         case 's':    set_mode(iotpm, IOTPM_MODE_PREINST);         break;
         case 'u':    set_mode(iotpm, IOTPM_MODE_UPGRADE);         break;
-	case 'r':    set_mode(iotpm, IOTPM_MODE_REMOVE);          break;
-	case 'c':    set_mode(iotpm, IOTPM_MODE_DBCHECK);         break;
-	case 'p':    set_mode(iotpm, IOTPM_MODE_DBPLANT);         break;
-	case 'L':    set_mode(iotpm, IOTPM_MODE_LIST);            break;
+        case 'r':    set_mode(iotpm, IOTPM_MODE_REMOVE);          break;
+        case 'c':    set_mode(iotpm, IOTPM_MODE_DBCHECK);         break;
+        case 'p':    set_mode(iotpm, IOTPM_MODE_DBPLANT);         break;
+        case 'L':    set_mode(iotpm, IOTPM_MODE_LIST);            break;
+        case 'f':    set_mode(iotpm, IOTPM_MODE_FILES);           break;
         case 'l':    set_log_mask(iotpm, optarg);                 break;
         case 't':    set_log_target(iotpm, optarg);               break;
-	case 'd':    set_debug(iotpm, optarg);                    break;
-	case 'h':    print_usage(iotpm, 0, NULL);                 break;
+        case 'd':    set_debug(iotpm, optarg);                    break;
+        case 'h':    print_usage(iotpm, 0, NULL);                 break;
 
-	default:     print_usage(iotpm, EINVAL, INVALID);         break;
+        default:     print_usage(iotpm, EINVAL, INVALID);         break;
 
-	} /* switch opt */
+        } /* switch opt */
     }
 
     iotpm->argc = argc - optind;
@@ -139,8 +141,9 @@ static void check_configuration(iotpm_t *iotpm)
 
     case IOTPM_MODE_PREINST:
     case IOTPM_MODE_REMOVE:
+    case IOTPM_MODE_FILES:
         if ((n = iotpm->argc) != 1) {
-	    print_usage(iotpm, EINVAL, "%s <package name>",
+            print_usage(iotpm, EINVAL, "%s <package name>",
                         n ? "too many" :"missing");
         }
 	break;
@@ -148,12 +151,12 @@ static void check_configuration(iotpm_t *iotpm)
     case IOTPM_MODE_DBCHECK:
     case IOTPM_MODE_DBPLANT:
         if (iotpm->argc)
-	    print_usage(iotpm, EINVAL, "can't specify <package>");
+            print_usage(iotpm, EINVAL, "can't specify <package>");
 	break;
 
     case IOTPM_MODE_LIST:
         if (iotpm->argc > 1)
-	    print_usage(iotpm, EINVAL, "to many filetring pattern");
+            print_usage(iotpm, EINVAL, "to many filetring pattern");
         break;
 
     default:
@@ -166,7 +169,7 @@ static void check_configuration(iotpm_t *iotpm)
 
     if (!iot_log_set_target(iotpm->log_target)) {
         fprintf(stderr, "failed to set log target '%s'\n", iotpm->log_target);
-	exit(EINVAL);
+        exit(EINVAL);
     }
 
     iot_log_set_mask(iotpm->log_mask);
@@ -184,10 +187,10 @@ static void print_usage(iotpm_t *iotpm, int exit_code, char *fmt, ...)
 
     if (fmt && *fmt) {
         va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
+        vfprintf(stderr, fmt, ap);
         va_end(ap);
 
-	fprintf(stderr, "\n\n");
+        fprintf(stderr, "\n\n");
     }
 
     fprintf(stderr, "usage:\n"
@@ -200,7 +203,8 @@ static void print_usage(iotpm_t *iotpm, int exit_code, char *fmt, ...)
 	"  -r or --remove            (<package> is the name of the package)\n"
 	"  -c or --db-check          (no <package> can be specified)\n"
 	"  -p or --db-plant          (no <package> can be specified)\n"
-	"  -L or --list              (no <package> can be specified\n"
+	"  -L or --list              (<package> is an optional filtering pattern\n"
+    "  -f or --files             (<package> is the name of the package)\n"
 	"<log-options> are\n"
 	"  -t <target>  or --log-target=<target> where\n"
 	"       <target> is one of stderr,stdout,syslog or a logfile path\n"
