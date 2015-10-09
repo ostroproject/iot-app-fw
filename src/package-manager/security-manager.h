@@ -32,7 +32,13 @@
 
 #include <iot/utils/manifest.h>
 
-int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m);
-int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m);
+#include "pkginfo.h"
+
+int iotpm_register_package(iotpm_t *iotpm,
+                           iotpm_pkginfo_t *pi,
+                           iot_manifest_t *m);
+int iotpm_unregister_package(iotpm_t *iotpm,
+                             iotpm_pkginfo_t *pi,
+                             iot_manifest_t *m);
 
 #endif /* __IOTPM_SECURITY_MANAGER__ */

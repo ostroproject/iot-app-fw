@@ -43,7 +43,7 @@
 #  include <security-manager/security-manager.h>
 #endif
 
-#include "package-manager/pkginfo.h"
+#include "security-manager.h"
 
 #ifndef PATH_MAX
 #    define PATH_MAX 1024
@@ -76,7 +76,45 @@ static int app_topdir(char *buf, size_t size, const char *home, const char *pkg)
 }
 
 
-int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
+static bool reset_labels(iotpm_t *iotpm, iotpm_pkginfo_t *pi)
+{
+    iotpm_pkginfo_filentry_t *f;
+    bool success = true;
+    
+    iot_switch_userid(IOT_USERID_SUID);
+
+    for (f = pi->files; f->path;  f++) {
+        if (f->type == IOTPM_FILENTRY_MANIFEST) {
+            if (chown(f->path, iotpm->userid, iotpm->groupid) < 0) {
+                iot_log_error("failed to reset owner of manifest "
+                              "file to %d.%d: %s",
+                              iotpm->userid, iotpm->groupid, strerror(errno));
+                success = false;
+            }
+        }
+            
+        
+        if (f->type == IOTPM_FILENTRY_USER    ||
+            f->type == IOTPM_FILENTRY_SYSCONF ||
+            f->type == IOTPM_FILENTRY_MANIFEST )
+        {
+            if (iot_set_label(f->path, iotpm->default_label, 0) < 0) {
+                iot_log_error("failed to reset label of '%s' to '%s': %s",
+                              f->path, iotpm->default_label, strerror(errno));
+                success = false;
+            }
+        }
+    }
+    
+    iot_switch_userid(IOT_USERID_REAL);
+
+    return success;
+}
+
+
+int iotpm_register_package(iotpm_t *iotpm,
+                           iotpm_pkginfo_t *pi,
+                           iot_manifest_t *m)
 {
     app_inst_req *req;
     uid_t         uid;
@@ -86,6 +124,8 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
     int           napp, nprv, argc, dirlen, i, j, t;
     int           se = 0;
 
+    IOT_UNUSED(iotpm);
+    
     req = NULL;
 
     if (pi == NULL || m == NULL)
@@ -218,7 +258,9 @@ int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
 }
 
 
-int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
+int iotpm_unregister_package(iotpm_t *iotpm,
+                             iotpm_pkginfo_t *pi,
+                             iot_manifest_t *m)
 {
     app_inst_req *req;
     uid_t         uid;
@@ -227,7 +269,6 @@ int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
     int           napp, i;
     int           se = 0;
 
-    IOT_UNUSED(pi);
 
     req = NULL;
 
@@ -277,6 +318,9 @@ int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
         req = NULL;
     }
 
+    if (!reset_labels(iotpm, pi))
+        goto wrong_label;
+    
     return 0;
 
  nocommon:
@@ -289,22 +333,28 @@ int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
  failed:
     if (req != NULL)
         security_manager_app_inst_req_free(req);
+ wrong_label:
     return -1;
 }
 
-
 #else /* !ENABLE_SECURITY_MANAGER */
 
-int iotpm_register_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
+int iotpm_register_package(iotpm_t *iotpm,
+                           iotpm_pkginfo_t *pi,
+                           iot_manifest_t *m)
 {
+    IOT_UNUSED(iotpm);
     IOT_UNUSED(pi);
     IOT_UNUSED(m);
 
     return 0;
 }
 
-int iotpm_unregister_package(iotpm_pkginfo_t *pi, iot_manifest_t *m)
+int iotpm_unregister_package(iotpm_t *iotpm,
+                             iotpm_pkginfo_t *pi,
+                             iot_manifest_t *m)
 {
+    IOT_UNUSED(iotpm);
     IOT_UNUSED(pi);
     IOT_UNUSED(m);
 
