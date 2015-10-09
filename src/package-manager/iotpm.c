@@ -25,6 +25,7 @@ static int remove_package(iotpm_t *);
 static int db_check(iotpm_t *);
 static int db_plant(iotpm_t *);
 static int list(iotpm_t *);
+static int files(iotpm_t *);
 
 
 int main(int argc, char **argv)
@@ -50,6 +51,7 @@ int main(int argc, char **argv)
     case IOTPM_MODE_DBCHECK:   rc = db_check(iotpm);              break;
     case IOTPM_MODE_DBPLANT:   rc = db_plant(iotpm);              break;
     case IOTPM_MODE_LIST:      rc = list(iotpm);                  break;
+    case IOTPM_MODE_FILES:     rc = files(iotpm);                 break;
     default:                   rc = EINVAL;                       break;
     }
 
@@ -362,4 +364,65 @@ static int list(iotpm_t *iotpm)
 #undef NAME
 #undef VERS
 #undef TIME
+}
+
+static int files(iotpm_t *iotpm)
+{
+    iotpm_pkginfo_t *info;
+    iotpm_pkginfo_filentry_t *f;
+    char t;
+    int w, len;
+    char sep[1024];
+    int rc = 0;
+
+    info = iotpm_pkginfo_create(iotpm, false, iotpm->argv[0]);
+    
+    if (info->sts < 0) {
+        iot_log_error("listing files of package '%s' failed: %s",
+                      iotpm->argv[0], strerror(errno));
+        rc = -1;
+    }
+    else {
+        for (f = info->files, w = 0;  f->path;  f++) {
+            if ((len = strlen(f->path)) > w)
+                w = len;
+        }
+
+        if (w > sizeof(sep) - (8+3+1))
+            w = sizeof(sep) - (8+3+1);
+
+        if (w < 4)
+            w = 4;
+        
+        memset(sep, '-', w + (8+3));
+        sep[w + (8+3)] = 0;
+        sep[0] = '+';
+        sep[7] = '+';
+        sep[w + (8+2)] = '+';
+        
+        w = -w;
+
+        printf("%s\n", sep);
+        printf("| Type | %*s |\n", w,"Path");
+        printf("%s\n", sep);
+        
+        for (f = info->files;  f->path;  f++) {
+            switch (f->type) {
+            default:
+            case IOTPM_FILENTRY_UNKNOWN:   t = '!';   break;
+            case IOTPM_FILENTRY_USER:      t = 'U';   break;
+            case IOTPM_FILENTRY_SYSCONF:   t = 'C';   break;
+            case IOTPM_FILENTRY_MANIFEST:  t = 'M';   break;
+            case IOTPM_FILENTRY_FOREIGN:   t = '-';   break;
+            }
+
+            printf("|  %c   | %*s |\n", t, w,f->path);
+        }
+
+        printf("%s\n", sep);
+    }
+
+    iotpm_pkginfo_destroy(info);
+
+    return rc;
 }

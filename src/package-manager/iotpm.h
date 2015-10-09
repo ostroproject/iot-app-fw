@@ -43,6 +43,7 @@ enum iotpm_mode_e {
     IOTPM_MODE_DBCHECK,
     IOTPM_MODE_DBPLANT,
     IOTPM_MODE_LIST,
+    IOTPM_MODE_FILES,
 };
 
 enum iotpm_flag_e {

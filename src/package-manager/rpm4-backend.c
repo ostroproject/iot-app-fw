@@ -197,8 +197,10 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
     bool gst;
     iotpm_pkginfo_t *info;
 
-    if (!iotpm || !(backend = iotpm->backend))
+    if (!iotpm || !(backend = iotpm->backend)) {
+        errno = EINVAL;
         return NULL;
+    }
 
     if (!(info = iot_allocz(sizeof(iotpm_pkginfo_t))))
         return NULL;
