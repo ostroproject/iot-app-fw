@@ -171,7 +171,7 @@ static int post_install_package(iotpm_t *iotpm)
     if (info->sts < 0 || !(manfile = info->manifest)                   ||
         !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
         !(seed_created = iotpm_backend_seed_create(info))              ||
-        iotpm_register_package(info, man) < 0                           )
+        iotpm_register_package(iotpm, info, man) < 0                           )
     {
         if (seed_created)
             iotpm_backend_seed_destroy(info);
@@ -204,7 +204,7 @@ static int pre_install_package(iotpm_t *iotpm)
 
     if (info->sts < 0 || !(manfile = info->manifest)                   ||
         !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
-        iotpm_register_package(info, man) < 0                           )
+        iotpm_register_package(iotpm, info, man) < 0                           )
     {
         goto out;
     }
@@ -236,7 +236,7 @@ static int remove_package(iotpm_t *iotpm)
 
     if (info->sts == 0 && (manfile = info->manifest)                 &&
         (man = iotpm_manifest_load(iotpm, info->name, manfile->path)))
-        iotpm_unregister_package(info, man);
+        iotpm_unregister_package(iotpm, info, man);
 
     if (!iotpm_backend_remove_package(iotpm, pkg))
         goto out;
