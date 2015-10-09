@@ -147,7 +147,7 @@ static int post_install_package(iotpm_t *iotpm)
     if (!pkg)
         goto out;
 
-    info = iotpm_backend_pkginfo_create(iotpm, true, pkg);
+    info = iotpm_pkginfo_create(iotpm, true, pkg);
 
     if (info->sts < 0)
         goto out;
@@ -158,13 +158,13 @@ static int post_install_package(iotpm_t *iotpm)
     strncpy(name, info->name, sizeof(name));
     name[sizeof(name)-1] = 0;
 
-    iotpm_backend_pkginfo_destroy(info);
+    iotpm_pkginfo_destroy(info);
     info = NULL;
 
     if (!iotpm_backend_install_package(iotpm, pkg))
         goto out;
 
-    info = iotpm_backend_pkginfo_create(iotpm, false, name);
+    info = iotpm_pkginfo_create(iotpm, false, name);
 
     if (info->sts < 0 || !(manfile = info->manifest)                   ||
         !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
@@ -182,7 +182,7 @@ static int post_install_package(iotpm_t *iotpm)
  cleanup:
     iotpm_backend_remove_package(iotpm, info->name);
  out:
-    iotpm_backend_pkginfo_destroy(info);
+    iotpm_pkginfo_destroy(info);
     iotpm_manifest_free(man);
     return rc;
 }
@@ -198,7 +198,7 @@ static int pre_install_package(iotpm_t *iotpm)
     if (!pkg)
         goto out;
 
-    info = iotpm_backend_pkginfo_create(iotpm, false, pkg);
+    info = iotpm_pkginfo_create(iotpm, false, pkg);
 
     if (info->sts < 0 || !(manfile = info->manifest)                   ||
         !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
@@ -210,7 +210,7 @@ static int pre_install_package(iotpm_t *iotpm)
     rc = 0;
 
  out:
-    iotpm_backend_pkginfo_destroy(info);
+    iotpm_pkginfo_destroy(info);
     iotpm_manifest_free(man);
     return rc;
 }
@@ -230,7 +230,7 @@ static int remove_package(iotpm_t *iotpm)
     iotpm_pkginfo_filentry_t *manfile;
     int rc = EIO;
 
-    info = iotpm_backend_pkginfo_create(iotpm, false, pkg);
+    info = iotpm_pkginfo_create(iotpm, false, pkg);
 
     if (info->sts == 0 && (manfile = info->manifest)                 &&
         (man = iotpm_manifest_load(iotpm, info->name, manfile->path)))
@@ -245,7 +245,7 @@ static int remove_package(iotpm_t *iotpm)
     rc = 0;
 
  out:
-    iotpm_backend_pkginfo_destroy(info);
+    iotpm_pkginfo_destroy(info);
     return rc;
 }
 

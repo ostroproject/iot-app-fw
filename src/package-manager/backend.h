@@ -45,8 +45,6 @@ iotpm_pkginfo_t *iotpm_backend_pkginfo_create(iotpm_t *iotpm,
 					      bool file,
 					      const char *pkg);
 
-void iotpm_backend_pkginfo_destroy(iotpm_pkginfo_t *info);
-
 bool iotpm_backend_install_package(iotpm_t *iotpm, const char *pkg);
 bool iotpm_backend_upgrade_package(iotpm_t *iotpm, const char *pkg);
 bool iotpm_backend_remove_package(iotpm_t *iotpm, const char *pkg);
