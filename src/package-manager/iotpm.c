@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 static bool iotpm_init(iotpm_t **iotpm_ret, int argc, char **argv)
 {
     uid_t userid = getuid();
-    iotpm_t *iotpm;
+    iotpm_t *iotpm = NULL;
     struct passwd *pwd;
     char homedir[IOTPM_PATH_MAX], *h;
     size_t lastchar;
