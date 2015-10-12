@@ -2,6 +2,11 @@
 MANIFEST_HOME=/usr/share/iot/users
 LOG=/var/log/register-preinstalled-apps.log
 SHELL=/bin/bash
+PMREMOVE="rpm -e --justdb"
+
+USERS=""
+declare -A PACKAGES
+declare -A SHELLS
 
 cat /dev/null > $LOG
 
@@ -11,35 +16,74 @@ for u in * ; do
     if [ -d $u -a "`id -u $u 2>/dev/null`x" != "x" ] ; then
         pushd $u > /dev/null
 
+        pkg=""
+
+        s=`grep $u /etc/passwd | cut -d : -f 7`
+
+        SHELLS[$u]=$s
+        
+        if [ "$s" != "$SHELL" ] ; then
+            echo "changing shell of $u to $SHELL" >> $LOG
+            usermod -s $SHELL $u
+        fi
+
         for m in *.manifest ; do
             if [ $m != "*.manifest" ] ; then
                 p=`echo $m | sed -e s/\.manifest//`
 
                 if [ ! -f /home/$u/lib/rpm/seed/$p ] ; then
-                    echo "Registering $u user's $p package" >> $LOG
+                    pkg="$pkg $p"
 
-                    s=`grep $u /etc/passwd | cut -d : -f 7`
-
-                    if [ "$s" != "$SHELL" ] ; then
-                        echo "   changing shell to $SHELL" >> $LOG
-                        usermod -s $SHELL $u
-                    fi
-
-                    echo "   registering with security framework" >> $LOG
+                    echo "Registering $u user's $p package with security FW" >> $LOG
                     su -l --command="iotpm -s $p" $u >> $LOG 2>&1
 
-                    if [ "$s" != "$SHELL" ] ; then
-                        echo "   restoring shell $s" >> $LOG
-                        usermod -s $s $u
-                    fi
                 fi
             fi
         done
+
+        if [ -n "$pkg" ] ; then
+            USERS="$USERS $u"
+            PACKAGES[$u]="$pkg"
+        fi
         
         popd > /dev/null
     fi
 done
 
 popd > /dev/null
+
+if [ -n "$USERS" ] ; then
+
+    echo "Purging package databases" >> $LOG
+
+    for u in `echo $USERS` ; do
+        pkg=`echo ${PACKAGES[$u]}`
+
+        for p in "$pkg" ; do
+            echo -n "   removing $p from main DB" >> $LOG
+            $PMREMOVE $p
+
+            for v in `echo $USERS` ; do
+                if [ "$u" != "$v" ] ; then
+                    dbpath="/home/$v/lib/rpm/db"
+                    echo -n ", from ${v}'s DB" >> $LOG
+                    # this shoud be actually an iotpm command
+                    su -l --command="$PMREMOVE --dbpath=$dbpath $p" $v >> $LOG 2>&1
+                fi
+            done
+
+            echo "" >> $LOG
+        done
+    done
+
+    for u in `echo $USERS` ; do
+        s="${SHELLS[$u]}"
+
+        if [ "$s" != "$SHELL" ] ; then
+            echo "restoring shell of $u to $s" >> $LOG
+            usermod -s $s $u
+        fi
+    done
+fi
 
 touch /var/lock/iotpm.ready
