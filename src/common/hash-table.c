@@ -40,7 +40,11 @@
  * save memory by putting the chunk allocation mask into the leftover memory
  * area after the last full-sized entry in the chunk.
  */
-#define __INLINED_MASKS__
+#ifdef __LP64__
+#  define __INLINED_MASKS__
+#else
+#  undef  __INLINED_MASKS__
+#endif
 
 #define MIN_BUCKETS   16                 /* use at least this many buckets */
 #define MAX_BUCKETS  512                 /* use at most this many buckets */
@@ -126,9 +130,9 @@ static int calculate_sizes(iot_hashtbl_t *t)
 
 static inline iot_mask_t *chunk_mask(hash_chunk_t *c, int nentry)
 {
-#ifdef __INLINED_MASKS__
     iot_mask_t *m;
 
+#ifdef __INLINED_MASKS__
     m = (void *)&c->entries[nentry];
 #else
     IOT_UNUSED(nentry);
