@@ -1,0 +1,4 @@
+#!/bin/bash
+
+javac -cp ..:. EventTest.java &&
+java -cp ../AppFw.jar:. -Djava.library.path=../: EventTest $@
