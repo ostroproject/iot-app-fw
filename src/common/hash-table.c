@@ -36,15 +36,11 @@
 #include <iot/common/hash-table.h>
 
 /*
- * We used inlined allocation bitmasks if this is defined. Inlined masks will
- * save memory by putting the chunk allocation mask into the leftover memory
- * area after the last full-sized entry in the chunk.
+ * If __INLINED_MASKS__ is defined we use inlined chunk allocation bitmasks.
+ * This might save memory by putting the chunk allocation mask into the
+ * leftover area after the last entry in the chunk.
  */
-#ifdef __LP64__
-#  define __INLINED_MASKS__
-#else
-#  undef  __INLINED_MASKS__
-#endif
+#define __INLINED_MASKS__
 
 #define MIN_BUCKETS   16                 /* use at least this many buckets */
 #define MAX_BUCKETS  512                 /* use at most this many buckets */
@@ -105,10 +101,59 @@ static hash_limits_t limits = { 0, 0 };
 
 static int calculate_sizes(iot_hashtbl_t *t)
 {
+#ifndef __INLINED_MASKS__
+
     t->nperchunk = (CHUNKSIZE - sizeof(hash_chunk_t)) / sizeof(hash_entry_t);
 
-    IOT_ASSERT(IOT_OFFSET(hash_chunk_t, entries[t->nperchunk]) <= CHUNKSIZE,
+#else
+
+    int           usable, mask;
+    hash_chunk_t *c;
+    char         *e;
+
+    /*
+     * When inline masks are enabled we keep the chunk allocation bitmask
+     * including the bitmask bits in the chunk itself after the last hash
+     * entry. We need then to calculate nperchunk (the number of entries
+     * that fit into a chunk) so that there is enough room spared at the
+     * end for a bitmask of nperchunk bits. We do this with a brute-force
+     * opportunistic algorithm:
+     *   1) calculate nperchunk disregarding the bitmask bits
+     *   2) see if the last entry in the mask fits in CHUNKSIZE
+     *   3) if not, reduce the usable size by the bitmask necessary for
+     *      the unadjusted nperchunk entries and recalculate nperchunk.
+     *   4) Make a final verification that now we fit into CHUNKSIZE.
+     */
+
+    t->nperchunk = (CHUNKSIZE - sizeof(hash_chunk_t)) / sizeof(hash_entry_t);
+    mask = iot_mask_inlined_size(t->nperchunk);
+
+    c = (hash_chunk_t *)0x0;
+    e = (char *)&c->entries[t->nperchunk] + mask;
+
+    if (e >= ((char *)c) + CHUNKSIZE) {
+        iot_debug("adjusting nperchunk (%d, %d bytes) to fit into %d bytes",
+                  t->nperchunk, (int)(ptrdiff_t)e, CHUNKSIZE);
+
+        usable = CHUNKSIZE - sizeof(hash_chunk_t) - mask;
+        t->nperchunk = usable / sizeof(hash_entry_t);
+
+        mask = iot_mask_inlined_size(t->nperchunk);
+
+        c = (hash_chunk_t *)0x0;
+        e = (char *)&c->entries[t->nperchunk] + mask;
+
+        iot_debug("adjusted nperchunk to %d, %d bytes", t->nperchunk,
+                  (int)(ptrdiff_t)e);
+
+        IOT_ASSERT(e < ((char *)c) + CHUNKSIZE,
+                   "hash_chunk inlined allocation bitmask overflow");
+    }
+#endif
+
+    IOT_ASSERT(IOT_OFFSET(hash_chunk_t, entries[t->nperchunk]) < CHUNKSIZE,
                "hash_chunk_t overflow, nperchunk too large ?");
+
     if (!t->nbucket) {
         if (t->nlimit)
             t->nbucket = t->nlimit / 16;
