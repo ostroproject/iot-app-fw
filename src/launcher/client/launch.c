@@ -1072,12 +1072,6 @@ static void launcher_init(launcher_t *l, const char *argv0, char **envp)
     if (l->ml == NULL)
         launch_fail(l, EINVAL, false, "Failed to create launcher mainloop.");
 
-    l->sig_int  = iot_add_sighandler(l->ml, SIGINT , signal_handler, l);
-    l->sig_term = iot_add_sighandler(l->ml, SIGTERM, signal_handler, l);
-
-    if (l->sig_int == NULL || l->sig_term == NULL)
-        launch_fail(l, EINVAL, false, "Failed to install signal handlers.");
-
     l->seqno = 1;
 
     install_signal_handlers(l);
