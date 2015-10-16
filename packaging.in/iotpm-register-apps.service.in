@@ -4,7 +4,7 @@ Requires=security-manager.socket tlm.service
 After=tlm.service
 
 [Service]
-type=oneshot
+Type=oneshot
 RemainAfterExit=no
 TimeoutSec=0
 ExecStart=@bindir@/register-preinstalled-apps
