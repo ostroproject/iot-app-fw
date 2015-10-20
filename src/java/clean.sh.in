@@ -1,0 +1,6 @@
+#!/bin/bash
+
+rm AppFw.jar com_intel_ostro_appfw_AppFw.h libjavawrapper.so &&
+rm ./tests/*.class &&
+rm ./tests/ArgParser/*.class &&
+rm ./com/intel/ostro/appfw/*.class

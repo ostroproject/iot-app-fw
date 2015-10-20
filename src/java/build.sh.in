@@ -1,0 +1,21 @@
+#!/bin/bash
+
+if [ -z "$JAVA_HOME" ]; then 
+    echo "JAVA_HOME is either empty or not set"
+    echo "You need to set JAVA_HOME to point at your java jdk directory";
+else
+#compile AppFw. Exception is specified explicitly as Java code currently does not use it
+#and otherwise it would not get compiled & added to the jar. (Native code uses it)
+javac com/intel/ostro/appfw/AppFw.java com/intel/ostro/appfw/AppFwException.java &&
+#generate jar
+jar cf AppFw.jar com/intel/ostro/appfw/*.class &&
+# generate header
+javah com.intel.ostro.appfw.AppFw &&
+#build native bindings shared object
+gcc -O2 -Wall -Wextra -std=gnu99 -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -L"@top_srcdir@/src/.libs" -shared -fpic -o libjavawrapper.so AppFw.c  `pkg-config --cflags --libs glib-2.0` -liot-app -liot-common -liot-glib &&
+#build test cases
+cd tests &&
+javac -cp ..:. EventTest.java &&
+javac -cp ..:. ListTest.java
+fi
+

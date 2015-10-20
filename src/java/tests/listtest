@@ -1,4 +1,3 @@
 #!/bin/bash
 
-javac -cp ..:. ListTest.java &&
 java -cp ../AppFw.jar:. -Djava.library.path=../: ListTest $@
