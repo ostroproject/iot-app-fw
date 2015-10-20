@@ -93,3 +93,48 @@ python list-apps.py -r
 
 The first run lists all applications, whereas the second run lists only running
 applications
+
+
+Testing Java Bindings
+---------------------
+
+
+# Events
+
+In a terminal, run
+sudo ./src/iot-launch-daemon -f -vvv
+
+In another terminal, run
+cd src/java/tests
+ ./eventtest -se banana,apple,orange
+
+In a third terminal, run
+cd src/java/tests
+ ./eventtest -e banana,apple,orange -I 1000 -n 3 -u YOUR_USER_NAME_HERE
+
+Note: eventtest may not be marked as executable. If this is the case, 
+run 'chmod +x eventtest' first in terminal before running the main command.
+
+In this setup, the client running in terminal two will subscribe for events
+'banana' 'apple' and 'orange'. It prints debug data whenever it receives an event
+The client in terminal three will send three sets of three events
+'banana' 'apple' and 'orange' with some dummy data.
+
+
+# Listing
+
+sudo ./src/iot-launch-daemon -f -vvv
+
+In another terminal, run
+
+cd src/java/tests
+./listtest
+./listtest -r
+
+
+The first run lists all applications, whereas the second run lists only running
+applications.
+
+Note: Above note on chmod may apply here as well.
+
+
