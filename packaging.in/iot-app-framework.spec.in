@@ -306,6 +306,7 @@ ldconfig
 %{_bindir}/iot-event-test
 %{_bindir}/iot-event-send
 %{_bindir}/iot-event-catch
+%{_bindir}/iot-memchk
 
 %files -n hello-world
 /home/%{username}/hello-world
