@@ -175,12 +175,14 @@ libiot_utils_ladir      =						\
 libiot_utils_la_HEADERS =						\
 		utils/manifest.h					\
 		utils/identity.h					\
-		utils/appid.h
+		utils/appid.h						\
+		utils/memsize.h
 
 libiot_utils_la_REGULAR_SOURCES =					\
 		utils/manifest.c					\
 		utils/identity.c					\
-		utils/appid.c
+		utils/appid.c						\
+		utils/memsize.c
 
 libiot_utils_la_SOURCES =						\
 		$(libiot_utils_la_REGULAR_SOURCES)
@@ -210,6 +212,26 @@ $(top_srcdir)/linker-script.utils: $(libiot_utils_la_HEADERS)
 
 clean-linker-script::
 	-rm -f $(top_srcdir)/linker-script.utils
+
+
+###################################
+# iot-memchk
+#
+
+bin_PROGRAMS += iot-memchk
+
+iot_memchk_SOURCES =			\
+		utils/memchk.c
+
+iot_memchk_CFLAGS  =			\
+		$(AM_CFLAGS)
+
+iot_memchk_LDADD   =			\
+		libiot-utils.la		\
+		libiot-common.la
+
+iot_memchk_LDFLAGS =			\
+		-rdynamic
 
 
 ###################################
