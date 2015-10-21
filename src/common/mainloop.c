@@ -2170,7 +2170,7 @@ static void pump_events(iot_deferred_t *d, void *user_data)
 }
 
 
-int iot_emit_event(iot_event_bus_t *bus, uint32_t id, iot_event_flag_t flags,
+int iot_event_emit(iot_event_bus_t *bus, uint32_t id, iot_event_flag_t flags,
                    void *data)
 {
     int status;
