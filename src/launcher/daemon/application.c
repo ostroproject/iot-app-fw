@@ -460,15 +460,13 @@ static iot_json_t *list_installed(client_t *c)
     const char         *mapps[64], *a, *argv[64], *descr, *desktop;
     char                appid[1024];
 
-    IOT_UNUSED(l);
-
-    if (iot_manifest_populate_cache() < 0)
-        return NULL;
-
     apps = iot_json_create(IOT_JSON_ARRAY);
 
     if (apps == NULL)
         goto out;
+
+    if (iot_manifest_populate_cache() < 0)
+        goto fail;
 
     IOT_MANIFEST_CACHE_FOREACH(&it, &m) {
         iot_debug("checking manifest '%s'...", iot_manifest_path(m));
