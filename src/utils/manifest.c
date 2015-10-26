@@ -1378,8 +1378,12 @@ static int cache_scan_cb(const char *dir, const char *e, iot_dirent_type_t type,
 
         iot_debug("scanning %s for manifest files...", path);
 
-        if ((scan->usr = iot_get_userid(e)) == (uid_t)-1)
-            return -1;
+        if ((scan->usr = iot_get_userid(e)) == (uid_t)-1) {
+            iot_log_warning("User '%d' does not exist but has manifest dir.",
+                            scan->usr);
+            return 1;                    /* don't bail out, just ignore user */
+        }
+
         status = iot_scan_dir(path, ".*\\.manifest$",
                               IOT_DIRENT_REG | IOT_DIRENT_IGNORE_LNK,
                               cache_scan_cb, scan);
