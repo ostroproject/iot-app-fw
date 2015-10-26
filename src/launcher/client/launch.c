@@ -77,13 +77,13 @@
 #define launch_warn  iot_log_warning
 #define launch_debug iot_debug
 
-#define launch_fail(_l, _error, _usage, ...) do { \
-        if (_usage)                               \
-            print_usage(_l, _error, __VA_ARGS__); \
-        else {                                    \
-            iot_log_error(__VA_ARGS__);           \
-            exit(_error);                         \
-        }                                         \
+#define launch_fail(_l, _error, ...) do {         \
+        iot_log_error(__VA_ARGS__);               \
+        exit(_error);                             \
+    } while (0)
+
+#define launch_usage(_l, _error, ...) do {        \
+        print_usage(_l, _error, __VA_ARGS__);     \
     } while (0)
 
 
@@ -385,7 +385,7 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
                 if (!strcmp(optarg, "installed"))
                     l->mode = LAUNCHER_LIST_INSTALLED;
                 else
-                    print_usage(l, EINVAL, "invalid list mode '%s'", optarg);
+                    launch_usage(l, EINVAL, "invalid list mode '%s'", optarg);
             }
             break;
 
@@ -454,7 +454,7 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 #endif
 
         default:
-            print_usage(l, EINVAL, "invalid option '%c'", opt);
+            launch_usage(l, EINVAL, "invalid option '%c'", opt);
         }
     }
 
@@ -465,7 +465,7 @@ static void parse_cmdline(launcher_t *l, int argc, char **argv, char **envp)
 
     if (l->mode == LAUNCHER_SETUP || l->mode == LAUNCHER_STOP) {
         if (optind >= argc)
-            print_usage(l, EINVAL, "error: application id not specified");
+            launch_usage(l, EINVAL, "error: application id not specified");
 
         l->appid = argv[optind];
         l->argc  = argc - (optind + 1);
@@ -497,12 +497,12 @@ static void setup_logging(launcher_t *l)
     const char *target;
 
     if (l->log_mask < 0)
-        print_usage(l, EINVAL, "invalid log level '%s'", optarg);
+        launch_usage(l, EINVAL, "invalid log level '%s'", optarg);
 
     target = iot_log_parse_target(l->log_target);
 
     if (!target)
-        print_usage(l, EINVAL, "invalid log target '%s'", l->log_target);
+        launch_usage(l, EINVAL, "invalid log target '%s'", l->log_target);
 
     iot_log_set_mask(l->log_mask);
     iot_log_set_target(target);
@@ -548,7 +548,7 @@ static void install_signal_handlers(launcher_t *l)
     l->sig_term = iot_add_sighandler(l->ml, SIGTERM, signal_handler, l);
 
     if (l->sig_int == NULL || l->sig_term == NULL)
-        launch_fail(l, EINVAL, false, "Failed to install signal handlers.");
+        launch_fail(l, EINVAL, "Failed to install signal handlers.");
 }
 
 
@@ -628,22 +628,22 @@ static void security_setup(launcher_t *l)
 #ifdef DEVEL_MODE_ENABLED
     if (l->label || l->user || l->groups || l->privileges) {
         if (!iot_development_mode())
-            launch_fail(l, EINVAL, false, "Hmm... not in development mode.");
+            launch_fail(l, EINVAL, "Hmm... not in development mode.");
 
         if (set_smack_label(l) < 0)
-            launch_fail(l, errno, false, "Failed to set SMACK label (%d: %s).",
+            launch_fail(l, errno, "Failed to set SMACK label (%d: %s).",
                         errno, strerror(errno));
 
         if (set_groups(l) < 0)
-            launch_fail(l, errno, false, "Failed to set groups (%d: %s).",
+            launch_fail(l, errno, "Failed to set groups (%d: %s).",
                         errno, strerror(errno));
 
         if (set_user(l) < 0)
-            launch_fail(l, errno, false, "Failed to set user id (%d: %s).",
+            launch_fail(l, errno, "Failed to set user id (%d: %s).",
                         errno, strerror(errno));
 
         if (drop_privileges(l) < 0)
-            launch_fail(l, errno, false, "Failed to drop privileges (%d: %s).",
+            launch_fail(l, errno, "Failed to drop privileges (%d: %s).",
                         errno, strerror(errno));
 
         return;
@@ -651,17 +651,17 @@ static void security_setup(launcher_t *l)
 #endif /* DEVEL_MODE_ENABLED */
 
     if (security_manager_set_process_label_from_appid(l->fqai) != 0)
-        launch_fail(l, 1, false, "Failed to set SMACK label.");
+        launch_fail(l, 1, "Failed to set SMACK label.");
 
     if (security_manager_set_process_groups_from_appid(l->fqai) != 0)
-        launch_fail(l, 1, false, "Failed to set groups.");
+        launch_fail(l, 1, "Failed to set groups.");
 
     if (iot_switch_userid(IOT_USERID_DROP) < 0)
-        launch_fail(l, errno, false, "Failed to switch user id (%d: %s).",
+        launch_fail(l, errno, "Failed to switch user id (%d: %s).",
                     errno, strerror(errno));
 
     if (security_manager_drop_process_privileges() != 0)
-        launch_fail(l, 1, false, "Failed to drop privileges.");
+        launch_fail(l, 1, "Failed to drop privileges.");
 }
 
 #else /* !ENABLE_SECURITY_MANAGER */
@@ -673,15 +673,15 @@ static void security_setup(launcher_t *l)
     launch_warn("Support for Security-Manager is disabled.");
 
     if (set_groups(l) < 0)
-        launch_fail(l, errno, false, "Failed to set groups (%d: %s).",
+        launch_fail(l, errno, "Failed to set groups (%d: %s).",
                     errno, strerror(errno));
 
     if (iot_switch_userid(IOT_USERID_DROP) < 0)
-        launch_fail(l, errno, false, "Failed to switch to real uid (%d: %s).",
+        launch_fail(l, errno, "Failed to switch to real uid (%d: %s).",
                     errno, strerror(errno));
 
     if (drop_privileges(l) < 0)
-        launch_fail(l, errno, false, "Failed to drop privileges (%d: %s).",
+        launch_fail(l, errno, "Failed to drop privileges (%d: %s).",
                     errno, strerror(errno));
 
 }
@@ -712,7 +712,7 @@ static int launch_process(launcher_t *l)
         case 0:
             break;
         case -1:
-            launch_fail(l, errno, false, "fork() failed (%d: %s).",
+            launch_fail(l, errno, "fork() failed (%d: %s).",
                         errno, strerror(errno));
             break;
         default:
@@ -787,7 +787,7 @@ static void closed_cb(iot_transport_t *t, int error, void *user_data)
     IOT_UNUSED(t);
 
     if (error != 0)
-        launch_fail(l, error, false, "Connection to closed with error %d: %s.",
+        launch_fail(l, error, "Connection to closed with error %d: %s.",
                     error, strerror(error));
     else
         launch_info("Connection closed.");
@@ -816,11 +816,10 @@ static void recv_cb(iot_transport_t *t, iot_json_t *msg, void *user_data)
         status = msg_reply_parse(msg, &seqno, &message, &data);
 
         if (status < 0)
-            launch_fail(l, -1, false, "Request failed.");
+            launch_fail(l, -1, "Request failed.");
 
         if (status != 0)
-            launch_fail(l, status, false,
-                        "Request failed (%d: %s).", status, message);
+            launch_fail(l, status, "Request failed (%d: %s).", status, message);
 
         switch (l->mode) {
         case LAUNCHER_SETUP:
@@ -881,18 +880,18 @@ static void setup_transport(launcher_t *l)
     len = iot_transport_resolve(NULL, l->addr, &addr, sizeof(addr), &type);
 
     if (len <= 0)
-        launch_fail(l, EINVAL, false,
+        launch_fail(l, EINVAL,
                     "Failed to resolve trasnport address '%s'.", l->addr);
 
     flags = IOT_TRANSPORT_MODE_JSON;
     l->t  = iot_transport_create(l->ml, type, &evt, l, flags);
 
     if (l->t == NULL)
-        launch_fail(l, EINVAL, false,
+        launch_fail(l, EINVAL,
                     "Failed to create transport for address '%s'.", l->addr);
 
     if (!iot_transport_connect(l->t, &addr, len))
-        launch_fail(l, EINVAL, false,
+        launch_fail(l, EINVAL,
                     "Failed to connect to transport address '%s'.", l->addr);
 }
 
@@ -935,7 +934,7 @@ static void resolve_identities(launcher_t *l)
 
     if (l->user != NULL) {
         if ((l->uid = iot_get_userid(l->user)) == (uid_t)-1)
-            print_usage(l, EINVAL, "invalid user/user ID '%s'", l->user);
+            launch_fail(l, EINVAL, "invalid user/user ID '%s'", l->user);
     }
     else
         l->uid = getuid();
@@ -944,13 +943,13 @@ static void resolve_identities(launcher_t *l)
         ngid = iot_get_groups(l->groups, gids, IOT_ARRAY_SIZE(gids));
 
         if (ngid < 0 || ngid >= (int)IOT_ARRAY_SIZE(gids))
-            print_usage(l, EINVAL, "invalid group/group list '%s'", l->groups);
+            launch_fail(l, EINVAL, "invalid group/group list '%s'", l->groups);
     }
     else {
         ngid = getgroups(IOT_ARRAY_SIZE(gids) - 1, gids + 1);
 
         if (ngid < 0)
-            print_usage(l, EINVAL, "failed to get supplementary group list");
+            launch_fail(l, EINVAL, "failed to get supplementary group list");
 
         gids[0] = getgid();
         ngid++;
@@ -967,7 +966,7 @@ static void resolve_manifest(launcher_t *l)
     char pkg[128];
 
     if (l->appid == NULL)
-        print_usage(l, EINVAL, "No appid, cannot resolve manifest.");
+        launch_usage(l, EINVAL, "No appid given, cannot resolve manifest.");
 
     /*
      * Notes:
@@ -981,13 +980,15 @@ static void resolve_manifest(launcher_t *l)
 
     if (iot_appid_parse(l->appid, NULL, 0,
                         pkg, sizeof(pkg), app, sizeof(app)) < 0)
-        print_usage(l, EINVAL, "failed to parse appid '%s'", l->appid);
+        launch_fail(l, EINVAL, "failed to parse appid '%s'", l->appid);
 
     l->app = app;
     l->m   = iot_manifest_get(l->uid, pkg);
 
     if (l->m == NULL)
-        print_usage(l, EINVAL, "failed to load manifest for user %d", l->uid);
+        launch_fail(l, EINVAL,
+                    "failed to find/load manifest for app %s:%s of user %d",
+                    pkg, app, l->uid);
 }
 
 
@@ -1011,7 +1012,7 @@ static void override_manifest(launcher_t *l)
     l->m = iot_manifest_read(l->manifest);
 
     if (l->m == NULL)
-        print_usage(l, errno ? errno : EINVAL,
+        launch_fail(l, errno ? errno : EINVAL,
                     "failed to read/load manifest '%s'", l->manifest);
 
     *pkg = *app = '\0';
@@ -1020,7 +1021,7 @@ static void override_manifest(launcher_t *l)
         iot_appid_parse(l->appid, NULL, 0, pkg, sizeof(pkg), app, sizeof(app));
 
         if (!*app)
-            print_usage(l, EINVAL, "failed to parse appid '%s'", l->appid);
+            launch_fail(l, EINVAL, "failed to parse appid '%s'", l->appid);
 
         l->app = app;
     }
@@ -1028,7 +1029,7 @@ static void override_manifest(launcher_t *l)
         n = iot_manifest_applications(l->m, apps, sizeof(apps));
 
         if (n < 1)
-            print_usage(l, EINVAL, "failed to pick default application");
+            launch_fail(l, EINVAL, "failed to pick default application");
 
         l->app = apps[0];
     }
@@ -1042,7 +1043,7 @@ static void resolve_appid(launcher_t *l)
     l->pkg = iot_manifest_package(l->m);
 
     if (iot_application_id(fqai, sizeof(fqai), l->uid, l->pkg, l->app) == NULL)
-        launch_fail(l, EINVAL, false, "Can't determine appid for %d:%s:%s.",
+        launch_fail(l, EINVAL, "Can't determine appid for %d:%s:%s.",
                     l->uid, l->pkg, l->app);
 
     l->fqai = fqai;
@@ -1052,10 +1053,10 @@ static void resolve_appid(launcher_t *l)
 static void resolve_cgroup_path(launcher_t *l)
 {
     if (l->argc != 1)
-        launch_fail(l, EINVAL, false, "Agent expects a single cgroup path.");
+        launch_fail(l, EINVAL, "Agent expects a single cgroup path.");
 
     if (*l->argv[0] != '/')
-        launch_fail(l, EINVAL, false, "Agent expects an absolute cgroup path.");
+        launch_fail(l, EINVAL, "Agent expects an absolute cgroup path.");
 
     l->cgroup = l->argv[0];
 }
@@ -1070,7 +1071,7 @@ static void launcher_init(launcher_t *l, const char *argv0, char **envp)
     l->ml = iot_mainloop_create();
 
     if (l->ml == NULL)
-        launch_fail(l, EINVAL, false, "Failed to create launcher mainloop.");
+        launch_fail(l, EINVAL, "Failed to create launcher mainloop.");
 
     l->seqno = 1;
 
@@ -1088,7 +1089,7 @@ static iot_json_t *debug_options(launcher_t *l)
         dbg = iot_json_create(IOT_JSON_OBJECT);
 
         if (dbg == NULL)
-            launch_fail(l, EINVAL, false, "Failed to create debug submessage.");
+            launch_fail(l, EINVAL, "Failed to create debug submessage.");
 
         if (l->label)
             iot_json_add_string(dbg, "label", l->label);
@@ -1146,13 +1147,13 @@ static iot_json_t *create_setup_request(launcher_t *l)
     argc = iot_manifest_arguments(l->m, l->app, argv, size);
 
     if (argc < 0)
-        launch_fail(l, EINVAL, false, "Failed to determine launch arguments.");
+        launch_fail(l, EINVAL, "Failed to determine launch arguments.");
 
     l->app_argv = argv;
     l->app_argc = argc + l->argc;
 
     if (l->app_argc > (int)size)
-        launch_fail(l, EINVAL, false, "Too many launch arguments (%d > %d).",
+        launch_fail(l, EINVAL, "Too many launch arguments (%d > %d).",
                     l->app_argc, (int)size);
 
     for (i = 0; i < l->argc; i++)
@@ -1161,7 +1162,7 @@ static iot_json_t *create_setup_request(launcher_t *l)
     req = iot_json_create(IOT_JSON_OBJECT);
 
     if (req == NULL)
-        launch_fail(l, ENOMEM, false, "Failed to create setup request.");
+        launch_fail(l, ENOMEM, "Failed to create setup request.");
 
     iot_json_add_integer(req, "user"     , l->uid);
     iot_json_add_integer(req, "group"    , l->gids[0]);
@@ -1184,12 +1185,12 @@ static iot_json_t *create_stop_request(launcher_t *l)
     int         n;
 
     if (req == NULL)
-        launch_fail(l, ENOMEM, false, "Failed to create stop request.");
+        launch_fail(l, ENOMEM, "Failed to create stop request.");
 
     n = snprintf(appid, sizeof(appid), "%s:%s", l->pkg, l->app);
 
     if (n < 0 || n >= (int)sizeof(appid))
-        launch_fail(l, EINVAL, false, "Failed to create appid.");
+        launch_fail(l, EINVAL, "Failed to create appid.");
 
     iot_json_add_string(req, "app", appid);
 
@@ -1202,7 +1203,7 @@ static iot_json_t *create_cleanup_request(launcher_t *l)
     iot_json_t *req = iot_json_create(IOT_JSON_OBJECT);
 
     if (req == NULL)
-        launch_fail(l, ENOMEM, false, "Failed to create cleanup request.");
+        launch_fail(l, ENOMEM, "Failed to create cleanup request.");
 
     iot_json_add_string(req, "cgroup", l->cgroup);
 
@@ -1216,7 +1217,7 @@ static iot_json_t *create_list_request(launcher_t *l)
     const char *type;
 
     if (req == NULL)
-        launch_fail(l, ENOMEM, false, "Failed to create list request.");
+        launch_fail(l, ENOMEM, "Failed to create list request.");
 
     type = (l->mode == LAUNCHER_LIST_INSTALLED ? "installed" : "running");
 
