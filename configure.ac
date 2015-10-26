@@ -315,6 +315,31 @@ PYTHON_CONFIG([INSTALL_DATA])
 PYTHON_EXECUTABLE=python
 PYTHON_CONFIG([PYTHON_EXECUTABLE])
 
+
+# Check for Java
+AC_ARG_ENABLE(java,
+              [ --enable-java   enable Java bindings],
+        [enable_java=$enableval], [enable_java=no])
+
+if test "$enable_java" = "yes"; then
+    PKG_CHECK_MODULES(JAVA, java,
+                      [have_java=yes], [have_java=no])
+    if test "$enable_java" = "no"; then
+        AC_MSG_ERROR([Java JDK not found.])
+    fi
+
+    if test "$enable_glib" != "yes"; then
+        PKG_CHECK_MODULES(GLIB, glib-2.0,
+                        [have_glib=yes], [have_glib=no])
+        if test "$have_glib" = "no" -a "$enable_glib" = "yes"; then
+            AC_MSG_ERROR([Java support requires glib.])
+        fi
+    fi
+fi
+
+AM_CONDITIONAL(JAVA_ENABLED, [test "$enable_java" = "yes"])
+
+
 # Check if we should use PCRE for regexp matching.
 AC_ARG_ENABLE(pcre,
               [  --enable-pcre           enable PCRE regexp backend],
@@ -581,6 +606,8 @@ AC_CONFIG_FILES([
         src/common/iot-qt.pc
         src/nodejs/binding.gyp
         src/python/setup.py
+        src/java/build.sh
+        src/java/clean.sh
         src/package-manager/register/register-preinstalled-apps
         src/package-manager/sample/hello-world.manifest
     ], [
@@ -620,6 +647,7 @@ if test "$NODEJS_ENABLED" = "yes"; then
     echo "    * NodeJS LIBS: $NODE_LIBS"
 fi
 echo "Python bindings: $enable_python"
+echo "Java bindings: $enable_java"
 echo "Qt mainloop support: $enable_qt"
 if test "$enable_pcre" = "yes"; then
     echo "Using PCRE regexp backend."

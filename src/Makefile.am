@@ -577,7 +577,7 @@ iot_adduser_LDADD   =			\
 #
 
 if GLIB_ENABLED
-IOT_GLIB = libiot-glib.la
+IOT_GLIB = libiot-glib.la $(GLIB_LIBS)
 endif
 if LIBUV_SHARED
 IOT_UV   = libiot-uv.la
@@ -824,8 +824,24 @@ python-install-hook:
 python-bindings-clean:
 endif
 
+if JAVA_ENABLED
+java-bindings-build:
+	cd java && \
+	chmod +x ./clean.sh && \
+	chmod +x ./build.sh && \
+	./build.sh
+
+java-bindings-clean:
+	cd java && \
+	./clean.sh
+
+else
+java-bindings-build:
+java-bindings-clean:
+endif
+
 # Extra local actions to perform after a build.
-all-local: nodejs-post-build-hook python-bindings-build
+all-local: nodejs-post-build-hook python-bindings-build java-bindings-build
 
 # Extra local eactions to perform after (binary) installation.
 install-data-hook: agent-install-hook python-install-hook
@@ -838,5 +854,5 @@ endif
 
 
 # cleanup
-clean-local: python-bindings-clean
+clean-local: python-bindings-clean java-bindings-clean
 	-rm -f *~

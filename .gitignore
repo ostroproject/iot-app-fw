@@ -9,6 +9,8 @@ murphy
 *.l[ao]
 src/api_test
 utils/collect-symbols
+*.class
+src/java/libjavawrapper.so
 
 # Generated files
 *.pc
@@ -33,6 +35,9 @@ shave-libtool
 ylwrap
 
 src/**/tests/*-test
+src/java/com_intel_ostro_appfw_AppFw.h
+src/java/*.jar
+src/java/*.sh
 src/murphy-console
 src/murphyd
 src/murphy-db/tests/check-*
@@ -56,3 +61,4 @@ src/resolver/parser.[c,h]
 src/resolver/scanner.c
 src/resolver/scripting/simple/simple-parser.[c,h]
 src/resolver/scripting/simple/simple-scanner.c
+
