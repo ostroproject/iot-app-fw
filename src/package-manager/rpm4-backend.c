@@ -37,6 +37,7 @@ static int pkglist_fill(QVA_t, rpmts, Header);
 static bool install_package(iotpm_t *, bool, const char *);
 
 static void *seed_read(const char *, size_t *);
+static bool seed_write(int, const char *, void *, size_t);
 
 static int log_callback(rpmlogRec, rpmlogCallbackData);
 
@@ -302,101 +303,6 @@ bool iotpm_backend_remove_package(iotpm_t *iotpm, const char *pkg)
     rpmtsFree(ts);
     rpmcliFini(optCtx);
 
-    return success;
-}
-
-bool iotpm_backend_seed_create(iotpm_pkginfo_t *info)
-{
-    int fd = -1;
-    bool success = false;
-    iotpm_backend_t *backend;
-    iotpm_t *iotpm;
-    char path[1024];
-    struct stat st;
-
-    if (!info || !(backend = info->backend) || !(iotpm = backend->iotpm) ||
-	!info->data || !info->length)
-    {
-        iot_log_error("failed to create seed: internal error");
-	goto out;
-    }
-
-    snprintf(path, sizeof(path), "%s/%s", backend->path.seed, info->name);
-
-    if (stat(path, &st) == 0) {
-        if (S_ISREG(st.st_mode)) {
-	    iot_log_error("failed to create seed '%s': "
-			  "already exists", path);
-	}
-	else {
-	    iot_log_error("failed to create seed '%s': "
-			  "there is something with the same", path);
-	}
-	goto out;
-    }
-    else {
-        if (errno != ENOENT) {
-	    iot_log_error("failed to create seed '%s': %s",
-			  path, strerror(errno));
-	    goto out;
-	}
-    }
-
-    if ((fd = open(path, O_RDWR|O_CREAT|O_EXCL, 0644)) < 0) {
-        iot_log_error("failed to create seed '%s': %s", path, strerror(errno));
-	goto out;
-    }
-
-    if (!file_write(fd, path, rpm_header_magic, sizeof(rpm_header_magic)) ||
-	!file_write(fd, path, info->data, info->length)                    )
-    {
-        unlink(path);
-        goto out;
-    }
-
-    success = true;
-
- out:
-    if (fd >= 0)
-        close(fd);
-
-    return success;
-}
-
-
-bool iotpm_backend_seed_destroy(iotpm_pkginfo_t *info)
-{
-    bool success = false;
-    iotpm_backend_t *backend;
-    iotpm_t *iotpm;
-    char path[1024];
-    struct stat st;
-
-    if (!info || !(backend = info->backend) || !(iotpm = backend->iotpm)) {
-        iot_log_error("failed to destroy seed: internal error");
-	goto out;
-    }
-
-    snprintf(path, sizeof(path), "%s/%s", backend->path.seed, info->name);
-
-    if (stat(path, &st) < 0) {
-        iot_log_error("failed to destroy seed '%s': %s", path,strerror(errno));
-	goto out;
-    }
-
-    if (!S_ISREG(st.st_mode)) {
-        iot_log_error("failed to destroy seed '%s': not a regular file", path);
-	goto out;
-    }
-
-    if (unlink(path) < 0) {
-        iot_log_error("failed to destroy seed '%s': %s", path,strerror(errno));
-        goto out;
-    }
-
-    success = true;
-
- out:
     return success;
 }
 
@@ -855,6 +761,18 @@ static void *seed_read(const char *path, size_t *length_ret)
     if (fd >= 0)
         close(fd);
     return NULL;
+}
+
+static bool seed_write(int fd, const char *path, void *data, size_t length)
+{
+
+    if (!file_write(fd, path, rpm_header_magic, sizeof(rpm_header_magic)))
+        return false;
+
+    if (!file_write(fd, path, data, length))
+        return false;
+
+    return true;
 }
 
 static int log_callback(rpmlogRec rec, rpmlogCallbackData userdata)
