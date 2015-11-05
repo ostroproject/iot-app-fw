@@ -171,7 +171,7 @@ static int post_install_package(iotpm_t *iotpm)
     if (info->sts < 0 || !(manfile = info->manifest)                   ||
         !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
         !(seed_created = iotpm_backend_seed_create(info))              ||
-        iotpm_register_package(iotpm, info, man) < 0                           )
+        iotpm_register_package(iotpm, info, man) < 0                    )
     {
         if (seed_created)
             iotpm_backend_seed_destroy(info);
@@ -220,7 +220,92 @@ static int pre_install_package(iotpm_t *iotpm)
 
 static int upgrade_package(iotpm_t *iotpm)
 {
-    return 0;
+    const char *pkg = iotpm->argv[0];
+    iotpm_pkginfo_t *info = NULL;
+    iotpm_pkginfo_t *info2 = NULL;
+    iot_manifest_t *man = NULL;
+    iot_manifest_t *man2 = NULL;
+    iotpm_pkginfo_filentry_t *manfile;
+    char name[1024];
+    bool old_seed_destroyed = false;
+    bool new_seed_created = false;
+    bool unregistered = false;
+    int rc = EIO;
+
+    if (!pkg)
+        goto out;
+
+    /* check the package file, get the package name */
+    info = iotpm_pkginfo_create(iotpm, true, pkg);
+
+    if (info->sts < 0)
+        goto out;
+
+    if (!iotpm_pkginfo_verify(info))
+        goto out;
+
+    strncpy(name, info->name, sizeof(name));
+    name[sizeof(name)-1] = 0;
+
+    iotpm_pkginfo_destroy(info);
+    info = NULL;
+
+    /* see if a version of the package have been already installed */
+    info2 = iotpm_pkginfo_create(iotpm, false, name);
+
+    if (info2->sts < 0 || !(manfile = info2->manifest)) {
+        iot_log_error("refuse to upgrade a non-installed package");
+        goto out;
+    }
+
+    /* unregister the currently installed package */
+    if (!(man2 = iotpm_manifest_load(iotpm, name, manfile->path))            ||
+        !(unregistered = (iotpm_unregister_package(iotpm, info2, man2) == 0))||
+        !(old_seed_destroyed = iotpm_backend_seed_destroy(info2))             )
+    {
+        goto cleanup;
+    }
+
+    /* upgrade the package */
+    if (!iotpm_backend_upgrade_package(iotpm, pkg)) {
+        goto cleanup;
+    }
+
+    /* re-register the upgraded package */
+    info = iotpm_pkginfo_create(iotpm, false, name);
+
+    if (info->sts < 0 || !(manfile = info->manifest)                   ||
+        !(man = iotpm_manifest_load(iotpm, info->name, manfile->path)) ||
+        !(new_seed_created = iotpm_backend_seed_create(info))          ||
+        iotpm_register_package(iotpm, info, man) < 0                    )
+    {
+        if (new_seed_created)
+            iotpm_backend_seed_destroy(info);
+        /* We would need to reinstall the original package here ...
+           Since we do not have the original package, we remove the
+           upgraded one, leaving at least a consitent state behind :( */
+        iot_log_error("removing package ...");
+        iotpm_backend_remove_package(iotpm, name);
+        goto out;
+    }
+
+    rc = 0;
+    goto out;
+
+ cleanup:
+    if (info2) {
+        if (old_seed_destroyed)
+            iotpm_backend_seed_create(info2);
+        if (unregistered)
+            iotpm_register_package(iotpm, info2, man2);
+    }
+
+ out:
+    iotpm_pkginfo_destroy(info);
+    iotpm_pkginfo_destroy(info2);
+    iotpm_manifest_free(man);
+    iotpm_manifest_free(man2);
+    return rc;
 }
 
 
@@ -282,10 +367,11 @@ static int db_plant(iotpm_t *iotpm)
 
 static int list(iotpm_t *iotpm)
 {
-#define NAME   "Package"
-#define VERS   "Version"
-#define TIME   "Installation time"
-#define TFMT   "%d-%b-%y %T"
+#define NAME        "Package"
+#define VERS        "Version"
+#define TIME        "Installation time"
+#define TFMT        "%d-%b-%y %T"
+#define WIDTH(s)    ((int)sizeof(s) - 1)
 
     iotpm_pkglist_t *list;
     iotpm_pkglist_entry_t *e;
@@ -318,17 +404,17 @@ static int list(iotpm_t *iotpm)
             epoch = 0;
             localtime_r(&epoch, &tm);
 
-            if ((nw = -list->max_width.name) > -(sizeof(NAME) - 1))
-                nw = -(sizeof(NAME) - 1);
+            if ((nw = -list->max_width.name) > -WIDTH(NAME))
+                nw = -WIDTH(NAME);
 
-            if ((vw = -list->max_width.version) > -(sizeof(VERS) - 1))
-                vw = -(sizeof(VERS) - 1);
+            if ((vw = -list->max_width.version) > -WIDTH(VERS))
+                vw = -WIDTH(VERS);
 
-            if ((tw = -strftime(buf,sizeof(buf),TFMT,&tm)) > -(sizeof(TIME)-1))
-                tw = -(sizeof(TIME) - 1);
+            if ((tw = -strftime(buf,sizeof(buf),TFMT,&tm)) > -WIDTH(TIME))
+                tw = -WIDTH(TIME);
 
-            if ((sw = 2 + -nw + 3 + -vw + 3 + -tw + 2) > sizeof(sep) - 1)
-                sw = sizeof(sep) - 1;
+            if ((sw = 2 + -nw + 3 + -vw + 3 + -tw + 2) > WIDTH(sep))
+                sw = WIDTH(sep);
 
             memset(sep, '-', sw);
             sep[sw] = '\0';
@@ -376,7 +462,7 @@ static int files(iotpm_t *iotpm)
     int rc = 0;
 
     info = iotpm_pkginfo_create(iotpm, false, iotpm->argv[0]);
-    
+
     if (info->sts < 0) {
         iot_log_error("listing files of package '%s' failed: %s",
                       iotpm->argv[0], strerror(errno));
@@ -388,24 +474,24 @@ static int files(iotpm_t *iotpm)
                 w = len;
         }
 
-        if (w > sizeof(sep) - (8+3+1))
-            w = sizeof(sep) - (8+3+1);
+        if (w > (int)sizeof(sep) - (8+3+1))
+            w = (int)sizeof(sep) - (8+3+1);
 
         if (w < 4)
             w = 4;
-        
+
         memset(sep, '-', w + (8+3));
         sep[w + (8+3)] = 0;
         sep[0] = '+';
         sep[7] = '+';
         sep[w + (8+2)] = '+';
-        
+
         w = -w;
 
         printf("%s\n", sep);
         printf("| Type | %*s |\n", w,"Path");
         printf("%s\n", sep);
-        
+
         for (f = info->files;  f->path;  f++) {
             switch (f->type) {
             default:
