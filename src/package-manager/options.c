@@ -69,8 +69,8 @@ static void set_defaults(iotpm_t *iotpm, int argc, char **argv)
 
 static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
 {
-#define OPTIONS "isurcpLfl:t:d:h"
-#define INVALID "inavlid option '%c'", opt
+#define OPTIONS "isurcpLfVSl:t:d:h"
+#define INVALID "invalid option '%c'", opt
 
     static struct option options[] = {
         { "install"          ,  no_argument      ,  NULL,  'i' },
@@ -81,6 +81,8 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
         { "db-plant"         ,  no_argument      ,  NULL,  'p' },
         { "list"             ,  optional_argument,  NULL,  'L' },
         { "files"            ,  required_argument,  NULL,  'f' },
+        { "verify"           ,  no_argument      ,  NULL,  'V' },
+        { "chksig"           ,  no_argument      ,  NULL,  'S' },
         { "log-level"        ,  required_argument,  NULL,  'l' },
         { "log-target"       ,  required_argument,  NULL,  't' },
         { "debug"            ,  required_argument,  NULL,  'd' },
@@ -101,6 +103,8 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
         case 'p':    set_mode(iotpm, IOTPM_MODE_DBPLANT);         break;
         case 'L':    set_mode(iotpm, IOTPM_MODE_LIST);            break;
         case 'f':    set_mode(iotpm, IOTPM_MODE_FILES);           break;
+        case 'V':    set_mode(iotpm, IOTPM_MODE_VERIFY);          break;
+        case 'S':    set_flag(iotpm, IOTPM_FLAG_CHKSIG);          break;
         case 'l':    set_log_mask(iotpm, optarg);                 break;
         case 't':    set_log_target(iotpm, optarg);               break;
         case 'd':    set_debug(iotpm, optarg);                    break;
@@ -133,6 +137,7 @@ static void check_configuration(iotpm_t *iotpm)
 
     case IOTPM_MODE_POSTINST:
     case IOTPM_MODE_UPGRADE:
+    case IOTPM_MODE_VERIFY:
         if ((n = iotpm->argc) != 1) {
 	    print_usage(iotpm, EINVAL, "%s <package file>",
                         n ? "too many" : "missing");
@@ -162,6 +167,13 @@ static void check_configuration(iotpm_t *iotpm)
     default:
         print_usage(iotpm, EINVAL, "missing <mode-option>");
 	break;
+    }
+
+    if (iotpm->flags & IOTPM_FLAG_CHKSIG) {
+        if (iotpm->mode != IOTPM_MODE_POSTINST &&
+            iotpm->mode != IOTPM_MODE_UPGRADE)
+            print_usage(iotpm, EINVAL,
+                        "chksig option only valid for install and upgrade");
     }
 
     if (!iotpm->log_target)
@@ -194,7 +206,7 @@ static void print_usage(iotpm_t *iotpm, int exit_code, char *fmt, ...)
     }
 
     fprintf(stderr, "usage:\n"
-        "  %s <mode-option> [<log-options>] [<package>]\n"
+        "  %s <mode-option> <misc-options> [<log-options>] [<package>]\n"
 	"  %s {-h | --help}\n\n"
 	"where <mode-option> is one of\n"
 	"  -i or --install           (<package> is path to package file)\n"
@@ -204,7 +216,10 @@ static void print_usage(iotpm_t *iotpm, int exit_code, char *fmt, ...)
 	"  -c or --db-check          (no <package> can be specified)\n"
 	"  -p or --db-plant          (no <package> can be specified)\n"
 	"  -L or --list              (<package> is an optional filtering pattern\n"
-    "  -f or --files             (<package> is the name of the package)\n"
+        "  -f or --files             (<package> is the name of the package)\n"
+        "  -V or --verify            (<package> is the name of the package)\n"
+        "<misc-options> are \n"
+        "  -S or --chksig\n          verify package signature before install\n"
 	"<log-options> are\n"
 	"  -t <target>  or --log-target=<target> where\n"
 	"       <target> is one of stderr,stdout,syslog or a logfile path\n"

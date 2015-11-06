@@ -57,6 +57,7 @@ static int pkginfo_fill(QVA_t, rpmts, Header);
 static int pkglist_fill(QVA_t, rpmts, Header);
 
 static bool install_package(iotpm_t *, bool, const char *);
+static int verify_package(iotpm_t *, const char *);
 
 static void *seed_read(const char *, size_t *);
 
@@ -99,6 +100,15 @@ static struct poptOption   queryOptionsTable[] = {
       /* descrip    */  NULL,
       /* argDescrip */  NULL
     },
+    {
+      /* longName   */  NULL,
+      /* shortName  */  '\0',
+      /* argInfo    */  POPT_ARG_INCLUDE_TABLE,
+      /* arg        */  rpmSignPoptTable,
+      /* val        */  0,
+      /* descrip    */  NULL,
+      /* argDescrip */  NULL
+    },
     POPT_TABLEEND
 };
 static struct poptOption   installOptionsTable[] = {
@@ -113,6 +123,15 @@ static struct poptOption   installOptionsTable[] = {
       /* shortName  */  '\0',
       /* argInfo    */  POPT_ARG_INCLUDE_TABLE,
       /* arg        */  rpmcliAllPoptTable,
+      /* val        */  0,
+      /* descrip    */  NULL,
+      /* argDescrip */  NULL
+    },
+    {
+      /* longName   */  NULL,
+      /* shortName  */  '\0',
+      /* argInfo    */  POPT_ARG_INCLUDE_TABLE,
+      /* arg        */  rpmSignPoptTable,
       /* val        */  0,
       /* descrip    */  NULL,
       /* argDescrip */  NULL
@@ -340,6 +359,11 @@ bool iotpm_backend_remove_package(iotpm_t *iotpm, const char *pkg)
     rpmcliFini(optCtx);
 
     return success;
+}
+
+int iotpm_backend_verify_package(iotpm_t *iotpm, const char *pkg)
+{
+    return verify_package(iotpm, pkg);
 }
 
 bool iotpm_backend_seed_create(iotpm_pkginfo_t *info)
@@ -840,6 +864,10 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
     if (!iotpm || !(backend = iotpm->backend) || !pkg)
         return false;
 
+    if (iotpm->flags & IOTPM_FLAG_CHKSIG)
+        if (verify_package(iotpm, pkg) != 0)
+            return false;
+
     /* get the actual file name */
     n = rpmgiEscapeSpaces(pkg);
     gst = (rpmGlob(n, &ac, &av) == 0 && ac == 1);
@@ -882,6 +910,75 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
     rpmcliFini(optCtx);
 
     return success;
+}
+
+
+static int verify_package(iotpm_t *iotpm, const char *pkg)
+{
+    iotpm_backend_t *backend;
+    QVA_t qva = &rpmQVKArgs;
+    poptContext optCtx;
+    rpmts ts;
+    int qargc;
+    char *qargv[16];
+    bool gst;
+    const char *n, **args;
+    char *file;
+    ARGV_t av;
+    int ac, rc;
+
+    if (iotpm == NULL || (backend = iotpm->backend) == NULL)
+        return IOTPM_VERIFY_NOTFOUND;
+
+    iot_debug("verifying package...");
+
+    /* get the actual file name */
+    n = rpmgiEscapeSpaces(pkg);
+    gst = (rpmGlob(n, &ac, &av) == 0 && ac == 1);
+
+    if (gst)
+        file = iot_strdup(av[0]);
+
+    free((void *)n);
+    argvFree(av);
+
+    memset(qva, 0, sizeof(*qva));
+
+    qargv[qargc=0] = POPT_PROGNAM;
+    qargv[++qargc] = "--define";
+    qargv[++qargc] = backend->path.db;
+    qargv[++qargc] = "-K";
+    qargv[++qargc] = file;
+    qargv[++qargc] = NULL;
+
+    optCtx = rpmcliInit(qargc, qargv, verifyOptionsTable);
+    qva->qva_mode = RPMSIGN_CHK_SIGNATURE;       /* 'K' */
+    qva->qva_flags = VERIFY_FDIGEST | VERIFY_HDRCHK | \
+        VERIFY_DIGEST | VERIFY_SIGNATURE;
+    qva->sign = 0;
+    rpmcliConfigured();
+    args = (const char **)poptGetArgs(optCtx);
+
+    ts = rpmtsCreate();
+    rpmtsSetRootDir(ts, rpmioRootDir);
+
+    rc = rpmcliSign(ts, qva, args);
+
+    rpmtsFree(ts);
+    rpmcliFini(optCtx);
+
+    switch (rc) {
+    case RPMRC_OK:         rc = IOTPM_VERIFY_OK;         break;
+    case RPMRC_NOTFOUND:   rc = IOTPM_VERIFY_NOTFOUND;   break;
+    default:
+    case RPMRC_FAIL:       rc = IOTPM_VERIFY_FAIL;       break;
+    case RPMRC_NOTTRUSTED: rc = IOTPM_VERIFY_NOTTRUSTED; break;
+    case RPMRC_NOKEY:      rc = IOTPM_VERIFY_NOKEY;      break;
+    }
+
+    iot_debug("package verification: %s (%d)", !rc ? "OK" : "failed", rc);
+
+    return rc;
 }
 
 

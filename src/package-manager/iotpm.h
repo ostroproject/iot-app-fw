@@ -22,6 +22,7 @@
 
 typedef enum   iotpm_mode_e                   iotpm_mode_t;
 typedef enum   iotpm_flag_e                   iotpm_flag_t;
+typedef enum   iotpm_verify_e                 iotpm_verify_t;
 typedef struct iotpm_s                        iotpm_t;
 
 typedef struct iotpm_backend_s                iotpm_backend_t;
@@ -44,11 +45,22 @@ enum iotpm_mode_e {
     IOTPM_MODE_DBPLANT,
     IOTPM_MODE_LIST,
     IOTPM_MODE_FILES,
+    IOTPM_MODE_VERIFY,
 };
 
 enum iotpm_flag_e {
     IOTPM_FLAGS_NONE = 0,
+    IOTPM_FLAG_CHKSIG = 0x1,             /* invert signature check policy */
 };
+
+enum iotpm_verify_e {
+    IOTPM_VERIFY_OK = 0,                 /* verification OK */
+    IOTPM_VERIFY_NOTFOUND,               /* verification failed */
+    IOTPM_VERIFY_FAIL,                   /* verification failed */
+    IOTPM_VERIFY_NOTTRUSTED,             /* signature OK, untrusted key */
+    IOTPM_VERIFY_NOKEY,                  /* public key not found */
+};
+
 
 struct iotpm_s {
     const char *prognam;

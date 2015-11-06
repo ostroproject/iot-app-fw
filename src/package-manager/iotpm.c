@@ -22,6 +22,7 @@ static int post_install_package(iotpm_t *);
 static int pre_install_package(iotpm_t *);
 static int upgrade_package(iotpm_t *);
 static int remove_package(iotpm_t *);
+static int verify_package(iotpm_t *);
 static int db_check(iotpm_t *);
 static int db_plant(iotpm_t *);
 static int list(iotpm_t *);
@@ -52,6 +53,7 @@ int main(int argc, char **argv)
     case IOTPM_MODE_DBPLANT:   rc = db_plant(iotpm);              break;
     case IOTPM_MODE_LIST:      rc = list(iotpm);                  break;
     case IOTPM_MODE_FILES:     rc = files(iotpm);                 break;
+    case IOTPM_MODE_VERIFY:    rc = verify_package(iotpm);        break;
     default:                   rc = EINVAL;                       break;
     }
 
@@ -251,6 +253,37 @@ static int remove_package(iotpm_t *iotpm)
     return rc;
 }
 
+
+static int verify_package(iotpm_t *iotpm)
+{
+    const char *pkg = iotpm->argv[0];
+    iotpm_pkginfo_t *info = NULL;
+    char name[1024];
+    int rc = EIO;
+
+    if (!pkg)
+        goto out;
+
+    info = iotpm_pkginfo_create(iotpm, true, pkg);
+
+    if (info->sts < 0)
+        goto out;
+
+    if (!iotpm_pkginfo_verify(info))
+        goto out;
+
+    strncpy(name, info->name, sizeof(name));
+    name[sizeof(name)-1] = 0;
+
+    iotpm_pkginfo_destroy(info);
+    info = NULL;
+
+    rc = iotpm_backend_verify_package(iotpm, pkg);
+
+ out:
+    iotpm_pkginfo_destroy(info);
+    return rc;
+}
 
 static int db_check(iotpm_t *iotpm)
 {
