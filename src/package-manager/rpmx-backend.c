@@ -64,6 +64,9 @@ bool iotpm_backend_seed_create(iotpm_pkginfo_t *info)
         goto out;
     }
 
+    if (IOTPM_VERBOSE(iotpm))
+        iot_log_info("created seed '%s'", path);
+
     success = true;
 
  out:
@@ -102,6 +105,9 @@ bool iotpm_backend_seed_destroy(iotpm_pkginfo_t *info)
         iot_log_error("failed to destroy seed '%s': %s", path,strerror(errno));
         goto out;
     }
+
+    if (IOTPM_VERBOSE(iotpm))
+        iot_log_info("destroyed seed '%s'", path);
 
     success = true;
 
@@ -577,7 +583,8 @@ static bool database_copy(const char *src,
                           const char *dst,
                           uid_t uid,
                           gid_t gid,
-                          const char *label)
+                          const char *label,
+                          bool verbose)
 {
     DB_ENV *env = NULL;
     size_t nfile = 0;
@@ -588,7 +595,8 @@ static bool database_copy(const char *src,
 
     bool success;
 
-    iot_log_info("copy RPM database '%s' => '%s'", src, dst);
+    if (verbose)
+        iot_log_info("copy RPM database '%s' => '%s'", src, dst);
 
     if (!files) {
         iot_log_error("can't allocate memory when copying RPM DB");
@@ -684,13 +692,17 @@ static bool database_copy(const char *src,
     }
     iot_free((void *)files);
 
-    if (success)
-        iot_log_info("RPM database successfully copied");
-    else
+    if (!success)
         iot_log_error("RPM database copy failed");
+    else {
+        if (verbose)
+            iot_log_info("RPM database successfully copied");
+    }
 
     return success;
 }
+
+static bool do_database_remove(const char *);
 
 static int database_remove_callback(const char *dir,
                                     const char *entry,
@@ -704,7 +716,7 @@ static int database_remove_callback(const char *dir,
     snprintf(path, sizeof(path), "%s/%s", dir, entry);
 
     if ((type & IOT_DIRENT_DIR)) {
-        if (!database_remove(path))
+        if (!do_database_remove(path))
             return -1;
     }
     else {
@@ -715,13 +727,11 @@ static int database_remove_callback(const char *dir,
     return 1;
 }
 
-static bool database_remove(const char *dir)
+static bool do_database_remove(const char *dir)
 {
 #define PATTERN   ".*"
 #define FILTER    (IOT_DIRENT_DIR | IOT_DIRENT_REG | \
                    IOT_DIRENT_LNK | IOT_DIRENT_ACTUAL_LNK)
-
-    iot_log_info("remove RPM database '%s'", dir);
 
     if (iot_scan_dir(dir, PATTERN,FILTER, database_remove_callback,NULL) < 0) {
         iot_log_error("RPM database remove of '%s' failed: %s",
@@ -729,10 +739,23 @@ static bool database_remove(const char *dir)
         return false;
     }
 
-    iot_log_info("RPM database '%s' succesfully removed", dir);
-
     return true;
 
 #undef FILTER
 #undef PATTERN
+}
+
+static bool database_remove(const char *dir, bool verbose)
+{
+    bool success;
+
+    if (verbose)
+        iot_log_info("remove RPM database '%s'", dir);
+
+    success = do_database_remove(dir);
+
+    if (success && verbose)
+        iot_log_info("RPM database '%s' succesfully removed", dir);
+
+    return success;
 }

@@ -46,8 +46,13 @@ enum iotpm_mode_e {
     IOTPM_MODE_FILES,
 };
 
+#define IOTPM_TEST_FLAG(__i,__f)  ((__i)->flags & (IOTPM_FLAG_ ## __f))
+
+#define IOTPM_VERBOSE(__i)   IOTPM_TEST_FLAG(__i, VERBOSE)
+
 enum iotpm_flag_e {
-    IOTPM_FLAGS_NONE = 0,
+    IOTPM_FLAG_NONE = 0,
+    IOTPM_FLAG_VERBOSE,
 };
 
 struct iotpm_s {

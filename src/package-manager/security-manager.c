@@ -237,7 +237,8 @@ int iotpm_register_package(iotpm_t *iotpm,
         security_manager_app_inst_req_free(req);
         req = NULL;
 
-        iot_log_info("registered application '%s'", fqai);
+        if (IOTPM_VERBOSE(iotpm))
+            iot_log_info("registered application '%s'", fqai);
     }
 
     return 0;
@@ -321,7 +322,8 @@ int iotpm_unregister_package(iotpm_t *iotpm,
             goto failed;
         }
 
-        iot_log_info("Unregistered application '%s'.", fqai);
+        if (IOTPM_VERBOSE(iotpm))
+            iot_log_info("Unregistered application '%s'.", fqai);
 
         security_manager_app_inst_req_free(req);
         req = NULL;

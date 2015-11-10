@@ -69,7 +69,7 @@ static void set_defaults(iotpm_t *iotpm, int argc, char **argv)
 
 static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
 {
-#define OPTIONS "isurcpLfl:t:d:h"
+#define OPTIONS "isurcpLfl:t:vd:h"
 #define INVALID "inavlid option '%c'", opt
 
     static struct option options[] = {
@@ -83,6 +83,7 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
         { "files"            ,  required_argument,  NULL,  'f' },
         { "log-level"        ,  required_argument,  NULL,  'l' },
         { "log-target"       ,  required_argument,  NULL,  't' },
+        { "verbose"          ,  no_argument      ,  NULL,  'v' },
         { "debug"            ,  required_argument,  NULL,  'd' },
         { "help"             ,  no_argument      ,  NULL,  'h' },
         {   NULL             ,       0           ,  NULL,   0  }
@@ -103,6 +104,7 @@ static void parse_cmdline(iotpm_t *iotpm, int argc, char **argv)
         case 'f':    set_mode(iotpm, IOTPM_MODE_FILES);           break;
         case 'l':    set_log_mask(iotpm, optarg);                 break;
         case 't':    set_log_target(iotpm, optarg);               break;
+        case 'v':    set_flag(iotpm, IOTPM_FLAG_VERBOSE);         break;
         case 'd':    set_debug(iotpm, optarg);                    break;
         case 'h':    print_usage(iotpm, 0, NULL);                 break;
 
@@ -210,6 +212,7 @@ static void print_usage(iotpm_t *iotpm, int exit_code, char *fmt, ...)
 	"       <target> is one of stderr,stdout,syslog or a logfile path\n"
 	"  -l <levels> or --log-level=<levels> where\n"
 	"       <levels> is a comma separated list of info, error or warning\n"
+        "  -v or --verbose increase verbosity of info messages\n"
 	"  -d or --debug <site> enable given debug site\n",
 	iotpm->prognam, iotpm->prognam);
 

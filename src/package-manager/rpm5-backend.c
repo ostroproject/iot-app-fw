@@ -135,9 +135,12 @@ bool iotpm_backend_init(iotpm_t *iotpm)
     char manpath[IOTPM_PATH_MAX];
     char packages[IOTPM_PATH_MAX];
     char errbuf[256];
+    bool verbose;
 
     if (!iotpm)
         return false;
+
+    verbose = IOTPM_VERBOSE(iotpm);
 
     snprintf(dbdir, sizeof(dbdir), DB_DIR, iotpm->homedir);
     snprintf(dbpath, sizeof(dbpath), "_dbpath %s", dbdir);
@@ -181,7 +184,7 @@ bool iotpm_backend_init(iotpm_t *iotpm)
         uid_t uid = iotpm->userid;
         gid_t gid = iotpm->groupid;
 
-        if (!database_copy(system_dbpath, dbdir, uid,gid,"User")) {
+        if (!database_copy(system_dbpath, dbdir, uid,gid,"User", verbose)) {
             error = "database initialization failed";
             goto failed;
         }
@@ -335,6 +338,9 @@ bool iotpm_backend_remove_package(iotpm_t *iotpm, const char *pkg)
 
     arg = poptGetArgs(optCtx);
 
+    if (IOTPM_VERBOSE(iotpm))
+        iot_log_info("erase package '%s'", pkg);
+
     success = (rpmErase(ts, ia, arg) == 0) ? true : false;
 
     rpmtsFree(ts);
@@ -419,10 +425,12 @@ bool iotpm_backend_seed_plant(iotpm_t *iotpm, const char *pkg)
 
 	    success = true;
 
-	    iot_log_info("planting seeds of");
+            if (IOTPM_VERBOSE(iotpm))
+                iot_log_info("planting seeds of");
 
 	    for (i = 0;  i < ac;   i++) {
-	        iot_log_info("   - %s", av[i]);
+                if (IOTPM_VERBOSE(iotpm))
+                    iot_log_info("   - %s", av[i]);
 
 		h = NULL;
 		buf = NULL;
@@ -750,9 +758,7 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
     /* get the actual file name */
     n = rpmgiEscapeSpaces(pkg);
     gst = (rpmGlob(n, &ac, &av) == 0 && ac == 1);
-
-    if (gst)
-        file = iot_strdup(av[0]);
+    file = gst ? iot_strdup(av[0]) : NULL;
 
     free((void *)n);
     argvFree(av);
@@ -783,10 +789,18 @@ static bool install_package(iotpm_t *iotpm, bool upgrade, const char *pkg)
 
     arg = (ARGV_t)poptGetArgs(optCtx);
 
+    if (IOTPM_VERBOSE(iotpm)) {
+        iot_log_info("%s package '%s'",
+                     upgrade ? "upgrade" : "install",
+                     file ? file : "<null>");
+    }
+
     success = (rpmcliInstall(ts, ia, arg) == 0) ? true : false;
 
     rpmtsFree(ts);
     rpmcliFini(optCtx);
+
+    iot_free(file);
 
     return success;
 }
@@ -949,7 +963,6 @@ static int log_callback(rpmlogRec rec, rpmlogCallbackData userdata)
 	    case RPMLOG_WARNING:
 	        iot_log_warning("%s", buf);
 		break;
-
 
 	    case RPMLOG_NOTICE:
 	    case RPMLOG_INFO:

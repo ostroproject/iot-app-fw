@@ -25,8 +25,9 @@ typedef struct {
 static bool file_write(int, const char *, const void *, ssize_t);
 static bool file_read(int, const char *, void *, ssize_t);
 
-static bool database_copy(const char *,const char *,uid_t,gid_t,const char *);
-static bool database_remove(const char *);
+static bool database_copy(const char *, const char *, uid_t, gid_t,
+                          const char *, bool);
+static bool database_remove(const char *, bool);
 
 #endif /* __IOTPM_RPMX_BACKEND_H__ */
 
