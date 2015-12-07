@@ -573,6 +573,45 @@ iot_adduser_LDADD   =			\
 		$(SECURITY_LIBS)
 
 ###################################
+# iot-service-generator
+#
+
+systemd_generator_PROGRAMS = iot-service-generator
+systemd_generatordir = /lib/systemd/system-generators
+
+iot_service_generator_SOURCES =				\
+		generators/service/generator.c		\
+		generators/service/log.c		\
+		generators/service/config.c		\
+		generators/service/application.c	\
+		generators/service/manifest.c		\
+		generators/service/service.c		\
+		generators/service/manifest-keys.c	\
+		generators/service/container.c		\
+		generators/service/container-nspawn.c	\
+		generators/service/filesystem.c		\
+		common/mm.c				\
+		common/log.c				\
+		common/debug.c				\
+		common/hash-table.c			\
+		common/utils.c				\
+		common/file-utils.c			\
+		common/regexp.c				\
+		common/json.c
+
+
+iot_service_generator_CFLAGS =		\
+		$(AM_CFLAGS)		\
+		$(SECURITY_CFLAGS)	\
+		$(JSON_CFLAGS)		\
+		$(REGEXP_CFLAGS)
+
+iot_service_generator_LDADD =		\
+		$(JSON_LIBS)		\
+		$(REGEXP_LIBS)		\
+		-lm
+
+###################################
 # iot-event-test
 #
 
