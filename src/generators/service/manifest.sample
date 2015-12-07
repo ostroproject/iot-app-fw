@@ -1,0 +1,42 @@
+{
+    // App identifier, only used for generating the name of the service file.
+    "application": "test-1",
+
+    // App description, used as description in the generated service file.
+    "description": "A dummy application for testing our service generator.",
+
+    // User to execute application as.
+    "user": "test-1-user",
+
+    /*
+     * What type of isolation to use for running the application. Currently
+     * the following values are supported:
+     *
+     *   - none:
+     *       Prepend the application-specific directories to PATH and
+     *       LD_LIBRARY_PATH then run the application normally (IOW,
+     *       no namespaces/containers).
+     *
+     *   - nspawn:
+     *       Run the application in a full (non-system) container started
+     *       by systemd-nspawn. Bind-mount the basic system image into an
+     *       application specific directory, overlay-mount the application-
+     *       specific bits on top of it and overlay-mount the writable
+     *       parts with per-application directories.
+     *
+     *   - nspawn-shared:
+     *       Run the application in a shared (file-system namespace only)
+     *       container started by systemd-nspawn. Bind-mount the basic
+     *       system image into an application specific directory, overlay-
+     *       mount the application-specific bits on top of it and overlay-
+     *       mount the writable parts with per-application directories.
+     *
+     *   - nspawn-system:
+     *       Run the application in a system container with a full image of
+     *       its own.
+     */
+    "execute": {
+        "type": "nspawn",
+        "command": [ "/usr/bin/test-1.sh" ],
+    },
+}
