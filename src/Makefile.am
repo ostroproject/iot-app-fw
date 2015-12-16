@@ -611,6 +611,24 @@ iot_service_generator_LDADD =		\
 		$(REGEXP_LIBS)		\
 		-lm
 
+systemd_helper_PROGRAMS = iot-exec
+systemd_helperdir = /usr/libexec/iot
+
+iot_exec_SOURCES =				\
+		generators/helpers/exec.c	\
+		common/mm.c			\
+		common/debug.c			\
+		common/log.c			\
+		common/hash-table.c		\
+		common/utils.c
+
+iot_exec_CFLAGS =			\
+		$(AM_CFLAGS)		\
+		$(SECURITY_CFLAGS)
+
+iot_exec_LDADD =
+
+
 ###################################
 # iot-event-test
 #
