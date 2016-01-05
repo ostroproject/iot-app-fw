@@ -445,7 +445,7 @@ AC_SUBST(LIBCAP_LIBS)
 # Check if support for Security Framework is enabled.
 AC_ARG_ENABLE(security,
               [  --enable-security        enable support for Security Framework],
-	      [enable_security=$enableval], [enable_security=yes])
+	      [enable_security=$enableval], [enable_security=no])
 
 if test "$enable_security" = "yes"; then
     PKG_CHECK_MODULES(SECURITY, security-manager cynara-client libsmack,

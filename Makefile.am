@@ -1,16 +1,9 @@
-SUBDIRS  = . utils src
+SUBDIRS  = . src
 doc_DATA = AUTHORS ChangeLog NEWS README
 
 # This is the only way with automake I know of to force 'check-git-hooks'
 # to be evaluated before 'all'. If there is a nicer way, I'm all ears...
 BUILT_SOURCES = install-git-hooks install-iot-symlink
-
-
-# command to copy a file while substituting libexecdir,bindir, and prefix
-substcp = sed                                     \
-            -e 's|@libexecdir[@]|$(libexecdir)|g' \
-            -e 's|@bindir[@]|$(bindir)|g'         \
-            -e 's|@prefix[@]|$(prefix)|g'
 
 ###################################
 # git hook management
@@ -41,18 +34,7 @@ install-iot-symlink:
 	fi
 
 install-data-hook:
-	mkdir -p $(DESTDIR)/lib/systemd/system
-if SYSTEMD_ENABLED
-	$(substcp) $(top_srcdir)/packaging.in/iot-launch.service-socket.in  \
-	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
-	$(substcp) $(top_srcdir)/packaging.in/iot-launch.socket.in	      \
-	    > $(DESTDIR)/lib/systemd/system/iot-launch.socket
-	$(substcp) $(top_srcdir)/packaging.in/iotpm-register-apps.service.in  \
-	    > $(DESTDIR)/lib/systemd/system/iotpm-register-apps.service
-else
-	$(substcp) $(top_srcdir)/packaging.in/iot-launch.service.in	      \
-	    > $(DESTDIR)/lib/systemd/system/iot-launch.service
-endif
+#	mkdir -p $(DESTDIR)/lib/systemd/system
 
 # generate documentation
 generate-docs: Doxyfile
