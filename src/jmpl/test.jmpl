@@ -1,0 +1,22 @@
+{ } >
+This is a test file.
+Print {data.foo}, {data.bar}, {data.foobar}.
+
+{if-set} data.prepare.directories {then}
+>    ExecStartPre=/bin/mkdir -p {data.prepare.directories}
+{else}
+>    ExecStartPre=/bin/mkdir -p usr/bin/../usr/sbin/../usr/lib/../usr/lib64
+{end}
+
+{foreach} key:val {in} {data.environment} {do}Environment={key}={val}{\n}{end}
+
+{foreach} key:val {in} {data.environment} {do}
+>    Environment={key}={val}{\n}
+{end}
+
+{if} (({data.container.type} == 'nspawn') ||
+      ({data.container.type} == 'xdg-app')) {then}
+>    ExecStart=/start/me/container {data.commandline}
+{else}
+>    ExecStart=/start/me/ordinarily {data.commandline}
+{end}

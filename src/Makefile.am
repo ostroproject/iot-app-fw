@@ -81,6 +81,37 @@ iot_service_generator_LDADD =		\
 #
 #iot_exec_LDADD =
 
+
+###################################
+# JSON template test
+#
+
+noinst_PROGRAMS += jmpl-test
+
+jmpl_test_SOURCES =					\
+		jmpl/jmpl-test.c			\
+		jmpl/jmpl.c				\
+		jmpl/scanner.c				\
+		jmpl/parser.c				\
+		jmpl/eval.c				\
+		jmpl/symtab.c				\
+		common/mm.c				\
+		common/log.c				\
+		common/debug.c				\
+		common/json.c				\
+		common/hash-table.c			\
+		common/utils.c
+
+jmpl_test_CFLAGS =			\
+		$(AM_CFLAGS)		\
+		$(JSON_CFLAGS)
+
+
+jmpl_test_LDADD =			\
+		$(JSON_LIBS)		\
+		-lm
+
+
 # cleanup
 clean-local:
 	-rm -f *~
