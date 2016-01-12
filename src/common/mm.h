@@ -45,6 +45,20 @@ IOT_CDECL_BEGIN
 #define iot_alloc(size)        iot_mm_alloc((size), __LOC__)
 #define iot_free(ptr)          iot_mm_free((ptr), __LOC__)
 #define iot_strdup(s)          iot_mm_strdup((s), __LOC__)
+
+#define iot_strndup(s, n) ({                                              \
+            char *_p;                                                     \
+                                                                          \
+            _p = iot_allocz((n) + 1);                                     \
+                                                                          \
+            if (_p != NULL) {                                             \
+                strncpy(_p, s, n);                                        \
+                _p[(n)] = '\0';                                           \
+            }                                                             \
+                                                                          \
+            _p;                                                           \
+        })
+
 #define iot_datadup(ptr, size) ({                                         \
             typeof(ptr) _ptr = iot_alloc(size);                           \
                                                                           \
