@@ -90,7 +90,7 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
     static struct option options[] = {
         { "dry-run", no_argument      , NULL, 'n' },
         { "log"    , required_argument, NULL, 'l' },
-        { "verbose", required_argument, NULL, 'v' },
+        { "verbose", no_argument      , NULL, 'v' },
         { "debug"  , required_argument, NULL, 'd' },
         { "help"   , no_argument      , NULL, 'h' },
         { NULL, 0, NULL, 0 }
