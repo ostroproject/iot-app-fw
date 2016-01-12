@@ -39,6 +39,15 @@
 #include "generator.h"
 
 
+static iot_json_t *(*translate)(iot_json_t *);
+
+
+static iot_json_t *preprocess_manifest(iot_json_t *m)
+{
+    return translate ? translate(m) : m;
+}
+
+
 iot_json_t *manifest_read(const char *path)
 {
     struct stat  st;
@@ -78,7 +87,7 @@ iot_json_t *manifest_read(const char *path)
         goto invalid;
     }
 
-    return m;
+    return preprocess_manifest(m);
 
  toolarge:
     errno = ENOBUFS;
