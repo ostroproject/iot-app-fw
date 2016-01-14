@@ -86,11 +86,14 @@ iot_service_generator_LDADD =		\
 # JSON template test
 #
 
-noinst_PROGRAMS = jmpl-test
+noinst_PROGRAMS += jmpl-test
 
 jmpl_test_SOURCES =					\
 		jmpl/jmpl-test.c			\
+		jmpl/jmpl.c				\
+		jmpl/scanner.c				\
 		jmpl/parser.c				\
+		jmpl/symtab.c				\
 		common/mm.c				\
 		common/log.c				\
 		common/debug.c				\

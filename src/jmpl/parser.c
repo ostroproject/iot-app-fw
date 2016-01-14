@@ -41,162 +41,124 @@
 #include <iot/common/debug.h>
 
 #include "jmpl/jmpl.h"
-
-typedef struct jmpl_s     jmpl_t;
-typedef enum   jmpl_op_e  jmpl_op_t;
-typedef struct jmpl_ref_s jmpl_ref_t;
-
-typedef struct jmpl_parser_s jmpl_parser_t;
-
-struct jmpl_s {
-    iot_list_hook_t ops;                 /* JSON template operations */
-    iot_list_hook_t hook;                /* into template stack */
-};
+#include "jmpl/parser.h"
 
 
-enum jmpl_op_e {
-    JMPL_OP_TEXT = 0,                    /* plain text, copy verbatim */
-    JMPL_OP_SUBST,                       /* a substitution */
-    JMPL_OP_IFSET,                       /* akin to an #ifdef */
-    JMPL_OP_IF,                          /* an if-else construct */
-    JMPL_OP_FOREACH,                     /* a for-each construct */
-};
 
-
-struct jmpl_text_s {
-    jmpl_op_t        type;               /* JMPL_OP_TEXT */
-    iot_list_hook_t  hook;               /* to op list */
-    char            *text;               /* text to produce */
-};
-
-
-struct jmpl_subst_s {
-    jmpl_op_t        type;               /* JMPL_OP_SUBST */
-    iot_list_hook_t  hook;               /* to op list */
-    jmpl_ref_t      *ref;                /* variable reference */
-};
-
-
-struct jmpl_ref_s {
-    uint32_t *ids;                       /* field name id, or index */
-    int       nid;                       /* number of ids */
-};
-
-
-json_t *jmpl_load_json(const char *path)
+static jmpl_ref_t *parse_reference(jmpl_parser_t *jp, char *val)
 {
-    iot_json_t  *o;
-    struct stat  st;
-    char        *buf, *p;
-    int          fd, n;
+    jmpl_ref_t *r;
+    int32_t    *ids, id;
+    int         nid;
+    char       *p, *b, *e, *n, *end, *dot, *idx;
 
-    if (stat(path, &st) < 0)
-        return NULL;
+    iot_debug("reference '%s'", val);
 
-    buf = alloca(st.st_size + 1);
-    fd   = open(path, O_RDONLY);
+    ids = NULL;
+    nid = 0;
 
-    if (fd < 0)
-        return NULL;
+    p = val;
+    while (p && *p) {
+        iot_debug("parsing @ '%s'", p);
 
-    n = read(fd, buf, st.st_size);
-    close(fd);
+        dot = strchr(p + 1, '.');
+        idx = strchr(p + 1, '[');
 
-    if (n != st.st_size)
-        return NULL;
+        switch (*p) {
+        case '.':
+        default:
+            b = (*p == '.' ? p + 1 : p);
 
-    buf[n] = '\0';
-    p      = buf;
+            if (dot && idx) {
+                if (dot < idx)
+                    idx = NULL;
+                else
+                    dot = NULL;
+            }
 
-    if (iot_json_parse_object(&p, &n, &o) < 0)
-        return NULL;
+            if (dot)
+                *dot = '\0';
+            else if (idx)
+                *idx = '\0';
 
-    while (*p == ' ' || *p == '\t' || *p == '\n')
-        p++;
+            iot_debug("adding symbol '%s'", b);
+            id = symtab_add(b, JMPL_SYMBOL_FIELD);
 
-    if (!*p)
-        return o;
+            if (id < 0)
+                goto fail;
 
-    iot_json_unref(o);
+            if (dot) {
+                *dot = '.';
+                p    = dot;
+            }
+            else if (idx) {
+                *idx = '[';
+                p    = idx;
+            }
+            else
+                p = NULL;
+
+            break;
+
+        case '[':
+            b = p + 1;
+            e = strchr(b, ']');
+
+            if (e == NULL || e == b)
+                goto invalid;
+
+            n = e + 1;
+
+            if (*b == '\'' || *b == '"') {
+                e--;
+
+                *e = '\0';
+                iot_debug("adding symbol '%s'", b + 1);
+                id = symtab_add(b + 1, JMPL_SYMBOL_FIELD);
+                *e = *b;
+            }
+            else {
+                id = strtol(b, &end, 10);
+
+                if (id < 0 || end != e)
+                    goto invalid;
+            }
+
+            p = n;
+            break;
+        }
+
+        if (iot_reallocz(ids, nid, nid + 1) == NULL)
+            goto fail;
+
+        iot_debug("id #%d: 0x%x", nid, id);
+        ids[nid++] = id;
+    }
+
+    r = iot_allocz(sizeof(*r));
+
+    if (r == NULL)
+        goto fail;
+
+    r->ids = ids;
+    r->nid = nid;
+
+    return r;
+
+ invalid:
     errno = EINVAL;
+ fail:
+    iot_free(ids);
     return NULL;
 }
 
 
-jmpl_t *jmpl_load_template(const char *path)
+static int parser_init(jmpl_parser_t *jp, const char *str)
 {
-    jmpl_t      *j;
-    struct stat  st;
-    char        *buf;
-    int          fd, n;
+    char *p, *end;
 
-    if (stat(path, &st) < 0)
-        return NULL;
-
-    buf = alloca(st.st_size + 1);
-    fd   = open(path, O_RDONLY);
-
-    if (fd < 0)
-        return NULL;
-
-    n = read(fd, buf, st.st_size);
-    close(fd);
-
-    if (n != st.st_size)
-        return NULL;
-
-    buf[n] = '\0';
-
-    j = jmpl_parse(buf);
-
-    return j;
-}
-
-
-struct jmpl_parser_s {
-    jmpl_parser_t   *parent;
-    jmpl_t          *jmpl;
-    iot_list_hook_t  templates;
-    char            *mbeg;               /* directive start marker */
-    int              lbeg;               /* start marker length */
-    char            *mend;               /* directive end marker */
-    int              lend;               /* end marker length */
-    char            *mtab;               /* directive tabulation marker */
-    int              ltab;               /* tabulation marker length */
-    char            *buf;                /* input buffer to parse */
-    int              level;              /* nesting level */
-    char            *p;                  /* parsing pointer into buf */
-    char            *error;              /* parser error */
-};
-
-
-typedef enum {
-    JMPL_TKN_ERROR = -1,                 /* tokenization failure */
-    JMPL_TKN_UNKNOWN,                    /* unknown token */
-    JMPL_TKN_IFSET,                      /* #ifdef like if-set */
-    JMPL_TKN_IF,                         /* ordinary if */
-    JMPL_TKN_ELSE,                       /* else branch of if-set or if */
-    JMPL_TKN_FOREACH,                    /* foreach */
-    JMPL_TKN_END,                        /* end of if-set, if, or foreach */
-    JMPL_TKN_TEXT,                       /* plaintext */
-    JMPL_TKN_SUBST,                      /* variable substitution */
-    JMPL_TKN_ESCAPE,                     /* escaped plaintext */
-    JMPL_TKN_EOF,                        /* end of file/input */
-} jmpl_token_t;
-
-
-#define PARSE_ERROR(_jp, _r, _ec, _em) do {     \
-        (_jp)->error = (_em);                   \
-        errno = (_ec);                          \
-        return _r;                              \
-    } while (0)
-
-
-
-static int parser_init(jmpl_parser_t *jp, jmpl_parser_t *parent,
-                       const char *str, int len)
-{
-    const char *b, *e;
+    iot_clear(jp);
+    iot_list_init(&jp->templates);
 
     /*
      * Every JSON template file starts with the declaration of the
@@ -205,381 +167,426 @@ static int parser_init(jmpl_parser_t *jp, jmpl_parser_t *parent,
      * marker declaration is the first line of the template and is
      * a single line consisting of:
      *
-     *   - the beginning marker
-     *   - at least a single whitespace separating the markers
-     *   - the end marker
-     *   - a terminating newline
+     *   - the beginning marker,
+     *   - the end marker,
+     *   - an optional tabulation marker,
+     *
+     * All of these are separated from each other by whitespace.
+     * single whitespace.
      *
      * Any character string is allowed as a marker with the following
      * limitations:
      *
      *   - a marker cannot contain any whitespace or a newline
-     *   - neither marker can be a substring of the other
+     *   - a marker cannot be a substring of the other markers
      */
 
-    iot_clear(jp);
-    iot_list_init(&jp->templates);
-    jp->parent = parent;
+    str = skip_whitespace((char *)str, true);
+    end = next_newline((char *)str);
 
+    if (!str || !*str || !end || !*end)
+        goto invalid;
 
-    if (len < 0)
-        len = strlen(str);
+    end++;
 
-    if (parent != NULL) {
-        jp->parent = parent;
-        jp->mbeg   = parent->mbeg; jp->lbeg = parent->lbeg;
-        jp->mend   = parent->mend; jp->lend = parent->lend;
-        jp->mtab   = parent->mtab; jp->ltab = parent->ltab;
-        jp->level  = parent->level;
+    jp->buf    = iot_strdup(end);
+    jp->tokens = iot_allocz(strlen(end) + 1);
+    jp->mbeg   = iot_strndup(str, end - str - 1);
 
-        while ((*str == ' ' || *str == '\t' || *str == '\n') && len > 0)
-            str++, len--;
+    if (jp->buf == NULL || jp->tokens == NULL || jp->mbeg == NULL)
+        goto nomem;
 
-        jp->buf = jp->p = iot_strndup(str, len);
-        goto chkbuf;
+    p = jp->mbeg;
+    p = next_whitespace(p, false);
+
+    if (!*p)
+        goto invalid;
+
+    *p++ = '\0';
+
+    p = skip_whitespace(p, false);
+
+    if (!*p)
+        goto invalid;
+
+    jp->mend = p;
+
+    p = next_whitespace(p, false);
+
+    if (*p) {
+        *p++ = '\0';
+
+        p = skip_whitespace(p, false);
+
+        if (*p)
+            jp->mtab = p;
+
+        p = next_whitespace(p, false);
+
+        if (*p)
+            *p = '\0';
     }
-
-    for (b = str, e = b; *e && *e != ' ' && *e != '\t'; e++)
-        ;
-
-    if (!*e)
-        goto invalid;
-
-    jp->mbeg = iot_strndup(b, e - b);
-
-    while (*e && (*e == ' ' || *e == '\t'))
-        e++;
-
-    if (!*e)
-        goto invalid;
-
-    for (b = e; *e && *e != '\n' && *e != ' ' && *e != '\t'; e++)
-        ;
-
-    if (!*e)
-        goto invalid;
-
-    jp->mend = iot_strndup(b, e - b);
-
-    while (*e == ' ' || *e == '\t' || *e == '\n')
-        e++;
-
-    if (*e && *e != '\n') {
-        jp->mtab = jp->mend;
-        jp->mend = NULL;
-
-        for (b = e; *e && *e != '\n' && *e != ' ' && *e != '\t'; e++)
-            ;
-
-        jp->mend = iot_strndup(b, e - b);
-
-        while (*e == ' ' || *e == '\t' || *e == '\n')
-            e++;
-    }
-
-    jp->buf = jp->p = iot_strdup(e);
-
- chkbuf:
-    if (jp->buf == NULL)
-        return -1;
 
     jp->lbeg = strlen(jp->mbeg);
     jp->lend = strlen(jp->mend);
     jp->ltab = jp->mtab ? strlen(jp->mtab) : 0;
 
+    jp->p = jp->buf;
+    jp->t = jp->tokens;
+
     return 0;
 
  invalid:
-    PARSE_ERROR(jp, -1, EINVAL, "invalid directive marker declaration");
+    jp->error = "invalid directive markers, or no template data";
+    errno = EINVAL;
+ nomem:
+    iot_free(jp->buf);
+    iot_free(jp->tokens);
+    iot_free(jp->mbeg);
+    return -1;
 }
 
 
 static void parser_exit(jmpl_parser_t *jp)
 {
-    if (jp->parent == NULL) {
-        iot_free(jp->mbeg);
-        iot_free(jp->mend);
-        iot_free(jp->mtab);
-    }
-
+    iot_free(jp->mbeg);
     iot_free(jp->buf);
+    iot_free(jp->tokens);
 }
 
 
-static void parser_push_template(jmpl_parser_t *jp, jmpl_t *j)
+static int parse_if(jmpl_parser_t *jp);
+static int parse_ifset(jmpl_parser_t *jp);
+static int parse_foreach(jmpl_parser_t *jp);
+static int parse_subst(jmpl_parser_t *jp, char *val);
+static int parse_text(jmpl_parser_t *jp, char *val);
+
+
+static int parse_ifset(jmpl_parser_t *jp)
 {
-    if (jp->jmpl != NULL)
-        iot_list_append(&jp->templates, &jp->jmpl->hook);
+    char *val;
+    int   tkn, ebr;
 
-    iot_list_init(&j->hook);
-    jp->jmpl = j;
-}
+    iot_debug("<if-set>");
 
+    tkn = scan_next_token(jp, &val, SCAN_ID);
 
-static jmpl_t *parser_pop_template(jmpl_parser_t *jp)
-{
-    jmpl_t *j;
+    if (tkn != JMPL_TKN_ID)
+        return -1;
 
-    if (!iot_list_empty(&jp->templates)) {
-        j = iot_list_entry(jp->templates.prev, typeof(*j), hook);
-        iot_list_delete(&j->hook);
-    }
-    else
-        j = NULL;
+    iot_debug("<id> '%s'", val);
 
-    jp->jmpl = j;
+    ebr = false;
 
-    return j;
-}
-
-
-static int directive_type(jmpl_parser_t *jp, const char *token)
-{
-    static struct keyword {
-        int         token;
-        const char *str;
-        size_t      len;
-        int         args;
-    } keywords[] = {
-#define KEYWORD(_tkn, _kw, _args) { JMPL_TKN_##_tkn, _kw, sizeof(_kw)-1, _args }
-        KEYWORD(IFSET  , "if-set" , TRUE),
-        KEYWORD(IF     , "if"     , TRUE),
-        KEYWORD(FOREACH, "foreach", TRUE),
-        KEYWORD(ELSE   , "else"   , FALSE),
-        KEYWORD(END    , "end"    , FALSE),
-        { 0, NULL, 0, FALSE },
-#undef KEYWORD
-    }, *kw;
-
-    int c;
-
-    for (kw = keywords; kw->str != NULL; kw++) {
-        if (strncmp(token, kw->str, kw->len))
-            continue;
-
-        if (kw->args && ((c = token[kw->len]) == ' ' || c == '\t' || c == '\n'))
-            return kw->token;
-
-        if (!kw->args && !strncmp(token + kw->len, jp->mend, jp->lend))
-            return kw->token;
-    }
-
-    switch (*token) {
-    case '\\':
-        return JMPL_TKN_ESCAPE;
-    case 'A'...'Z':
-    case 'a'...'z':
-    case '_':
-        return JMPL_TKN_SUBST;
-    default:
-        break;
-    }
-
-    return JMPL_TKN_ERROR;
-}
-
-
-static char *skip_keyword(jmpl_parser_t *jp, int token)
-{
-    static struct keyword {
-        int         token;
-        const char *str;
-        size_t      len;
-        int         args;
-    } keywords[] = {
-#define KEYWORD(_tkn, _kw, _args) { JMPL_TKN_##_tkn, _kw, sizeof(_kw)-1, _args }
-        KEYWORD(IFSET  , "if-set" , TRUE),
-        KEYWORD(IF     , "if"     , TRUE),
-        KEYWORD(FOREACH, "foreach", TRUE),
-        KEYWORD(ELSE   , "else"   , FALSE),
-        KEYWORD(END    , "end"    , FALSE),
-        { 0, NULL, 0, FALSE },
-#undef KEYWORD
-    }, *kw;
-
-    char *p;
-
-    p = jp->p;
-
-    for (kw = keywords; kw->str != NULL; kw++) {
-        if (kw->token != token)
-            continue;
-
-        p += jp->lbeg;
-        p += kw->len;
-
-        if (kw->args) {
-            while (*p == ' ' || *p == '\t' || *p == '\n')
-                p++;
-        }
-
-        jp->p = p;
-    }
-
-    return jp->p;
-}
-
-
-static int parser_get_token(jmpl_parser_t *jp, char **valp, int *lenp)
-{
-    char *b, *e, *p, *val;
-
-    /*
-     * our tokenizer logic is simple:
-     *
-     *   - at the end of input, we're done
-     *   - at the beginning of a directive find its end to create a token
-     *   - otherwise evrything till the next directive is plaintext
-     */
-
-    b = jp->p;
-
-    if (!b || !*b)                              /* end of input, we're done */
-        return JMPL_TKN_EOF;
-
-    if (!strncmp(b, jp->mbeg, jp->lbeg)) {      /* at a directive */
-        val = jp->p;
-        b  += jp->lbeg;
-
-        while (b && *b) {                       /* search for the end */
-            p = b;
-            b = strstr(p, jp->mbeg);
-            e = strstr(p, jp->mend);
-
-            if (e == NULL) {
-                jp->error = "unterminated directive";
-                return JMPL_TKN_ERROR;
-            }
-
-            if (b && b < e)
-                b = e + jp->lend;
-            else {
-                e = e + jp->lend;
-
-                *valp = val;
-                *lenp = e - val;
-                jp->p = e;
-
-                return directive_type(jp, val + jp->lbeg);
-            }
-        }
-
-        return JMPL_TKN_ERROR;
-    }
-    else {                                      /* not a directive, plaintext */
-        e = strstr(jp->p, jp->mbeg);
-        *valp = b;
-
-        if (e == NULL) {
-            *lenp  = strlen(b);
-            jp->p += *lenp;
-        }
-        else {
-            *lenp = e - b;
-            jp->p = e;
-        }
-
-        return JMPL_TKN_TEXT;
-    }
-}
-
-
-#if 0
-jmpl_t *parse_template(jmpl_parser_t *parent, const char *str, int len)
-{
-    jmpl_parser_t  jp;
-    jmpl_t        *j;
-    char          *val;
-    int            tkn;
-
-    if (parser_init(&jp, parent, str, len) < 0)
-        return NULL;
-
-    while ((tkn = parser_get_token(&jp, &val, &len)) != JMPL_TKN_EOF) {
+    while ((tkn = scan_next_token(jp, &val, SCAN_IF_BODY)) != JMPL_TKN_END) {
         switch (tkn) {
-        case JMPL_TKN_ERROR:
-        case JMPL_TKN_UNKNOWN:
-            goto parse_error;
-
-        case JMPL_TKN_IFSET:
-            iot_debug("<ifset>: [%*.*s]", len, len, val);
-            break;
-
-        case JMPL_TKN_IF:
-            iot_debug("<if>: [%*.*s]", len, len, val);
-            break;
-
-        case JMPL_TKN_FOREACH:
-            iot_debug("<foreach>: [%*.*s]", len, len, val);
-            break;
+        case JMPL_TKN_END:
+            iot_debug("<end>");
+            return 0;
 
         case JMPL_TKN_ELSE:
             iot_debug("<else>");
+
+            if (ebr)
+                goto unexpected_else;
+
+            ebr = true;
             break;
 
-        case JMPL_TKN_END:
-            iot_debug("<end>");
+        case JMPL_TKN_IFSET:
+            if (parse_ifset(jp) < 0)
+                return -1;
             break;
 
-        case JMPL_TKN_TEXT:
-            iot_debug("<text>: [%*.*s]", len, len, val);
+        case JMPL_TKN_IF:
+            if (parse_if(jp) < 0)
+                return -1;
             break;
+
+        case JMPL_TKN_FOREACH:
+            if (parse_foreach(jp) < 0)
+                return -1;
 
         case JMPL_TKN_SUBST:
-            iot_debug("<subst>: [%*.*s]", len, len, val);
+            iot_debug("<subst> '%s'", val);
+            if (parse_subst(jp, val) < 0)
+                goto invalid_reference;
+            break;
+        case JMPL_TKN_TEXT:
+            iot_debug("<text> '%s'", val);
             break;
 
-        case JMPL_TKN_ESCAPE:
-            iot_debug("<escape>");
-            break;
+        default:
+            goto unexpected_token;
         }
     }
 
-    iot_debug("token <EOF>");
+    iot_debug("<end>");
 
-    return NULL;
-
- parse_error:
-    parser_exit(&jp);
-    errno = EINVAL;
-    return NULL;
-}
-#endif
-
-
-static int parse_ifset(jmpl_parser_t *parent, char *str, int len)
-{
     return 0;
+
+ unexpected_else:
+    return -1;
+
+ unexpected_token:
+    return -1;
+
+ invalid_reference:
+    return -1;
 }
 
 
-static int parse_if(jmpl_parser_t *parent, char *str, int len)
+static int parse_if(jmpl_parser_t *jp)
 {
+    char *val;
+    int   tkn, ebr, lvl;
+
+    iot_debug("<if>");
+
+    tkn = scan_next_token(jp, &val, SCAN_IF_EXPR);
+
+    if (tkn != JMPL_TKN_OPEN)
+        goto missing_open;
+
+    lvl = 1;
+    while (lvl > 0) {
+        tkn = scan_next_token(jp, &val, SCAN_IF_EXPR);
+
+        switch (tkn) {
+        case JMPL_TKN_OPEN:
+            lvl++;
+            iot_debug("(");
+            break;
+
+        case JMPL_TKN_CLOSE:
+            iot_debug(")");
+            lvl--;
+            break;
+
+        case JMPL_TKN_STRING:
+            iot_debug("<string> '%s'", val);
+            break;
+
+        case JMPL_TKN_AND:
+            iot_debug("&&");
+            break;
+
+        case JMPL_TKN_OR:
+            iot_debug("||");
+            break;
+
+        case JMPL_TKN_NOT:
+            iot_debug("!");
+            break;
+
+        case JMPL_TKN_NEQ:
+            iot_debug("!=");
+            break;
+
+        case JMPL_TKN_EQ:
+            iot_debug("==");
+            break;
+
+        case JMPL_TKN_SUBST:
+            iot_debug("<subst> '%s'", val);
+            if (parse_subst(jp, val) < 0)
+                goto invalid_reference;
+            break;
+
+        default:
+            goto unexpected_token;
+        }
+    }
+
+    ebr = false;
+
+    while ((tkn = scan_next_token(jp, &val, SCAN_IF_BODY)) != JMPL_TKN_END) {
+        switch (tkn) {
+        case JMPL_TKN_ELSE:
+            iot_debug("<else>");
+
+            if (ebr)
+                goto unexpected_else;
+
+            ebr = true;
+            break;
+
+        case JMPL_TKN_IFSET:
+            if (parse_ifset(jp) < 0)
+                return -1;
+            break;
+
+        case JMPL_TKN_IF:
+            if (parse_if(jp) < 0)
+                return -1;
+            break;
+
+        case JMPL_TKN_FOREACH:
+            if (parse_foreach(jp) < 0)
+                return -1;
+
+        case JMPL_TKN_SUBST:
+            iot_debug("<subst> '%s'", val);
+            if (parse_subst(jp, val) < 0)
+                goto invalid_reference;
+            break;
+
+        case JMPL_TKN_TEXT:
+            iot_debug("<text> '%s'", val);
+            break;
+
+        default:
+            goto unexpected_token;
+        }
+    }
+
+    iot_debug("<end>");
+
     return 0;
+
+ missing_open:
+    return -1;
+
+ unexpected_else:
+    return -1;
+
+ unexpected_token:
+    return -1;
+
+ invalid_reference:
+    return -1;
 }
 
 
-static int parse_foreach(jmpl_parser_t *parent, char *str, int len)
+static int parse_foreach(jmpl_parser_t *jp)
 {
+    char *val;
+    int   tkn;
+
+    iot_debug("<foreach>");
+
+    if ((tkn = scan_next_token(jp, &val, SCAN_ID)) != JMPL_TKN_ID)
+        return -1;
+
+    iot_debug("<id> '%s'", val);
+
+    if ((tkn = scan_next_token(jp, &val, SCAN_FOREACH)) != JMPL_TKN_IN)
+        return -1;
+
+    iot_debug("<in>");
+
+    if ((tkn = scan_next_token(jp, &val, SCAN_FOREACH)) != JMPL_TKN_SUBST)
+        return -1;
+
+    iot_debug("<subst> '%s'", val);
+
+    if ((tkn = scan_next_token(jp, &val, SCAN_FOREACH)) != JMPL_TKN_DO)
+        return -1;
+
+    iot_debug("<do>");
+
+    while ((tkn = scan_next_token(jp, &val, SCAN_FOREACH_BODY)) != JMPL_TKN_END) {
+        switch (tkn) {
+        case JMPL_TKN_END:
+            iot_debug("<end>");
+            return 0;
+
+        case JMPL_TKN_IFSET:
+            if (parse_ifset(jp) < 0)
+                return -1;
+            break;
+
+        case JMPL_TKN_IF:
+            if (parse_if(jp) < 0)
+                return -1;
+            break;
+
+        case JMPL_TKN_FOREACH:
+            if (parse_foreach(jp) < 0)
+                return -1;
+
+        case JMPL_TKN_SUBST:
+            iot_debug("<subst> '%s'", val);
+            if (parse_subst(jp, val) < 0)
+                return -1;
+
+            break;
+        case JMPL_TKN_TEXT:
+            iot_debug("<text> '%s'", val);
+            break;
+
+        default:
+            goto unexpected_token;
+        }
+    }
+
+    iot_debug("<end>");
+
     return 0;
+
+ unexpected_else:
+    return -1;
+
+ unexpected_token:
+    return -1;
+
+ invalid:
+    return -1;
 }
 
 
-static int parse_text(jmpl_parser_t *parent, char *str, int len)
+static int parse_subst(jmpl_parser_t *jp, char *val)
 {
+    jmpl_subst_t *js;
+
+    iot_debug("<subst> '%s'", val);
+
+    js = iot_allocz(sizeof(*js));
+
+    if (js == NULL)
+        goto nomem;
+
+    iot_list_init(&js->hook);
+    js->type = JMPL_OP_SUBST;
+    js->ref  = parse_reference(jp, val);
+
+    if (js->ref == NULL)
+        goto noref;
+
     return 0;
+
+ nomem:
+ noref:
+    iot_free(js);
+
+    return -1;
 }
 
 
-static int parse_subst(jmpl_parser_t *parent, char *str, int len)
+static int parse_text(jmpl_parser_t *jp, char *val)
 {
-    return 0;
-}
+    jmpl_text_t *jt;
 
+    iot_debug("<text> '%s'", val);
 
-static int parse_escape(jmpl_parser_t *parent, char *str, int len)
-{
+    jt = iot_allocz(sizeof(*jt));
+
+    if (jt == NULL)
+        goto nomem;
+
+    iot_list_init(&jt->hook);
+    jt->type = JMPL_OP_TEXT;
+    jt->text = iot_strdup(val);
+
+    if (jt->text == NULL)
+        goto nomem;
+
     return 0;
+
+ nomem:
+    iot_free(jt);
+
+    return -1;
 }
 
 
@@ -590,7 +597,7 @@ jmpl_t *jmpl_parse(const char *str)
     char          *val;
     int            len, tkn;
 
-    if (parser_init(&jp, NULL, str, -1) < 0)
+    if (parser_init(&jp, str) < 0)
         return NULL;
 
     j = iot_allocz(sizeof(*j));
@@ -604,65 +611,41 @@ jmpl_t *jmpl_parse(const char *str)
     iot_debug("    template: %s"  , jp.buf);
 
 
-    while ((tkn = parser_get_token(&jp, &val, &len)) != JMPL_TKN_EOF) {
+    while ((tkn = scan_next_token(&jp, &val, SCAN_MAIN)) != JMPL_TKN_EOF) {
         switch (tkn) {
         case JMPL_TKN_ERROR:
         case JMPL_TKN_UNKNOWN:
             goto parse_error;
 
         case JMPL_TKN_IFSET:
-            iot_debug("<ifset>: [%*.*s]", len, len, val);
-
-            if (parse_ifset(&jp, val, len) < 0)
+            if (parse_ifset(&jp) < 0)
                 goto parse_error;
             break;
 
         case JMPL_TKN_IF:
-            iot_debug("<if>: [%*.*s]", len, len, val);
-
-            if (parse_if(&jp, val, len) < 0)
+            if (parse_if(&jp) < 0)
                 goto parse_error;
             break;
 
         case JMPL_TKN_FOREACH:
-            iot_debug("<foreach>: [%*.*s]", len, len, val);
-
-            if (parse_foreach(&jp, val, len) < 0)
-                goto parse_error;
-            break;
-
-        case JMPL_TKN_ELSE:
-            iot_debug("<else>");
-            break;
-
-        case JMPL_TKN_END:
-            iot_debug("<end>");
-            break;
-
-        case JMPL_TKN_TEXT:
-            iot_debug("<text>: [%*.*s]", len, len, val);
-
-            if (parse_text(&jp, val, len) < 0)
+            if (parse_foreach(&jp) < 0)
                 goto parse_error;
             break;
 
         case JMPL_TKN_SUBST:
-            iot_debug("<subst>: [%*.*s]", len, len, val);
-
-            if (parse_subst(&jp, val, len) < 0)
+            if (parse_subst(&jp, val) < 0)
                 goto parse_error;
             break;
 
-        case JMPL_TKN_ESCAPE:
-            iot_debug("<escape>");
-
-            if (parse_escape(&jp, val, len) < 0)
+        case JMPL_TKN_TEXT:
+            if (parse_text(&jp, val) < 0)
                 goto parse_error;
             break;
+
+        default:
+            goto parse_error;
         }
     }
-
-    iot_debug("token <EOF>");
 
     return j;
 

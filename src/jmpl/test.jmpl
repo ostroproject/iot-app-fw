@@ -1,17 +1,18 @@
-{ > }
+{ } >
 This is a test file.
 Print {foo}, {bar}, {foobar}.
-{if-set prepare.directories}
+{if-set} prepare.directories
 >  ExecStartPre=/bin/mkdir -p {prepare.directories}
 {else}
 >  ExecStartPre=/bin/mkdir -p usr/bin/../usr/sbin/../usr/lib/../usr/lib64
 {end}
 
-{foreach key:val in environment}Environment={key}={val}{\n}{end}
+{foreach} key:val {in} {environment} {do}Environment={key}={val}{\n}{end}
 
-{if (({container.type} == 'nspawn' &&
-      ({container.kind} == 'basic' || {container.kind} == 'shared')) ||
-     ({container.type} == 'xdgapp' && {container.kind} == 'basic'))}
+{if} (({container.type} == 'nspawn' &&
+       ({container.kind} == 'basic' || {container.kind} == 'shared')) ||
+       ({container.type} == 'xdgapp' && {container.kind} == 'basic')  ||
+       ({container.foo[0].bar[1].foobar[2].barfoo[3]['foo']['bar']} == 'a'))
   ExecStart=/start/me/container {commandline}
 {else}
   ExecStart=/start/me/ordinarily {commandline}

@@ -43,6 +43,13 @@
  */
 
 /**
+ * @brief Maximum allowed raw template size.
+ */
+#define JMPL_MAX_TEMPLATE (64 * 1024)
+
+#define JMPL_MAX_JSONDATA (64 * 1024)
+
+/**
  * @brief Opaque type for JSON data.
  */
 typedef iot_json_t json_t;
