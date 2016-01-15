@@ -30,6 +30,8 @@
 #ifndef __JMPL_H__
 #define __JMPL_H__
 
+#include <stdio.h>
+
 #include <iot/common/macros.h>
 #include <iot/common/json.h>
 
@@ -98,6 +100,8 @@ json_t *jmpl_load_json(const char *path);
  *         errno is also set.
  */
 jmpl_t *jmpl_parse(const char *str);
+
+void jmpl_dump(jmpl_t *jmpl, FILE *fp);
 
 
 /**

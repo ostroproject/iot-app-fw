@@ -44,9 +44,9 @@ typedef struct jmpl_ref_s    jmpl_ref_t;
 typedef struct jmpl_subst_s  jmpl_subst_t;
 typedef struct jmpl_text_s   jmpl_text_t;
 typedef struct jmpl_ifset_s  jmpl_ifset_t;
-typedef struct jmpl_ifset_s  jmpl_ifset_t;
 typedef struct jmpl_if_s     jmpl_if_t;
 typedef struct jmpl_for_s    jmpl_for_t;
+typedef union  jmpl_insn_u   jmpl_insn_t;
 typedef struct jmpl_expr_s   jmpl_expr_t;
 typedef struct jmpl_value_s  jmpl_value_t;
 
@@ -110,7 +110,18 @@ struct jmpl_for_s {
     iot_list_hook_t  hook;               /* to op list */
     jmpl_ref_t      *key;                /* key */
     jmpl_ref_t      *val;                /* value */
+    jmpl_ref_t      *in;                 /* variable reference */
     iot_list_hook_t  body;               /* foreach body */
+};
+
+
+union jmpl_insn_u {
+    jmpl_any_t   any;
+    jmpl_ifset_t ifset;
+    jmpl_if_t    ifelse;
+    jmpl_for_t   foreach;
+    jmpl_text_t  text;
+    jmpl_subst_t subst;
 };
 
 
@@ -173,7 +184,6 @@ typedef enum {
 
 struct jmpl_parser_s {
     iot_list_hook_t  templates;
-    iot_list_hook_t *insns;              /* where to add instructions */
     jmpl_any_t      *jmpl;               /* top level instructions */
     char            *mbeg;               /* directive start marker */
     int              lbeg;               /* start marker length */

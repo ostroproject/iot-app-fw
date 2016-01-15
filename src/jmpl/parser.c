@@ -45,6 +45,16 @@
 
 
 
+static void free_reference(jmpl_ref_t *r)
+{
+    if (r == NULL)
+        return;
+
+    iot_free(r->ids);
+    iot_free(r);
+}
+
+
 static jmpl_ref_t *parse_reference(char *val)
 {
     jmpl_ref_t *r;
@@ -197,13 +207,6 @@ static int parser_init(jmpl_parser_t *jp, const char *str)
     iot_clear(jp);
     iot_list_init(&jp->templates);
 
-    jp->jmpl = jmpl_alloc(JMPL_OP_MAIN, sizeof(*jp->jmpl));
-
-    if (jp->jmpl == NULL)
-        goto nomem;
-
-    jp->insns = &jp->jmpl->hook;
-
     /*
      * Every JSON template file starts with the declaration of the
      * directive markers. The directive markers are used to delimit
@@ -300,36 +303,65 @@ static void parser_exit(jmpl_parser_t *jp)
 }
 
 
-static int parse_if(jmpl_parser_t *jp);
-static int parse_ifset(jmpl_parser_t *jp);
-static int parse_foreach(jmpl_parser_t *jp);
-static int parse_subst(jmpl_parser_t *jp, char *val);
-static int parse_text(jmpl_parser_t *jp, char *val);
+static jmpl_insn_t *parse_ifset(jmpl_parser_t *jp);
+static jmpl_insn_t *parse_if(jmpl_parser_t *jp);
+static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp);
+static jmpl_insn_t *parse_subst(jmpl_parser_t *jp, char *val);
+static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val);
+static void free_ifset(jmpl_ifset_t *jif);
+static void free_if(jmpl_if_t *jif);
+static void free_foreach(jmpl_for_t *jif);
+static void free_text(jmpl_text_t *jt);
+static void free_subst(jmpl_subst_t *jt);
+static void free_expr(jmpl_expr_t *expr);
+static void free_reference(jmpl_ref_t *r);
 
 
-static inline iot_list_hook_t *parser_enter(jmpl_parser_t *jp, jmpl_any_t *any)
+static void free_insn(jmpl_insn_t *insn)
 {
-    iot_list_hook_t *prev;
+    if (insn == NULL)
+        return;
 
-    iot_list_append(jp->insns, &any->hook);
-
-    prev = jp->insns;
-    jp->insns = &any->hook;
-
-    return prev;
+    switch (insn->any.type) {
+    case JMPL_OP_IFSET:   free_ifset(&insn->ifset);     break;
+    case JMPL_OP_IF:      free_if(&insn->ifelse);       break;
+    case JMPL_OP_FOREACH: free_foreach(&insn->foreach); break;
+    case JMPL_OP_TEXT:    free_text(&insn->text);       break;
+    case JMPL_OP_SUBST:   free_subst(&insn->subst);     break;
+    default:                                            break;
+    }
 }
 
 
-static inline void parser_restore(jmpl_parser_t *jp, iot_list_hook_t *prev)
+static void free_instructions(iot_list_hook_t *l)
 {
-    jp->insns = prev;
+    iot_list_hook_t *p, *n;
+    jmpl_insn_t     *insn;
+
+    iot_list_foreach(l, p, n) {
+        insn = iot_list_entry(p, typeof(*insn), any.hook);
+        iot_list_delete(p);
+        free_insn(insn);
+    }
 }
 
 
-static int parse_ifset(jmpl_parser_t *jp)
+static void free_ifset(jmpl_ifset_t *jif)
 {
-    iot_list_hook_t *prev;
+    if (jif == NULL)
+        return;
+
+    free_reference(jif->test);
+    free_instructions(&jif->tbranch);
+    free_instructions(&jif->fbranch);
+}
+
+
+static jmpl_insn_t *parse_ifset(jmpl_parser_t *jp)
+{
+    iot_list_hook_t *branch;
     jmpl_ifset_t    *jif;
+    jmpl_insn_t     *insn;
     char            *val;
     int              tkn, ebr;
 
@@ -338,11 +370,10 @@ static int parse_ifset(jmpl_parser_t *jp)
     jif = jmpl_alloc(JMPL_OP_IFSET, sizeof(*jif));
 
     if (jif == NULL)
-        return -1;
+        return NULL;
 
     iot_list_init(&jif->tbranch);
     iot_list_init(&jif->fbranch);
-    prev = parser_enter(jp, (jmpl_any_t *)jif);
 
     tkn = scan_next_token(jp, &val, SCAN_ID);
 
@@ -351,7 +382,13 @@ static int parse_ifset(jmpl_parser_t *jp)
 
     iot_debug("<id> '%s'", val);
 
+    jif->test = parse_reference(val);
+
+    if (jif->test == NULL)
+        goto invalid_id;
+
     ebr = false;
+    branch = &jif->tbranch;
 
     while ((tkn = scan_next_token(jp, &val, SCAN_IF_BODY)) != JMPL_TKN_END) {
         switch (tkn) {
@@ -366,32 +403,56 @@ static int parse_ifset(jmpl_parser_t *jp)
                 goto unexpected_else;
 
             ebr = true;
+            branch = &jif->fbranch;
             break;
 
         case JMPL_TKN_IFSET:
-            if (parse_ifset(jp) < 0)
+            insn = parse_ifset(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         case JMPL_TKN_IF:
-            if (parse_if(jp) < 0)
+            insn = parse_if(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         case JMPL_TKN_FOREACH:
-            if (parse_foreach(jp) < 0)
+            insn = parse_foreach(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
 
         case JMPL_TKN_SUBST:
             iot_debug("<subst> '%s'", val);
-            if (parse_subst(jp, val) < 0)
+
+            insn = parse_subst(jp, val);
+
+            if (insn == NULL)
                 goto invalid_reference;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         case JMPL_TKN_TEXT:
             iot_debug("<text> '%s'", val);
-            if (parse_text(jp, val) < 0)
+
+            insn = parse_text(jp, val);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         default:
@@ -401,39 +462,39 @@ static int parse_ifset(jmpl_parser_t *jp)
 
     iot_debug("<end>");
 
-    parser_restore(jp, prev);
+    return (jmpl_insn_t *)jif;
 
     return 0;
 
  missing_id:
+ invalid_id:
  unexpected_else:
  unexpected_token:
  invalid_reference:
 
  parse_error:
-    parser_restore(jp, prev);
-
-    return -1;
+    free_ifset(jif);
+    return NULL;
 }
 
 
-static int parse_if(jmpl_parser_t *jp)
+
+static void free_expr(jmpl_expr_t *expr)
 {
-    iot_list_hook_t *prev;
-    jmpl_if_t       *jif;
-    char            *val;
-    int              tkn, ebr, lvl;
+    if (expr == NULL)
+        return;
 
-    iot_debug("<if>");
+    iot_free(expr);
+}
 
-    jif = jmpl_alloc(JMPL_OP_IF, sizeof(*jif));
 
-    if (jif == NULL)
-        return -1;
+static jmpl_expr_t *parse_expr(jmpl_parser_t *jp)
+{
+    jmpl_expr_t *expr;
+    char        *val;
+    int          tkn, lvl;
 
-    iot_list_init(&jif->tbranch);
-    iot_list_init(&jif->fbranch);
-    prev = parser_enter(jp, (jmpl_any_t *)jif);
+    expr = iot_allocz(sizeof(*expr));
 
     tkn = scan_next_token(jp, &val, SCAN_IF_EXPR);
 
@@ -481,7 +542,7 @@ static int parse_if(jmpl_parser_t *jp)
 
         case JMPL_TKN_SUBST:
             iot_debug("<subst> '%s'", val);
-            if (parse_subst(jp, val) < 0)
+            if (!parse_subst(jp, val))
                 goto invalid_reference;
             break;
 
@@ -490,10 +551,60 @@ static int parse_if(jmpl_parser_t *jp)
         }
     }
 
+    return expr;
+
+ missing_open:
+ invalid_reference:
+ unexpected_token:
+    free_expr(expr);
+
+    return NULL;
+}
+
+
+static void free_if(jmpl_if_t *jif)
+{
+    if (jif == NULL)
+        return;
+
+    free_expr(jif->test);
+    free_instructions(&jif->tbranch);
+    free_instructions(&jif->fbranch);
+}
+
+
+static jmpl_insn_t *parse_if(jmpl_parser_t *jp)
+{
+    iot_list_hook_t *branch;
+    jmpl_if_t       *jif;
+    jmpl_insn_t     *insn;
+    char            *val;
+    int              tkn, ebr;
+
+    iot_debug("<if>");
+
+    jif = jmpl_alloc(JMPL_OP_IF, sizeof(*jif));
+
+    if (jif == NULL)
+        return NULL;
+
+    iot_list_init(&jif->tbranch);
+    iot_list_init(&jif->fbranch);
+
+    jif->test = parse_expr(jp);
+
+    if (jif->test == NULL)
+        goto invalid_expr;
+
     ebr = false;
+    branch = &jif->tbranch;
 
     while ((tkn = scan_next_token(jp, &val, SCAN_IF_BODY)) != JMPL_TKN_END) {
         switch (tkn) {
+        case JMPL_TKN_END:
+            iot_debug("<end>");
+            return 0;
+
         case JMPL_TKN_ELSE:
             iot_debug("<else>");
 
@@ -501,32 +612,56 @@ static int parse_if(jmpl_parser_t *jp)
                 goto unexpected_else;
 
             ebr = true;
+            branch = &jif->fbranch;
             break;
 
         case JMPL_TKN_IFSET:
-            if (parse_ifset(jp) < 0)
+            insn = parse_ifset(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         case JMPL_TKN_IF:
-            if (parse_if(jp) < 0)
+            insn = parse_if(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         case JMPL_TKN_FOREACH:
-            if (parse_foreach(jp) < 0)
+            insn = parse_foreach(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
 
         case JMPL_TKN_SUBST:
             iot_debug("<subst> '%s'", val);
-            if (parse_subst(jp, val) < 0)
+
+            insn = parse_subst(jp, val);
+
+            if (insn == NULL)
                 goto invalid_reference;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         case JMPL_TKN_TEXT:
             iot_debug("<text> '%s'", val);
-            if (parse_text(jp, val) < 0)
+
+            insn = parse_text(jp, val);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
             break;
 
         default:
@@ -536,38 +671,46 @@ static int parse_if(jmpl_parser_t *jp)
 
     iot_debug("<end>");
 
-    parser_restore(jp, prev);
+    return (jmpl_insn_t *)jif;
 
-    return 0;
-
- missing_open:
+ invalid_expr:
  unexpected_else:
  unexpected_token:
  invalid_reference:
 
  parse_error:
-    parser_restore(jp, prev);
+    free_if(jif);
 
-    return -1;
+    return NULL;
 }
 
 
-static int parse_foreach(jmpl_parser_t *jp)
+static void free_foreach(jmpl_for_t *jfor)
 {
-    iot_list_hook_t *prev;
-    jmpl_for_t      *jfor;
-    char            *val;
-    int              tkn;
+    if (jfor == NULL)
+        return;
+
+    free_reference(jfor->key);
+    free_reference(jfor->val);
+    free_instructions(&jfor->body);
+}
+
+
+static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp)
+{
+    jmpl_for_t  *jfor;
+    jmpl_insn_t *insn;
+    char        *val, *colon;
+    int          tkn;
 
     iot_debug("<foreach>");
 
     jfor = jmpl_alloc(JMPL_OP_FOREACH, sizeof(*jfor));
 
     if (jfor == NULL)
-        return -1;
+        return NULL;
 
     iot_list_init(&jfor->body);
-    prev = parser_enter(jp, (jmpl_any_t *)jfor);
 
 
     if ((tkn = scan_next_token(jp, &val, SCAN_ID)) != JMPL_TKN_ID)
@@ -575,15 +718,45 @@ static int parse_foreach(jmpl_parser_t *jp)
 
     iot_debug("<id> '%s'", val);
 
+    colon = strchr(val, ':');
+
+    if (colon == NULL || colon == val) {
+        jfor->val = parse_reference(colon ? colon + 1 : val);
+
+        if (jfor->val == NULL)
+            goto invalid_valref;
+    }
+    else {
+        *colon = '\0';
+        jfor->key = parse_reference(val);
+        *colon = ':';
+
+        if (jfor->key == NULL)
+            goto invalid_keyref;
+
+        if (colon[1] != '\0') {
+            jfor->val = parse_reference(colon + 1);
+
+            if (jfor->val == NULL)
+                goto invalid_valref;
+        }
+    }
+
+
     if ((tkn = scan_next_token(jp, &val, SCAN_FOREACH)) != JMPL_TKN_IN)
         goto missing_in;
 
     iot_debug("<in>");
 
     if ((tkn = scan_next_token(jp, &val, SCAN_FOREACH)) != JMPL_TKN_SUBST)
-        goto missing_reference;
+        goto missing_inref;
 
     iot_debug("<subst> '%s'", val);
+
+    jfor->in = parse_reference(val);
+
+    if (jfor->in == NULL)
+        goto invalid_inref;
 
     if ((tkn = scan_next_token(jp, &val, SCAN_FOREACH)) != JMPL_TKN_DO)
         goto missing_do;
@@ -597,28 +770,52 @@ static int parse_foreach(jmpl_parser_t *jp)
             return 0;
 
         case JMPL_TKN_IFSET:
-            if (parse_ifset(jp) < 0)
+            insn = parse_ifset(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jfor->body, &insn->any.hook);
             break;
 
         case JMPL_TKN_IF:
-            if (parse_if(jp) < 0)
+            insn = parse_if(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jfor->body, &insn->any.hook);
             break;
 
         case JMPL_TKN_FOREACH:
-            if (parse_foreach(jp) < 0)
+            insn = parse_foreach(jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jfor->body, &insn->any.hook);
+            break;
 
         case JMPL_TKN_SUBST:
             iot_debug("<subst> '%s'", val);
-            if (parse_subst(jp, val) < 0)
+
+            insn = parse_subst(jp, val);
+
+            if (insn == NULL)
                 goto invalid_reference;
+
+            iot_list_append(&jfor->body, &insn->any.hook);
             break;
+
         case JMPL_TKN_TEXT:
             iot_debug("<text> '%s'", val);
-            if (parse_text(jp, val) < 0)
+
+            insn = parse_text(jp, val);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jfor->body, &insn->any.hook);
             break;
 
         case JMPL_TKN_EOF:
@@ -631,41 +828,44 @@ static int parse_foreach(jmpl_parser_t *jp)
 
     iot_debug("<end>");
 
-    parser_restore(jp, prev);
-
-    return 0;
+    return (jmpl_insn_t *)jfor;
 
  missing_id:
+ invalid_keyref:
+ invalid_valref:
  missing_in:
- missing_reference:
+ invalid_inref:
+ missing_inref:
  missing_do:
  invalid_reference:
  unexpected_eof:
  unexpected_token:
 
  parse_error:
+    free_foreach(jfor);
     errno = EINVAL;
 
-    parser_restore(jp, prev);
-    return -1;
+    return NULL;
 }
 
 
-static int parse_escape(jmpl_parser_t *jp, char *val)
+static jmpl_insn_t *parse_escape(jmpl_parser_t *jp, char *val)
 {
     jmpl_text_t *jt;
+
+    IOT_UNUSED(jp);
 
     iot_debug("<escape> '%s'", val);
 
     if (val[0] != '\\' || val[1] == '\0')
-        return -1;
+        return NULL;
 
     switch (val[1]) {
     case 'n': val = "\n"; break;
     case 't': val = "\t"; break;
     case ' ': val = " ";  break;
     default:
-        return -1;
+        return NULL;
     }
 
     jt = iot_allocz(sizeof(*jt));
@@ -680,19 +880,29 @@ static int parse_escape(jmpl_parser_t *jp, char *val)
     if (jt->text == NULL)
         goto nomem;
 
-    iot_list_append(jp->insns, &jt->hook);
-
-    return 0;
+    return (jmpl_insn_t *)jt;
 
  nomem:
     iot_free(jt);
-    return -1;
+    return NULL;
 }
 
 
-static int parse_subst(jmpl_parser_t *jp, char *val)
+static void free_subst(jmpl_subst_t *js)
+{
+    if (js == NULL)
+        return;
+
+    free_reference(js->ref);
+    iot_free(js);
+}
+
+
+static jmpl_insn_t *parse_subst(jmpl_parser_t *jp, char *val)
 {
     jmpl_subst_t *js;
+
+    IOT_UNUSED(jp);
 
     if (val[0] == '\\')
         return parse_escape(jp, val);
@@ -702,7 +912,7 @@ static int parse_subst(jmpl_parser_t *jp, char *val)
     js = iot_allocz(sizeof(*js));
 
     if (js == NULL)
-        return -1;
+        return NULL;
 
     iot_list_init(&js->hook);
     js->type = JMPL_OP_SUBST;
@@ -711,19 +921,29 @@ static int parse_subst(jmpl_parser_t *jp, char *val)
     if (js->ref == NULL)
         goto noref;
 
-    iot_list_append(jp->insns, &js->hook);
-
-    return 0;
+    return (jmpl_insn_t *)js;
 
  noref:
     iot_free(js);
-    return -1;
+    return NULL;
 }
 
 
-static int parse_text(jmpl_parser_t *jp, char *val)
+static void free_text(jmpl_text_t *jt)
+{
+    if (jt == NULL)
+        return;
+
+    iot_free(jt->text);
+    iot_free(jt);
+}
+
+
+static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val)
 {
     jmpl_text_t *jt;
+
+    IOT_UNUSED(jp);
 
     iot_debug("<text> '%s'", val);
 
@@ -739,21 +959,29 @@ static int parse_text(jmpl_parser_t *jp, char *val)
     if (jt->text == NULL)
         goto nomem;
 
-    iot_list_append(jp->insns, &jt->hook);
-
-    return 0;
+    return (jmpl_insn_t *)jt;
 
  nomem:
     iot_free(jt);
-    return -1;
+    return NULL;
 }
 
 
 jmpl_t *jmpl_parse(const char *str)
 {
     jmpl_parser_t  jp;
+    jmpl_t        *jmpl;
+    jmpl_insn_t   *insn;
     char          *val;
     int            tkn;
+
+    jmpl = iot_allocz(sizeof(*jmpl));
+
+    if (jmpl == NULL)
+        return NULL;
+
+    jmpl->type = JMPL_OP_MAIN;
+    iot_list_init(&jmpl->hook);
 
     if (parser_init(&jp, str) < 0)
         return NULL;
@@ -771,28 +999,48 @@ jmpl_t *jmpl_parse(const char *str)
             goto parse_error;
 
         case JMPL_TKN_IFSET:
-            if (parse_ifset(&jp) < 0)
+            insn = parse_ifset(&jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jmpl->hook, &insn->any.hook);
             break;
 
         case JMPL_TKN_IF:
-            if (parse_if(&jp) < 0)
+            insn = parse_if(&jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jmpl->hook, &insn->any.hook);
             break;
 
         case JMPL_TKN_FOREACH:
-            if (parse_foreach(&jp) < 0)
+            insn = parse_foreach(&jp);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jmpl->hook, &insn->any.hook);
             break;
 
         case JMPL_TKN_SUBST:
-            if (parse_subst(&jp, val) < 0)
+            insn = parse_subst(&jp, val);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jmpl->hook, &insn->any.hook);
             break;
 
         case JMPL_TKN_TEXT:
-            if (parse_text(&jp, val) < 0)
+            insn = parse_text(&jp, val);
+
+            if (insn == NULL)
                 goto parse_error;
+
+            iot_list_append(&jmpl->hook, &insn->any.hook);
             break;
 
         default:
@@ -800,7 +1048,9 @@ jmpl_t *jmpl_parse(const char *str)
         }
     }
 
-    return (jmpl_t *)jp.jmpl;
+    jmpl_dump(jmpl, stdout);
+
+    return jmpl;
 
  parse_error:
     parser_exit(&jp);
@@ -808,3 +1058,147 @@ jmpl_t *jmpl_parse(const char *str)
     return NULL;
 }
 
+
+static void dump_instructions(iot_list_hook_t *l, FILE *fp, int level);
+
+
+
+static void indent(FILE *fp, int level)
+{
+    while (level-- > 0)
+        fprintf(fp, "  ");
+}
+
+
+static void dump_reference(jmpl_ref_t *ref, FILE *fp)
+{
+    int tag, idx, id, i;
+    const char *t;
+
+    if (ref == NULL)
+        return;
+
+    for (i = 0, t = ""; i < ref->nid; i++, t = " ") {
+        id  = ref->ids[i];
+        tag = JMPL_SYMBOL_TAG(id);
+        idx = JMPL_SYMBOL_IDX(id);
+
+        switch (tag) {
+        case JMPL_SYMBOL_INDEX:
+            fprintf(fp, "%s0x%x/%d:[%d]", t, tag, idx, idx);
+            break;
+        case JMPL_SYMBOL_FIELD:
+            fprintf(fp, "%s0x%x/%d:.%s", t, tag, idx, symtab_get(id));
+            break;
+        case JMPL_SYMBOL_STRING:
+            fprintf(fp, "%s0x%x/%d:'%s'", t, tag, idx, symtab_get(id));
+            break;
+        default:
+            fprintf(fp, "<invalid reference id:0x%x>", id);
+            break;
+        }
+    }
+
+    fflush(fp);
+}
+
+
+static void dump_expr(jmpl_expr_t *expr, FILE *fp, int level)
+{
+    indent(fp, level);
+    fprintf(fp, "<expr>");
+    fflush(fp);
+}
+
+
+static void dump_ifset(jmpl_ifset_t *jif, FILE *fp, int level)
+{
+    indent(fp, level);
+    fprintf(fp, "<ifset> ");
+    dump_reference(jif->test, fp);
+    fprintf(fp, "\n");
+    dump_instructions(&jif->tbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<else>\n");
+    dump_instructions(&jif->fbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<end>\n");
+}
+
+
+static void dump_if(jmpl_if_t *jif, FILE *fp, int level)
+{
+    indent(fp, level);
+    fprintf(fp, "<if> ");
+    dump_expr(jif->test, fp, 0);
+    fprintf(fp, "\n");
+    dump_instructions(&jif->tbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<else>\n");
+    dump_instructions(&jif->fbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<end>\n");
+}
+
+
+static void dump_foreach(jmpl_for_t *jfor, FILE *fp, int level)
+{
+    indent(fp, level);
+    fprintf(fp, "<foreach> ");
+    dump_reference(jfor->key, fp);
+    fprintf(fp, ":");
+    dump_reference(jfor->val, fp);
+    fprintf(fp, " in ");
+    dump_reference(jfor->in, fp);
+    fprintf(fp, " do\n");
+    dump_instructions(&jfor->body, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<end>\n");
+}
+
+
+static void dump_subst(jmpl_subst_t *js, FILE *fp, int level)
+{
+    indent(fp, level);
+    fprintf(fp, "<subst> ");
+    dump_reference(js->ref, fp);
+    fprintf(fp, "\n");
+}
+
+
+static void dump_text(jmpl_text_t *jt, FILE *fp, int level)
+{
+    indent(fp, level);
+    fprintf(fp, "<text> '%s'\n", jt->text);
+}
+
+
+static void dump_insn(jmpl_insn_t *insn, FILE *fp, int level)
+{
+    switch (insn->any.type) {
+    case JMPL_OP_IFSET:   dump_ifset(&insn->ifset, fp, level);     break;
+    case JMPL_OP_IF:      dump_if(&insn->ifelse, fp, level);       break;
+    case JMPL_OP_FOREACH: dump_foreach(&insn->foreach, fp, level); break;
+    case JMPL_OP_TEXT:    dump_text(&insn->text, fp, level);       break;
+    case JMPL_OP_SUBST:   dump_subst(&insn->subst, fp, level);     break;
+    default:                                                       break;
+    }
+}
+
+
+static void dump_instructions(iot_list_hook_t *l, FILE *fp, int level)
+{
+    iot_list_hook_t *p, *n;
+    jmpl_insn_t     *insn;
+
+    iot_list_foreach(l, p, n) {
+        insn = iot_list_entry(p, typeof(*insn), any.hook);
+        dump_insn(insn, fp, level);
+    }
+}
+
+
+void jmpl_dump(jmpl_t *jmpl, FILE *fp)
+{
+    dump_instructions(&jmpl->hook, fp, 0);
+}
