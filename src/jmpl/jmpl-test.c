@@ -9,7 +9,8 @@
 #include <iot/common/mm.h>
 #include <iot/common/log.h>
 #include <iot/common/debug.h>
-#include <iot/jmpl/jmpl.h>
+
+#include "jmpl/jmpl.h"
 
 
 typedef struct {
@@ -79,7 +80,7 @@ static void parse_cmdline(jmpl_test_t *t, int argc, char *argv[])
 
         case 'd':
             iot_debug_enable(true);
-            iot_debug_set_config("*");
+            iot_debug_set_config(optarg);
             break;
 
         case 'h':
@@ -122,7 +123,6 @@ int main(int argc, char *argv[])
     jmpl_test_t t;
 
     parse_cmdline(&t, argc, argv);
-    
 
     printf("JSON data: '%s'\n", iot_json_object_to_string(t.json));
 

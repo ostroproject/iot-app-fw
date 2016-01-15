@@ -33,23 +33,45 @@
 #include <iot/common/list.h>
 #include <iot/common/json.h>
 
-typedef struct jmpl_s       jmpl_t;
-typedef enum   jmpl_op_e    jmpl_op_t;
-typedef struct jmpl_ref_s   jmpl_ref_t;
-typedef struct jmpl_subst_s jmpl_subst_t;
-typedef struct jmpl_text_s  jmpl_text_t;
+typedef enum   jmpl_op_e         jmpl_op_t;
+typedef enum   jmpl_expr_type_e  jmpl_expr_type_t;
+typedef enum   jmpl_value_type_e jmpl_value_type_t;
+
+typedef struct jmpl_s        jmpl_t;
+typedef struct jmpl_any_s    jmpl_any_t;
+typedef struct jmpl_main_s   jmpl_main_t;
+typedef struct jmpl_ref_s    jmpl_ref_t;
+typedef struct jmpl_subst_s  jmpl_subst_t;
+typedef struct jmpl_text_s   jmpl_text_t;
+typedef struct jmpl_ifset_s  jmpl_ifset_t;
+typedef struct jmpl_ifset_s  jmpl_ifset_t;
+typedef struct jmpl_if_s     jmpl_if_t;
+typedef struct jmpl_for_s    jmpl_for_t;
+typedef struct jmpl_expr_s   jmpl_expr_t;
+typedef struct jmpl_value_s  jmpl_value_t;
 
 typedef struct jmpl_symbol_s jmpl_symbol_t;
 typedef struct jmpl_parser_s jmpl_parser_t;
 
 enum jmpl_op_e {
-    JMPL_OP_TEXT = 0,                    /* plain text, copy verbatim */
+    JMPL_OP_MAIN = 0,
+    JMPL_OP_TEXT,                        /* plain text, copy verbatim */
     JMPL_OP_SUBST,                       /* a substitution */
     JMPL_OP_IFSET,                       /* akin to an #ifdef */
     JMPL_OP_IF,                          /* an if-else construct */
     JMPL_OP_FOREACH,                     /* a for-each construct */
 };
 
+
+struct jmpl_any_s  {
+    jmpl_op_t        type;
+    iot_list_hook_t  hook;
+};
+
+struct jmpl_main_s {
+    jmpl_op_t        type;               /* JMPL_OP_MAIN */
+    iot_list_hook_t  hook;               /* instructions to execute */
+};
 
 struct jmpl_text_s {
     jmpl_op_t        type;               /* JMPL_OP_TEXT */
@@ -65,11 +87,79 @@ struct jmpl_subst_s {
 };
 
 
+struct jmpl_ifset_s {
+    jmpl_op_t        type;               /* JMPL_OF_IFSET */
+    iot_list_hook_t  hook;               /* to op list */
+    jmpl_ref_t      *test;               /* variable to test */
+    iot_list_hook_t  tbranch;            /* true branch */
+    iot_list_hook_t  fbranch;            /* false branch */
+};
+
+
+struct jmpl_if_s {
+    jmpl_op_t        type;               /* JMPL_OP_IF */
+    iot_list_hook_t  hook;               /* to op list */
+    jmpl_expr_t     *test;               /* expression to test */
+    iot_list_hook_t  tbranch;            /* true branch */
+    iot_list_hook_t  fbranch;            /* false branch */
+};
+
+
+struct jmpl_for_s {
+    jmpl_op_t        type;               /* JMPL_OP_FOREACH */
+    iot_list_hook_t  hook;               /* to op list */
+    jmpl_ref_t      *key;                /* key */
+    jmpl_ref_t      *val;                /* value */
+    iot_list_hook_t  body;               /* foreach body */
+};
+
+
 struct jmpl_ref_s {
     int32_t *ids;                        /* field name id, or index */
     int      nid;                        /* number of ids */
 };
 
+#if 1
+
+enum jmpl_value_type_e {
+    JMPL_VALUE_EXPR = 0,                 /* expression as a value */
+    JMPL_VALUE_REF,                      /* variable reference */
+    JMPL_VALUE_CONST,                    /* const value */
+};
+
+
+struct jmpl_value_s {
+    jmpl_value_type_t type;              /* value type */
+    union {                              /* type-specific value */
+        jmpl_ref_t  *r;                  /*   variable reference */
+        char        *c;                  /*   constant value */
+        jmpl_expr_t *e;                  /*   expression */
+    };
+};
+
+
+enum jmpl_expr_type_e {
+    JMPL_EXPR_EQ = 0,                    /* equality test */
+    JMPL_EXPR_NEQ,                       /* inequality test */
+    JMPL_EXPR_OR,                        /* logical or */
+    JMPL_EXPR_AND,                       /* logical and */
+    JMPL_EXPR_NOT,                       /* negation */
+};
+
+
+struct jmpl_expr_s {
+    jmpl_expr_type_t  type;              /* expression type */
+    jmpl_value_t     *lhs;               /* left-hand side value */
+    jmpl_value_t     *rhs;               /* right-hand side value */
+};
+
+#else
+
+struct jmpl_expr_s {
+    int foo;
+};
+
+#endif
 
 typedef enum {
     SCAN_MAIN = 0,
@@ -82,8 +172,9 @@ typedef enum {
 
 
 struct jmpl_parser_s {
-    jmpl_t          *jmpl;
     iot_list_hook_t  templates;
+    iot_list_hook_t *insns;              /* where to add instructions */
+    jmpl_any_t      *jmpl;               /* top level instructions */
     char            *mbeg;               /* directive start marker */
     int              lbeg;               /* start marker length */
     char            *mend;               /* directive end marker */
