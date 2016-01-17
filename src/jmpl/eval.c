@@ -389,12 +389,38 @@ static int eval_subst(jmpl_t *jmpl, jmpl_subst_t *subst)
 
 static int eval_text(jmpl_t *jmpl, jmpl_text_t *text)
 {
+    char *p, *b, *e;
+    int   l, c;
+
     iot_debug("evaluating <text '%s'>...", text->text);
 
-    if (jmpl_printf(jmpl, "%s", text->text) < 0)
-        return -1;
-    else
-        return 0;
+    b = text->text;
+
+    if (jmpl->mtab == NULL || (e = strstr(b, jmpl->mtab)) == NULL)
+        return jmpl_printf(jmpl, "%s", b) < 0 ? -1 : 0;
+
+    while (b && *b) {
+        while (e != NULL && (e == text->text || e[-1] != '\n'))
+            e = strstr(e + 1, jmpl->mtab);
+
+        if (e == NULL)
+            return jmpl_printf(jmpl, "%s", b) < 0 ? -1 : 0;
+
+        l = e - b;
+
+        if (jmpl_printf(jmpl, "%*.*s", l, l, b) < 0)
+            return -1;
+
+        b = e + jmpl->ltab;
+        c = *b;
+
+        while (*b && *b == c)
+            b++;
+
+        e = strstr(b, jmpl->mtab);
+    }
+
+    return 0;
 }
 
 

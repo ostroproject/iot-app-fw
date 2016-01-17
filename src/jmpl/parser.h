@@ -234,6 +234,8 @@ typedef enum {
 struct jmpl_s {
     jmpl_op_t        type;
     iot_list_hook_t  hook;
+    char            *mtab;
+    int              ltab;
     int32_t          data;
     char            *buf;
     size_t           size;

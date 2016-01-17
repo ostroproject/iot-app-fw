@@ -1154,6 +1154,8 @@ jmpl_t *jmpl_parse(const char *str)
     iot_debug("  tab marker: '%s'", jp.mtab ? jp.mtab : "<none>");
     iot_debug("    template: %s"  , jp.buf);
 
+    jmpl->mtab = iot_strdup(jp.mtab);
+    jmpl->ltab = jp.ltab;
 
     while ((tkn = scan_next_token(&jp, &val, SCAN_MAIN)) != JMPL_TKN_EOF) {
         switch (tkn) {
