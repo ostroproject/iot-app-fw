@@ -105,6 +105,16 @@ int scan_next_token(jmpl_parser_t *jp, char **valp, int options)
     size_t n;
     int tkn;
 
+    if (jp->tkn != JMPL_TKN_UNKNOWN) {
+        tkn   = jp->tkn;
+        *valp = jp->val;
+
+        jp->tkn = JMPL_TKN_UNKNOWN;
+        jp->val = NULL;
+
+        return tkn;
+    }
+
     switch (options) {
     case SCAN_IF_EXPR:
     case SCAN_FOREACH:
@@ -337,3 +347,14 @@ int scan_next_token(jmpl_parser_t *jp, char **valp, int options)
     return JMPL_TKN_ERROR;
 }
 
+
+int scan_push_token(jmpl_parser_t *jp, int tkn, char *val)
+{
+    if (jp->tkn != JMPL_TKN_UNKNOWN)
+        return -1;
+
+    jp->tkn = tkn;
+    jp->val = val;
+
+    return 0;
+}

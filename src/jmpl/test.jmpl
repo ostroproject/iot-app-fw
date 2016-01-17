@@ -1,19 +1,14 @@
 { } >
 This is a test file.
-Print {foo}, {bar}, {foobar}.
-{if-set} prepare.directories
->  ExecStartPre=/bin/mkdir -p {prepare.directories}
+Print {data.foo}, {data.bar}, {data.foobar}.
+{if-set} data.prepare.directories
+>  ExecStartPre=/bin/mkdir -p {data.prepare.directories}
 {else}
 >  ExecStartPre=/bin/mkdir -p usr/bin/../usr/sbin/../usr/lib/../usr/lib64
 {end}
-
-{foreach} key:val {in} {environment} {do}Environment={key}={val}{\n}{end}
-
-{if} (({container.type} == 'nspawn' &&
-       ({container.kind} == 'basic' || {container.kind} == 'shared')) ||
-       ({container.type} == 'xdgapp' && {container.kind} == 'basic')  ||
-       ({container.foo[0].bar[1].foobar[2].barfoo[3]['foo']['bar']} == 'a'))
-  ExecStart=/start/me/container {commandline}
+{foreach} key:val {in} {data.environment} {do}Environment={key}={val}{\n}{end}
+{if} (({data.container.type} == 'nspawn') || ({data.container.type} == 'xdg-app'))
+>  ExecStart=/start/me/container {data.commandline}
 {else}
-  ExecStart=/start/me/ordinarily {commandline}
+>  ExecStart=/start/me/ordinarily {data.commandline}
 {end}

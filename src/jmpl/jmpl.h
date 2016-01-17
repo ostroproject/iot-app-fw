@@ -101,6 +101,15 @@ json_t *jmpl_load_json(const char *path);
  */
 jmpl_t *jmpl_parse(const char *str);
 
+
+/**
+ * @brief Dump a parsed JSON template.
+ *
+ * Produce a dump of the given template suitable for debugging.
+ *
+ * @param [in] jmpl  the JSON template to dump.
+ * @param [in] fp    stream to write the debug dump to
+ */
 void jmpl_dump(jmpl_t *jmpl, FILE *fp);
 
 

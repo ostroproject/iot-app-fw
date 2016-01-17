@@ -488,6 +488,157 @@ static void free_expr(jmpl_expr_t *expr)
 }
 
 
+#if 1
+
+static void free_value(jmpl_value_t *v)
+{
+    if (v == NULL)
+        return;
+
+    switch (v->type) {
+    case JMPL_VALUE_REF:   free_reference(v->r); break;
+    case JMPL_VALUE_CONST: iot_free(v->s);       break;
+    case JMPL_VALUE_EXPR:  free_expr(v->e);      break;
+    default:                                     break;
+    }
+
+    iot_free(v);
+}
+
+
+/*
+ * Possible expressions:
+ *
+ *   expr && expr
+ *   expr || expr
+ *   ( expr )
+ *   ! expr
+ *   reference
+ *   string
+ */
+
+
+static jmpl_expr_t *parse_expr(jmpl_parser_t *jp);
+
+static jmpl_value_t *parse_value(jmpl_parser_t *jp)
+{
+    jmpl_value_t *v;
+    int           tkn;
+    char         *val;
+
+    iot_debug("<value...>");
+
+    v = iot_allocz(sizeof(*v));
+
+    if (v == NULL)
+        return NULL;
+
+    tkn = scan_next_token(jp, &val, SCAN_IF_EXPR);
+    iot_debug("token '%s'", val);
+
+    switch (tkn) {
+    case JMPL_TKN_SUBST:
+        v->type = JMPL_VALUE_REF;
+        v->r    = parse_reference(val);
+
+        if (v->r == NULL)
+            goto invalid_reference;
+        break;
+
+    case JMPL_TKN_STRING:
+        iot_debug("<string> '%s'", val);
+
+        v->type = JMPL_VALUE_CONST;
+        v->s    = iot_strdup(val);
+
+        if (v->s == NULL)
+            goto nomem;
+        break;
+
+    case JMPL_TKN_OPEN:
+        v->type = JMPL_VALUE_EXPR;
+        v->e    = parse_expr(jp);
+
+        if (v->e == NULL)
+            goto invalid_expr;
+
+        tkn = scan_next_token(jp, &val, SCAN_IF_EXPR);
+
+        if (tkn != JMPL_TKN_CLOSE)
+            goto missing_close;
+        break;
+
+    default:
+        goto unexpected_token;
+    }
+
+    return v;
+
+ invalid_reference:
+ nomem:
+ invalid_expr:
+ missing_close:
+ unexpected_token:
+    free_value(v);
+    return NULL;
+}
+
+
+static jmpl_expr_t *parse_expr(jmpl_parser_t *jp)
+{
+    jmpl_expr_t *expr;
+    char        *val;
+    int          tkn;
+
+    iot_debug("<expr...>");
+
+    expr = iot_allocz(sizeof(*expr));
+
+    if (expr == NULL)
+        goto nomem;
+
+    tkn = scan_next_token(jp, &val, SCAN_IF_EXPR);
+
+    if (tkn == JMPL_TKN_NOT)
+        expr->type = JMPL_EXPR_NOT;
+    else
+        scan_push_token(jp, tkn, val);
+
+    expr->lhs = parse_value(jp);
+
+    if (expr->lhs == NULL)
+        goto invalid_lhs;
+
+    if (expr->type == JMPL_EXPR_NOT)
+        return expr;
+
+    tkn = scan_next_token(jp, &val, SCAN_IF_EXPR);
+
+    switch (tkn) {
+    case JMPL_TKN_EQ:  expr->type = JMPL_EXPR_EQ;  break;
+    case JMPL_TKN_NEQ: expr->type = JMPL_EXPR_NEQ; break;
+    case JMPL_TKN_OR:  expr->type = JMPL_EXPR_OR;  break;
+    case JMPL_TKN_AND: expr->type = JMPL_EXPR_AND; break;
+    default: goto invalid_op;
+    }
+
+    expr->rhs = parse_value(jp);
+
+    if (expr->rhs == NULL)
+        goto invalid_rhs;
+
+    return expr;
+
+ invalid_lhs:
+ invalid_op:
+ invalid_rhs:
+    free_expr(expr);
+ nomem:
+    return NULL;
+}
+
+#else
+
 static jmpl_expr_t *parse_expr(jmpl_parser_t *jp)
 {
     jmpl_expr_t *expr;
@@ -561,6 +712,8 @@ static jmpl_expr_t *parse_expr(jmpl_parser_t *jp)
     return NULL;
 }
 
+#endif
+
 
 static void free_if(jmpl_if_t *jif)
 {
@@ -591,10 +744,16 @@ static jmpl_insn_t *parse_if(jmpl_parser_t *jp)
     iot_list_init(&jif->tbranch);
     iot_list_init(&jif->fbranch);
 
+    if ((tkn = scan_next_token(jp, &val, SCAN_IF_EXPR)) != JMPL_TKN_OPEN)
+        goto missing_open;
+
     jif->test = parse_expr(jp);
 
     if (jif->test == NULL)
         goto invalid_expr;
+
+    if ((tkn = scan_next_token(jp, &val, SCAN_IF_EXPR)) != JMPL_TKN_CLOSE)
+        goto missing_close;
 
     ebr = false;
     branch = &jif->tbranch;
@@ -673,7 +832,9 @@ static jmpl_insn_t *parse_if(jmpl_parser_t *jp)
 
     return (jmpl_insn_t *)jif;
 
+ missing_open:
  invalid_expr:
+ missing_close:
  unexpected_else:
  unexpected_token:
  invalid_reference:
@@ -980,6 +1141,8 @@ jmpl_t *jmpl_parse(const char *str)
     if (jmpl == NULL)
         return NULL;
 
+    jmpl->data = symtab_add("data", JMPL_SYMBOL_FIELD);
+
     jmpl->type = JMPL_OP_MAIN;
     iot_list_init(&jmpl->hook);
 
@@ -1102,11 +1265,54 @@ static void dump_reference(jmpl_ref_t *ref, FILE *fp)
     fflush(fp);
 }
 
+static void dump_expr(jmpl_expr_t *expr, FILE *fp, int level);
+
+static void dump_value(jmpl_value_t *v, FILE *fp)
+{
+    switch (v->type) {
+    case JMPL_VALUE_EXPR:
+        fprintf(fp, "( ");
+        dump_expr(v->e, fp, 0);
+        fprintf(fp, " )");
+        break;
+    case JMPL_VALUE_REF:
+        dump_reference(v->r, fp);
+        break;
+    case JMPL_VALUE_CONST:
+        fprintf(fp, "<string> '%s'", v->s);
+        break;
+    default:
+        fprintf(fp, "<invalid value>");
+        break;
+    }
+}
+
 
 static void dump_expr(jmpl_expr_t *expr, FILE *fp, int level)
 {
     indent(fp, level);
-    fprintf(fp, "<expr>");
+
+    if (expr->type == JMPL_EXPR_NOT) {
+        fprintf(fp, "! ");
+        dump_value(expr->lhs, fp);
+        fprintf(fp, "\n");
+    }
+    else {
+        fprintf(fp, "( ");
+        dump_value(expr->lhs, fp);
+        switch (expr->type) {
+        case JMPL_EXPR_EQ:  fprintf(fp, " == "); break;
+        case JMPL_EXPR_NEQ: fprintf(fp, " != "); break;
+        case JMPL_EXPR_OR:  fprintf(fp, " || "); break;
+        case JMPL_EXPR_AND: fprintf(fp, " && "); break;
+        default:
+            fprintf(fp, " <unknown-op> ");
+            break;
+        }
+        dump_value(expr->rhs, fp);
+        fprintf(fp, ")\n");
+    }
+
     fflush(fp);
 }
 

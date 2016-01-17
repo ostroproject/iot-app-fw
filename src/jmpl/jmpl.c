@@ -118,3 +118,4 @@ jmpl_t *jmpl_load_template(const char *path)
 
     return j;
 }
+

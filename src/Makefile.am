@@ -93,6 +93,7 @@ jmpl_test_SOURCES =					\
 		jmpl/jmpl.c				\
 		jmpl/scanner.c				\
 		jmpl/parser.c				\
+		jmpl/eval.c				\
 		jmpl/symtab.c				\
 		common/mm.c				\
 		common/log.c				\

@@ -18,6 +18,19 @@
   'foo': 'this is foo',
   'bar': 'this is bar',
   'foobar': 'this 1 is 2 foo 3 bar...',
+  'container': {
+      'type': 'nspawn'
+  },
+
+  'commandline': 'this is the command line',
+  'environment': {
+     'FOO': 'BAR',
+     'BAR': 'XYZZY',
+     'FOOBAR': 'BARFOO',
+     'ONE': '1',
+     'TWO': '2',
+     'THREE': '3',
+  },
 }
 
 

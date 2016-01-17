@@ -51,6 +51,10 @@ typedef struct jmpl_expr_s   jmpl_expr_t;
 typedef struct jmpl_value_s  jmpl_value_t;
 
 typedef struct jmpl_symbol_s jmpl_symbol_t;
+typedef enum   jmpl_symval_type_e jmpl_symval_type_t;
+typedef struct jmpl_symval_s jmpl_symval_t;
+
+
 typedef struct jmpl_parser_s jmpl_parser_t;
 
 enum jmpl_op_e {
@@ -143,7 +147,7 @@ struct jmpl_value_s {
     jmpl_value_type_t type;              /* value type */
     union {                              /* type-specific value */
         jmpl_ref_t  *r;                  /*   variable reference */
-        char        *c;                  /*   constant value */
+        char        *s;                  /*   constant value */
         jmpl_expr_t *e;                  /*   expression */
     };
 };
@@ -155,6 +159,7 @@ enum jmpl_expr_type_e {
     JMPL_EXPR_OR,                        /* logical or */
     JMPL_EXPR_AND,                       /* logical and */
     JMPL_EXPR_NOT,                       /* negation */
+    JMPL_EXPR_VALUE,
 };
 
 
@@ -195,6 +200,8 @@ struct jmpl_parser_s {
     char            *p;                  /* parsing pointer into buf */
     char            *tokens;             /* token save buffer */
     char            *t;                  /* token buffer pointer */
+    int              tkn;                /* pushed back next token */
+    char            *val;                /* pushed back token value */
     char            *error;              /* parser error */
 };
 
@@ -225,13 +232,14 @@ typedef enum {
 
 
 struct jmpl_s {
-    jmpl_op_t       type;
-    iot_list_hook_t hook;
+    jmpl_op_t        type;
+    iot_list_hook_t  hook;
+    int32_t          data;
+    char            *buf;
+    size_t           size;
+    size_t           used;
 };
 
-
-
-typedef struct jmpl_symtab_s jmpl_symtab_t;
 
 
 enum {
@@ -246,13 +254,32 @@ enum {
 #define JMPL_SYMBOL_IDX(id) ((id) & ~JMPL_SYMTAG_MASK)
 
 struct jmpl_symbol_s {
-    int32_t  tags;
-    char    *str;
+    int32_t          tags;
+    char            *str;
+    iot_list_hook_t *values;
 };
 
 
+enum jmpl_symval_type_e {
+    JMPL_SYMVAL_UNKNOWN = -1,
+    JMPL_SYMVAL_STRING,
+    JMPL_SYMVAL_INTEGER,
+    JMPL_SYMVAL_JSON
+};
+
+struct jmpl_symval_s {
+    jmpl_symval_type_t type;             /* runtime type in this frame */
+    iot_list_hook_t    hook;             /* to value stack */
+    union {                              /* type-specific value */
+        const char *s;
+        int         i;
+        iot_json_t *j;
+    };
+};
+
 
 int scan_next_token(jmpl_parser_t *jp, char **valp, int options);
+int scan_push_token(jmpl_parser_t *jp, int tkn, char *val);
 
 static inline char *skip_whitespace(char *p, int eol)
 {
@@ -322,5 +349,9 @@ jmpl_t *jmpl_parse(const char *str);
 
 int32_t symtab_add(const char *str, int32_t tag);
 const char *symtab_get(int32_t id);
+
+int symtab_push(int32_t id, int type, void *v);
+int symtab_pop(int32_t id);
+int symtab_resolve(jmpl_ref_t *r, void **valp);
 
 #endif /* __JSON_TEMPLATE_PARSER_H__ */

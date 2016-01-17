@@ -120,11 +120,16 @@ static void parse_cmdline(jmpl_test_t *t, int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-    jmpl_test_t t;
+    jmpl_test_t  t;
+    char        *output;
 
     parse_cmdline(&t, argc, argv);
 
     printf("JSON data: '%s'\n", iot_json_object_to_string(t.json));
+
+    output = jmpl_eval(t.jmpl, t.json);
+
+    printf("output: '%s'\n", output ? output : "<failed>");
 
     return 0;
 }
