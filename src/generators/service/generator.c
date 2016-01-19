@@ -40,6 +40,9 @@ int main(int argc, char *argv[], char *env[])
 
     log_open(g.log_path);
 
+    if (template_load(&g) < 0)
+        exit(1);
+
     application_mount(&g);
     application_discover(&g);
     application_umount(&g);

@@ -58,11 +58,12 @@ static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
             "is %s.\n"
             "\n"
             "The possible opions are:\n"
-            "  -n, --dry-run       just print, don't generate anything\n"
-            "  -l, --log <path>    where to log to (default: /dev/kmsg)\n"
-            "  -v, --verbose       increase logging verbosity\n"
-            "  -d, --debug <site>  enable deugging for <site>\n"
-            "  -h, --help          print this help message\n", argv0,
+            "  -t, --template <path>  template service file to use\n"
+            "  -n, --dry-run          just print, don't generate anything\n"
+            "  -l, --log <path>       where to log to (default: /dev/kmsg)\n"
+            "  -v, --verbose          increase logging verbosity\n"
+            "  -d, --debug <site>     enable deugging for <site>\n"
+            "  -h, --help             print this help message\n", argv0,
             PATH_APPS);
 
     if (exit_code < 0)
@@ -72,13 +73,15 @@ static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
 }
 
 
-static void set_defaults(generator_t *g, char *env[])
+static void set_defaults(generator_t *g, char **argv, char *env[])
 {
     iot_clear(g);
     iot_list_init(&g->services);
 
-    g->env      = (const char **)env;
-    g->dir_apps = PATH_APPS;
+    g->env           = (const char **)env;
+    g->argv0         = argv[0];
+    g->dir_apps      = PATH_APPS;
+    g->path_template = PATH_TEMPLATE;
 
     iot_log_set_mask(IOT_LOG_MASK_ERROR | IOT_LOG_MASK_WARNING);
 }
@@ -86,22 +89,27 @@ static void set_defaults(generator_t *g, char *env[])
 
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 {
-#   define OPTIONS "nl:vd:h"
+#   define OPTIONS "t:nl:vd:h"
     static struct option options[] = {
-        { "dry-run", no_argument      , NULL, 'n' },
-        { "log"    , required_argument, NULL, 'l' },
-        { "verbose", no_argument      , NULL, 'v' },
-        { "debug"  , required_argument, NULL, 'd' },
-        { "help"   , no_argument      , NULL, 'h' },
+        { "template", required_argument, NULL, 't' },
+        { "dry-run" , no_argument      , NULL, 'n' },
+        { "log"     , required_argument, NULL, 'l' },
+        { "verbose" , no_argument      , NULL, 'v' },
+        { "debug"   , required_argument, NULL, 'd' },
+        { "help"    , no_argument      , NULL, 'h' },
         { NULL, 0, NULL, 0 }
     };
 
     int opt;
 
-    set_defaults(g, env);
+    set_defaults(g, argv, env);
 
     while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
         switch (opt) {
+        case 't':
+            g->path_template = optarg;
+            break;
+
         case 'n':
             g->dry_run = 1;
             break;

@@ -44,7 +44,8 @@
 service_t *service_create(generator_t *g, const char *provider, const char *app,
                           const char *dir, const char *src, iot_json_t *manifest)
 {
-    service_t *s;
+    service_t  *s;
+    iot_json_t *o;
 
     s = iot_allocz(sizeof(*s));
 
@@ -52,9 +53,6 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
         goto nomem;
 
     iot_list_init(&s->hook);
-    iot_list_init(&s->unit);
-    iot_list_init(&s->service);
-    iot_list_init(&s->install);
 
     s->g        = g;
     s->m        = manifest;
@@ -62,11 +60,33 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
     s->provider = iot_strdup(provider);
     s->app      = iot_strdup(app);
     s->appdir   = iot_strdup(dir);
+    s->data     = iot_json_create(IOT_JSON_OBJECT);
 
-    if (s->provider == NULL || s->app == NULL || s->appdir == NULL)
+    if (!s->provider || !s->app || !s->appdir || !s->data)
         goto nomem;
 
-    section_add(&s->unit, NULL, "SourcePath", "%s", src);
+    iot_json_add(s->data, "path", o = iot_json_create(IOT_JSON_OBJECT));
+
+    if (o == NULL)
+        goto nomem;
+
+    iot_json_add(s->data, "manifest", manifest);
+
+    if (!iot_json_add_string(o, "generator", g->argv0))
+        goto nomem;
+    if (!iot_json_add_string(o, "template", g->path_template))
+        goto nomem;
+    if (!iot_json_add_string(o, "manifest", src))
+        goto nomem;
+    if (!iot_json_add_string(o, "application", s->appdir))
+        goto nomem;
+    if (!iot_json_add_string(o, "container", PATH_CONTAINER))
+        goto nomem;
+
+    if (!iot_json_add_string(s->data, "provider", s->provider))
+        goto nomem;
+    if (!iot_json_add_string(s->data, "application", s->app))
+        goto nomem;
 
     iot_list_append(&g->services, &s->hook);
 
@@ -110,11 +130,20 @@ static int service_open(service_t *s)
 }
 
 
+static void service_close(service_t *s)
+{
+    if (s->fd >= 0) {
+        close(s->fd);
+        s->fd = -1;
+    }
+}
+
+
 static int service_link(service_t *s)
 {
     char srv[PATH_MAX], lnk[PATH_MAX];
 
-    if (!s->autostart)
+    if (!s->autostart || s->g->dry_run)
         return 0;
 
     if (!fs_service_path(s, srv, sizeof(srv)) ||
@@ -153,112 +182,9 @@ void service_abort(service_t *s)
 }
 
 
-static entry_t *entry_create(emit_t emit, const char *k, const void *data,
-                             va_list ap)
-{
-    entry_t *e;
-    char v[4096];
-    int n;
-
-    e = NULL;
-    v[0] = '\0';
-
-    if (emit == NULL) {
-        if (data == NULL)
-            goto invalid;
-
-        n = vsnprintf(v, sizeof(v), (const char *)data, ap);
-
-        if (n < 0)
-            goto fail;
-        if (n >= (int)sizeof(v))
-            goto overflow;
-
-        data = iot_strdup(v);
-
-        if (data == NULL)
-            goto nomem;
-    }
-
-    e = iot_allocz(sizeof(*e));
-
-    if (e == NULL)
-        goto nomem;
-
-    iot_list_init(&e->hook);
-    e->key   = iot_strdup(k);
-    e->data  = (void *)data;
-    e->emit  = emit;
-
-    if (e->key == NULL || (emit == NULL && e->data == NULL))
-        goto nomem;
-
-    return e;
-
- invalid:
-    errno = EINVAL;
-    return NULL;
- overflow:
-    errno = EOVERFLOW;
- nomem:
-    if (e) {
-        iot_free(e->key);
-        if (emit == NULL)
-            iot_free(e->data);
-        iot_free(e);
-    }
- fail:
-    return NULL;
-}
-
-
-entry_t *section_add(iot_list_hook_t *s, emit_t emit, const char *k,
-                     const void *data, ...)
-{
-    entry_t *e;
-    va_list ap;
-
-    va_start(ap, data);
-    e = entry_create(emit, k, data, ap);
-    va_end(ap);
-
-    if (e == NULL)
-        return NULL;
-
-    iot_list_append(s, &e->hook);
-
-    return e;
-}
-
-
 static int service_process(service_t *s)
 {
-    iot_json_t *m = s->m;
-    iot_json_iter_t it;
-    const char *key;
-    iot_json_t *val;
-    manifest_key_t *mk;
-
-    if (iot_json_get_type(m) != IOT_JSON_OBJECT)
-        goto invalid;
-
-    iot_json_foreach_member(m, key, val, it) {
-        mk = key_lookup(key);
-
-        if (mk == NULL)
-            goto invalid;
-
-        if (mk->handler(s, key, val) != 0)
-            s->g->status = -1;
-    }
-
-    section_add(&s->install, NULL, "WantedBy", "applications.target");
-
-    return s->g->status;
-
- invalid:
-    errno = EINVAL;
-    return -1;
+    return template_eval(s);
 }
 
 
@@ -299,103 +225,36 @@ static int service_mkdir(generator_t *g)
 }
 
 
-mount_t *service_mount(iot_list_hook_t *l, const char *dst, int rw,
-                       int type, ...)
-{
-    mount_t *m;
-    va_list ap;
-
-    m = iot_allocz(sizeof(*m));
-
-    if (m == NULL)
-        goto nomem;
-
-    m->dst = iot_strdup(dst);
-
-    if (m->dst == NULL)
-        goto nomem;
-
-    m->type = (mount_type_t)type;
-    m->rw   = rw;
-
-    va_start(ap, type);
-    switch (m->type) {
-    case MOUNT_TYPE_BIND: {
-        const char *src = va_arg(ap, const char *);
-        m->bind.src = iot_strdup(src);
-        if (m->bind.src == NULL && src != NULL)
-            goto popandfail;
-    }
-        break;
-    case MOUNT_TYPE_OVERLAY: {
-        const char *low = va_arg(ap, const char *);
-        const char *up  = va_arg(ap, const char *);
-
-        m->overlay.low = iot_strdup(low);
-        m->overlay.up  = iot_strdup(up);
-        if ((!m->overlay.low && low) || (!m->overlay.up && up))
-            goto popandfail;
-    }
-        break;
-    case MOUNT_TYPE_TMPFS:
-        m->tmpfs.mode = va_arg(ap, mode_t);
-        break;
-    default:
-    popandfail:
-        errno = EINVAL;
-        va_end(ap);
-        goto fail;
-    }
-    va_end(ap);
-
-    iot_list_init(&m->hook);
-
-    if (l != NULL)
-        iot_list_append(l, &m->hook);
-
-    return m;
-
- fail:
- nomem:
-    if (m != NULL) {
-        iot_free(m->dst);
-        iot_free(m->overlay.low);        /* also takes care of m->bind.src */
-        iot_free(m->overlay.up);
-        iot_free(m);
-    }
-    return NULL;
-}
-
-
-static int section_dump(service_t *s, iot_list_hook_t *sec, const char *name)
-{
-    iot_list_hook_t *p, *n;
-    entry_t *e;
-
-    dprintf(s->fd, "[%s]\n", name);
-    iot_list_foreach(sec, p, n) {
-        e = iot_list_entry(p, typeof(*e), hook);
-
-        if (e->emit == NULL)
-            dprintf(s->fd, "%s=%s\n", e->key, e->value);
-        else
-            e->emit(s->fd, s, e);
-    }
-    dprintf(s->fd, "\n");
-
-    return 0;
-}
-
-
 static int service_dump(service_t *s)
 {
-    if (service_open(s) < 0)
-        goto fail;
+    int l, n;
+    char *p;
 
-    if (section_dump(s, &s->unit   , "Unit"   ) < 0 ||
-        section_dump(s, &s->service, "Service") < 0 ||
-        section_dump(s, &s->install, "Install") < 0)
-        goto fail;
+    if (s->output == NULL)
+        return -1;
+
+    if (service_open(s) < 0)
+        return -1;
+
+    p = s->output;
+    l = strlen(p);
+    n = 0;
+
+    while (l > 0) {
+        n = write(s->fd, p, l);
+
+        if (n < 0) {
+            if (errno == EAGAIN)
+                continue;
+            else
+                goto fail;
+        }
+
+        p += n;
+        l -= n;
+    }
+
+    service_close(s);
 
     if (service_link(s) < 0)
         goto fail;

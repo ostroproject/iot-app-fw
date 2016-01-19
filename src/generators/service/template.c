@@ -27,79 +27,32 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <errno.h>
-#include <math.h>
-#include <limits.h>
-
-#include <iot/common/mm.h>
-
 #include "generator.h"
 
-#define RW 1
-#define RO 0
-
-static container_t *containers = NULL;
-static int          ncontainer = 0;
-
-
-int container_register(container_t *cntr)
+int template_load(generator_t *g)
 {
-    container_t *c;
+    g->template = jmpl_load_template(g->path_template);
 
-    if (!iot_reallocz(containers, ncontainer, ncontainer + 1))
+    if (g->template != NULL)
+        return 0;
+    else {
+        log_error("Failed to load template file '%s'.", g->path_template);
         return -1;
-
-    c = containers + ncontainer++;
-
-    c->type    = cntr->type;
-    c->handler = cntr->handler;
-
-    return 0;
+    }
 }
 
 
-container_t *container_lookup(const char *type)
+int template_eval(service_t *s)
 {
-    container_t *c;
+    s->output = jmpl_eval(s->g->template, s->data);
 
-    for (c = containers; c - containers < ncontainer; c++)
-        if (!strcmp(c->type, type))
-            return c;
-
-    return NULL;
+    if (s->output != NULL)
+        return 0;
+    else {
+        log_error("Failed to generate service file for %s / %s.",
+                  s->provider, s->app);
+        return -1;
+    }
 }
 
 
-static int container_handler(service_t *s, const char *k, iot_json_t *o)
-{
-    const char *type;
-    container_t *c;
-
-    IOT_UNUSED(k);
-    IOT_UNUSED(s);
-
-    if (iot_json_get_type(o) != IOT_JSON_OBJECT)
-        goto invalid;
-
-    if (!iot_json_get_string(o, "type", &type))
-        goto invalid;
-
-    if (!(c = container_lookup(type)))
-        goto invalid;
-
-    if (c->handler(s, type, o) < 0)
-        goto fail;
-
-    return 0;
-
- invalid:
-    errno = EINVAL;
- fail:
-    s->g->status = -1;
-    return -1;
-}
-
-
-REGISTER_KEY(container, container_handler);

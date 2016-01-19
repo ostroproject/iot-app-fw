@@ -36,10 +36,13 @@ iot_service_generator_SOURCES =				\
 		generators/service/application.c	\
 		generators/service/manifest.c		\
 		generators/service/service.c		\
-		generators/service/manifest-keys.c	\
-		generators/service/container.c		\
-		generators/service/container-nspawn.c	\
+		generators/service/template.c		\
 		generators/service/filesystem.c		\
+		jmpl/jmpl.c				\
+		jmpl/scanner.c				\
+		jmpl/parser.c				\
+		jmpl/eval.c				\
+		jmpl/symtab.c				\
 		common/mm.c				\
 		common/log.c				\
 		common/debug.c				\

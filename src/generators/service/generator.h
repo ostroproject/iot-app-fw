@@ -38,9 +38,15 @@
 #include <iot/common/list.h>
 #include <iot/common/json.h>
 
+#include "jmpl/jmpl.h"
+
 /* External helper we try to exec(3) for mounting PATH_APPS. */
 #ifndef MOUNT_HELPER
 #    define MOUNT_HELPER "/usr/libexec/iot-app-fw/mount-apps"
+#endif
+
+#ifndef PATH_TEMPLATE
+#    define PATH_TEMPLATE "/usr/libexec/iot-app-fw/service.jmpl"
 #endif
 
 /* Absolute path to systemd-nspawn. */
@@ -63,14 +69,6 @@ typedef enum   mount_type_e   mount_type_t;
 typedef struct mount_s        mount_t;
 typedef struct generator_s    generator_t;
 typedef struct service_s      service_t;
-typedef enum   section_e      section_t;
-typedef struct entry_s        entry_t;
-typedef struct manifest_key_s manifest_key_t;
-typedef struct container_s    container_t;
-
-typedef int (*key_handler_t)(service_t *s, const char *key, iot_json_t *o);
-typedef int (*container_handler_t)(service_t *s, const char *key, iot_json_t *o);
-typedef int (*emit_t)(int fd, service_t *s, entry_t *e);
 
 
 /*
@@ -81,65 +79,20 @@ typedef int (*emit_t)(int fd, service_t *s, entry_t *e);
  */
 struct generator_s {
     const char     **env;                /* environment variables */
+    const char      *argv0;              /* argv[0], our binary */
     const char      *dir_normal;         /* systemd 'normal' service dir */
     const char      *dir_early;          /* systemd 'early' service dir */
     const char      *dir_late;           /* systemd 'late' service dir */
     const char      *dir_apps;           /* application top directory */
     const char      *dir_service;        /* service (output) directory */
+    const char      *path_template;      /* template file path */
     const char      *log_path;           /* where to log to */
     int              dry_run : 1;        /* just a dry-run, don't generate */
     int              premounted : 1;     /* whether dir_apps was mounted */
     int              status;             /* service generation status */
+    jmpl_t          *template;           /* service template */
     iot_list_hook_t  services;           /* generated service( file)s */
 };
-
-
-/*
- * Application/container-specific mount.
- *
- * Data structure for administering a bind-, overlay-, or tmpfs-mount
- * specific to a single application/container.
- */
-enum mount_type_e {
-    MOUNT_TYPE_UNKNOWN,
-    MOUNT_TYPE_BIND,
-    MOUNT_TYPE_OVERLAY,
-    MOUNT_TYPE_TMPFS,
-};
-
-struct mount_s {
-    iot_list_hook_t  hook;               /* to list of mounts */
-    mount_type_t     type;               /* mount type */
-    char            *dst;                /* target directory */
-    int              rw;                 /* whether to mount read-write */
-    union {
-        struct {                         /* bind-mount data */
-            char    *src;                /*   source directory */
-        } bind;
-        struct {                         /* overlay-mount data */
-            char    *low;                /*   lower layer */
-            char    *up;                 /*   upper layer */
-        } overlay;
-        struct {                         /* tmpfs-mount data */
-            mode_t   mode;               /*   access mode */
-        } tmpfs;
-    };
-};
-
-mount_t *service_mount(iot_list_hook_t *l, const char *dst, int rw,
-                       int type, ...);
-
-#define mount_bind(_l, _dst, _rw, _src)                 \
-    service_mount(_l, _dst, _rw, MOUNT_TYPE_BIND,       \
-                  _src ? _src : NULL)
-
-#define mount_overlay(_l, _dst, _rw, _low, _up)         \
-    service_mount(_l, _dst, _rw, MOUNT_TYPE_OVERLAY,    \
-                  _low ? _low : NULL, _up ? _up : NULL)
-
-#define mount_tmpfs(_l, _dst, _rw, _mode)               \
-    service_mount(_l, _dst, _rw, MOUNT_TYPE_TMPFS,      \
-                  _mode > 0 ? _mode : 0755)
 
 
 /*
@@ -187,35 +140,12 @@ int application_discover(generator_t *g);
 
 
 /*
- * Manifest processing, key handlers.
- *
- * Application manifests are processed by going through all keys
- * in a manifest and calling a registered handler for the key.
- * The handler is passed the service file being generated, the
- * key and the value for the key from the manifest. The handler
- * is responsible for generating and eventually emitting the
- * corresponding data to the service file.
+ * Template handling.
  */
-struct manifest_key_s {
-    const char  *key;
-    int        (*handler)(service_t *s, const char *key, iot_json_t *o);
-};
+int template_load(generator_t *g);
+int template_eval(service_t *s);
 
 iot_json_t *manifest_read(const char *path);
-int key_register(manifest_key_t *key);
-manifest_key_t *key_lookup(const char *key);
-
-#define REGISTER_KEY(_key, _handler)                       \
-    static IOT_INIT void register_##_key##_handler(void) { \
-        static manifest_key_t k = {                        \
-            .key     = #_key,                              \
-            .handler = _handler,                           \
-        };                                                 \
-                                                           \
-        IOT_ASSERT(key_register(&k) == 0,                  \
-                   "failed to register key '%s'", #_key);  \
-    }                                                      \
-    struct __allow_trailing_semicolon
 
 
 /*
@@ -236,35 +166,15 @@ struct service_s {
     char            *app;                /* application name */
     char            *appdir;             /* application directory */
     iot_json_t      *m;                  /* application manifest */
+    iot_json_t      *data;               /* template configuration data */
+    char            *output;             /* generated service file content */
     int              fd;                 /* service file */
     const char      *user;               /* user to run service as */
     const char      *group;              /* group to run service as */
     iot_json_t      *argv;               /* user command to execute */
     int              autostart : 1;      /* whether to start on boot */
-    iot_list_hook_t  unit;               /* generated 'Unit' section */
-    iot_list_hook_t  service;            /* generated 'Service' section */
-    iot_list_hook_t  install;            /* generated 'Install' section */
 };
 
-
-/*
- * Service files sections and entries.
- */
-enum section_e {
-    SECTION_UNIT = 0,
-    SECTION_SERVICE,
-    SECTION_INSTALL,
-};
-
-struct entry_s {
-    iot_list_hook_t  hook;               /* to list of section entries */
-    char            *key;                /* entry key */
-    union {
-        char        *value;              /* entry value, or */
-        void        *data;               /* data to emit */
-    };
-    emit_t           emit;               /* custom emitter or NULL */
-};
 
 service_t *service_create(generator_t *g, const char *provider, const char *app,
                           const char *dir, const char *src,
@@ -272,43 +182,5 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 void service_abort(service_t *s);
 int service_generate(generator_t *g);
 int service_write(generator_t *g);
-
-int service_add(service_t *s, section_t type, const char *key,
-                const char *fmt, ...);
-
-entry_t *section_add(iot_list_hook_t *s, emit_t emit, const char *k,
-                     const void *data, ...);
-int section_append_value(iot_list_hook_t *s, const char *k,
-                         const char *fmt, ...);
-
-
-/*
- * Handlers for containers of various types.
- *
- * These functions are used to register container types and generate
- * the corresponding sections of systemd service files for applications
- * that reference these containers in their manifests.
- */
-struct container_s {
-    char *type;
-    int (*handler)(service_t *s, const char *type, iot_json_t *o);
-};
-
-int container_register(container_t *c);
-container_t *container_lookup(const char *type);
-
-#define REGISTER_CONTAINER(_type, _handler)                 \
-    static IOT_INIT void register_##_type##_handler(void) { \
-        static container_t c = {                            \
-            .type    = #_type,                              \
-            .handler = _handler,                            \
-        };                                                  \
-                                                            \
-        IOT_ASSERT(container_register(&c) == 0,             \
-                   "failed to register container '%s'",     \
-                   #_type);                                 \
-    }                                                       \
-    struct __allow_trailing_semicolon
-
 
 #endif /* __SERVICE_GENERATOR_H__ */
