@@ -374,6 +374,14 @@ static int eval_foreach(jmpl_t *jmpl, jmpl_for_t *jfor)
 }
 
 
+static int eval_macro(jmpl_t *jmpl, jmpl_macro_ref_t *jm)
+{
+    iot_debug("evaluating <macro> '%s'", symtab_get(jm->macro->name->ids[0]));
+
+    return eval_block(jmpl, &jm->macro->body);
+}
+
+
 static int eval_subst(jmpl_t *jmpl, jmpl_subst_t *subst)
 {
     void *val;
@@ -465,6 +473,7 @@ static int eval_insn(jmpl_t *jmpl, jmpl_insn_t *insn)
     case JMPL_OP_FOREACH: return eval_foreach(jmpl, &insn->foreach);
     case JMPL_OP_SUBST:   return eval_subst(jmpl, &insn->subst);
     case JMPL_OP_TEXT:    return eval_text(jmpl, &insn->text);
+    case JMPL_OP_MACRO:   return eval_macro(jmpl, &insn->macro);
     default:
         break;
     }

@@ -54,16 +54,18 @@ typedef struct jmpl_symbol_s jmpl_symbol_t;
 typedef enum   jmpl_symval_type_e jmpl_symval_type_t;
 typedef struct jmpl_symval_s jmpl_symval_t;
 
+typedef struct jmpl_macro_def_s jmpl_macro_def_t;
+typedef struct jmpl_macro_ref_s jmpl_macro_ref_t;
 
 typedef struct jmpl_parser_s jmpl_parser_t;
 
 enum jmpl_op_e {
-    JMPL_OP_MAIN = 0,
     JMPL_OP_TEXT,                        /* plain text, copy verbatim */
     JMPL_OP_SUBST,                       /* a substitution */
     JMPL_OP_IFSET,                       /* akin to an #ifdef */
     JMPL_OP_IF,                          /* an if-else construct */
     JMPL_OP_FOREACH,                     /* a for-each construct */
+    JMPL_OP_MACRO,                       /* macro evaluation */
 };
 
 
@@ -72,10 +74,6 @@ struct jmpl_any_s  {
     iot_list_hook_t  hook;
 };
 
-struct jmpl_main_s {
-    jmpl_op_t        type;               /* JMPL_OP_MAIN */
-    iot_list_hook_t  hook;               /* instructions to execute */
-};
 
 struct jmpl_text_s {
     jmpl_op_t        type;               /* JMPL_OP_TEXT */
@@ -119,13 +117,28 @@ struct jmpl_for_s {
 };
 
 
+struct jmpl_macro_def_s {
+    jmpl_ref_t      *name;               /* macro name */
+    iot_list_hook_t  hook;               /* to list of macros */
+    iot_list_hook_t  body;               /* macro body */
+};
+
+
+struct jmpl_macro_ref_s {
+    jmpl_op_t         type;              /* JMPL_OP_MACRO */
+    iot_list_hook_t   hook;              /* to op list */
+    jmpl_macro_def_t *macro;             /* macro to evaluate */
+};
+
+
 union jmpl_insn_u {
-    jmpl_any_t   any;
-    jmpl_ifset_t ifset;
-    jmpl_if_t    ifelse;
-    jmpl_for_t   foreach;
-    jmpl_text_t  text;
-    jmpl_subst_t subst;
+    jmpl_any_t       any;
+    jmpl_ifset_t     ifset;
+    jmpl_if_t        ifelse;
+    jmpl_for_t       foreach;
+    jmpl_text_t      text;
+    jmpl_subst_t     subst;
+    jmpl_macro_ref_t macro;
 };
 
 
@@ -134,7 +147,6 @@ struct jmpl_ref_s {
     int      nid;                        /* number of ids */
 };
 
-#if 1
 
 enum jmpl_value_type_e {
     JMPL_VALUE_EXPR = 0,                 /* expression as a value */
@@ -169,13 +181,6 @@ struct jmpl_expr_s {
     jmpl_value_t     *rhs;               /* right-hand side value */
 };
 
-#else
-
-struct jmpl_expr_s {
-    int foo;
-};
-
-#endif
 
 typedef enum {
     SCAN_MAIN = 0,
@@ -183,12 +188,13 @@ typedef enum {
     SCAN_IF_BODY,
     SCAN_FOREACH,
     SCAN_FOREACH_BODY,
+    SCAN_MACRO_BODY,
     SCAN_ID,
 } scan_options;
 
 
 struct jmpl_parser_s {
-    iot_list_hook_t  templates;
+    iot_list_hook_t  macros;             /* definitions */
     jmpl_any_t      *jmpl;               /* top level instructions */
     char            *mbeg;               /* directive start marker */
     int              lbeg;               /* start marker length */
@@ -216,6 +222,7 @@ typedef enum {
     JMPL_TKN_FOREACH,                    /* foreach */
     JMPL_TKN_IN,                         /* in */
     JMPL_TKN_DO,                         /* do */
+    JMPL_TKN_MACRO,                      /* define a macro */
     JMPL_TKN_END,                        /* end of if-set, if, or foreach */
     JMPL_TKN_ID,                         /* variable id */
     JMPL_TKN_STRING,                     /* quoted string */
@@ -233,7 +240,6 @@ typedef enum {
 
 
 struct jmpl_s {
-    jmpl_op_t        type;
     iot_list_hook_t  hook;
     char            *mtab;
     int              ltab;

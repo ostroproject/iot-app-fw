@@ -85,6 +85,8 @@ int scan_directive(jmpl_parser_t *jp, char **valp)
             tkn = JMPL_TKN_IN;
         else if (!strcmp(*valp, "do"))
             tkn = JMPL_TKN_DO;
+        else if (!strcmp(*valp, "macro"))
+            tkn = JMPL_TKN_MACRO;
         else
             tkn = JMPL_TKN_SUBST;
 
@@ -157,6 +159,7 @@ int scan_next_token(jmpl_parser_t *jp, char **valp, int options)
     case SCAN_IF_BODY:      goto scan_body;
     case SCAN_FOREACH:      goto scan_foreach;
     case SCAN_FOREACH_BODY: goto scan_body;
+    case SCAN_MACRO_BODY:   goto scan_body;
     case SCAN_ID:           goto scan_id;
     default:                goto parse_error;
     }
@@ -293,8 +296,7 @@ int scan_next_token(jmpl_parser_t *jp, char **valp, int options)
     p = e;
 
     tkn = JMPL_TKN_ID;
-
-    goto out;
+    p = skip_whitespace(p, false);
 
  out:
     jp->p = p;

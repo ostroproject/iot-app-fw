@@ -205,7 +205,7 @@ static int parser_init(jmpl_parser_t *jp, const char *str)
     char *p, *end;
 
     iot_clear(jp);
-    iot_list_init(&jp->templates);
+    iot_list_init(&jp->macros);
 
     /*
      * Every JSON template file starts with the declaration of the
@@ -315,7 +315,7 @@ static void free_text(jmpl_text_t *jt);
 static void free_subst(jmpl_subst_t *jt);
 static void free_expr(jmpl_expr_t *expr);
 static void free_reference(jmpl_ref_t *r);
-
+static void free_macro_ref(jmpl_macro_ref_t *jm);
 
 static void free_insn(jmpl_insn_t *insn)
 {
@@ -328,6 +328,7 @@ static void free_insn(jmpl_insn_t *insn)
     case JMPL_OP_FOREACH: free_foreach(&insn->foreach); break;
     case JMPL_OP_TEXT:    free_text(&insn->text);       break;
     case JMPL_OP_SUBST:   free_subst(&insn->subst);     break;
+    case JMPL_OP_MACRO:   free_macro_ref(&insn->macro); break;
     default:                                            break;
     }
 }
@@ -343,6 +344,180 @@ static void free_instructions(iot_list_hook_t *l)
         iot_list_delete(p);
         free_insn(insn);
     }
+}
+
+
+static jmpl_macro_def_t *lookup_macro(jmpl_parser_t *jp, jmpl_ref_t *ref)
+{
+    iot_list_hook_t  *p, *n;
+    jmpl_macro_def_t *m;
+
+    if (ref == NULL || ref->nid > 1)
+        return NULL;
+
+    iot_list_foreach(&jp->macros, p, n) {
+        m = iot_list_entry(p, typeof(*m), hook);
+
+        if (m->name->ids[0] == ref->ids[0])
+            return m;
+    }
+
+    return NULL;
+}
+
+
+static void free_macro_ref(jmpl_macro_ref_t *jm)
+{
+    if (jm == NULL)
+        return;
+
+    iot_free(jm);
+}
+
+
+static jmpl_insn_t *parse_macro_ref(jmpl_parser_t *jp, jmpl_macro_def_t *jmd)
+{
+    jmpl_macro_ref_t *jmr;
+
+    IOT_UNUSED(jp);
+
+    iot_debug("<macro-ref> '%s'", symtab_get(jmd->name->ids[0]));
+
+    jmr = jmpl_alloc(JMPL_OP_MACRO, sizeof(*jmr));
+
+    if (jmr == NULL)
+        return NULL;
+
+    jmr->macro = jmd;
+
+    return (jmpl_insn_t *)jmr;
+}
+
+
+static void free_macro(jmpl_macro_def_t *jm)
+{
+    if (jm == NULL)
+        return;
+
+    iot_list_delete(&jm->hook);
+
+    free_reference(jm->name);
+    free_instructions(&jm->body);
+
+    iot_free(jm);
+}
+
+
+static jmpl_macro_def_t *parse_macro(jmpl_parser_t *jp)
+{
+    jmpl_macro_def_t *jm;
+    jmpl_insn_t      *insn;
+    char             *val;
+    int               tkn;
+
+    iot_debug("<macro>");
+
+    jm = iot_allocz(sizeof(*jm));
+
+    if (jm == NULL)
+        return NULL;
+
+    iot_list_init(&jm->hook);
+    iot_list_init(&jm->body);
+
+    if ((tkn = scan_next_token(jp, &val, SCAN_ID)) != JMPL_TKN_ID)
+        goto missing_id;
+
+    iot_debug("<id> '%s'", val);
+
+    jm->name = parse_reference(val);
+
+    if (jm->name == NULL || jm->name->nid > 1)
+        goto invalid_name;
+
+    if (lookup_macro(jp, jm->name) != NULL)
+        goto macro_redefined;
+
+    while ((tkn = scan_next_token(jp, &val, SCAN_MACRO_BODY)) != JMPL_TKN_END) {
+        switch (tkn) {
+        case JMPL_TKN_END:
+            iot_debug("<end>");
+            return 0;
+
+        case JMPL_TKN_IFSET:
+            insn = parse_ifset(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jm->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_IF:
+            insn = parse_if(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jm->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_FOREACH:
+            insn = parse_foreach(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jm->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_SUBST:
+            iot_debug("<subst> '%s'", val);
+
+            insn = parse_subst(jp, val);
+
+            if (insn == NULL)
+                goto invalid_reference;
+
+            iot_list_append(&jm->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_TEXT:
+            iot_debug("<text> '%s'", val);
+
+            insn = parse_text(jp, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jm->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_EOF:
+            goto unexpected_eof;
+
+        default:
+            goto unexpected_token;
+        }
+    }
+
+    iot_debug("<end>");
+
+    iot_list_append(&jp->macros, &jm->hook);
+    return jm;
+
+ missing_id:
+ invalid_name:
+ macro_redefined:
+ invalid_reference:
+ unexpected_eof:
+ unexpected_token:
+
+ parse_error:
+    free_macro(jm);
+    errno = EINVAL;
+
+    return NULL;
 }
 
 
@@ -994,31 +1169,36 @@ static void free_subst(jmpl_subst_t *js)
 
 static jmpl_insn_t *parse_subst(jmpl_parser_t *jp, char *val)
 {
-    jmpl_subst_t *js;
-
-    IOT_UNUSED(jp);
+    jmpl_subst_t     *js;
+    jmpl_macro_def_t *jmd;
+    jmpl_ref_t       *ref;
 
     if (val[0] == '\\')
         return parse_escape(jp, val);
+
+    ref = parse_reference(val);
+
+    if (ref == NULL)
+        return NULL;
+
+    if ((jmd = lookup_macro(jp, ref)) != NULL)
+        return parse_macro_ref(jp, jmd);
 
     iot_debug("<subst> '%s'", val);
 
     js = iot_allocz(sizeof(*js));
 
     if (js == NULL)
-        return NULL;
+        goto nomem;
 
     iot_list_init(&js->hook);
     js->type = JMPL_OP_SUBST;
-    js->ref  = parse_reference(val);
-
-    if (js->ref == NULL)
-        goto noref;
+    js->ref  = ref;
 
     return (jmpl_insn_t *)js;
 
- noref:
-    iot_free(js);
+nomem:
+    free_reference(ref);
     return NULL;
 }
 
@@ -1076,7 +1256,6 @@ jmpl_t *jmpl_parse(const char *str)
 
     jmpl->data = symtab_add("data", JMPL_SYMBOL_FIELD);
 
-    jmpl->type = JMPL_OP_MAIN;
     iot_list_init(&jmpl->hook);
 
     if (parser_init(&jp, str) < 0)
@@ -1139,6 +1318,11 @@ jmpl_t *jmpl_parse(const char *str)
                 goto parse_error;
 
             iot_list_append(&jmpl->hook, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_MACRO:
+            if (!parse_macro(&jp))
+                goto parse_error;
             break;
 
         default:
@@ -1296,6 +1480,15 @@ static void dump_foreach(jmpl_for_t *jfor, FILE *fp, int level)
 }
 
 
+static void dump_macro(jmpl_macro_ref_t *jm, FILE *fp, int level)
+{
+    indent(fp, level);
+    fprintf(fp, "<macro> '%s'", symtab_get(jm->macro->name->ids[0]));
+    dump_instructions(&jm->macro->body, fp, level + 2);
+    fprintf(fp, "\n");
+}
+
+
 static void dump_subst(jmpl_subst_t *js, FILE *fp, int level)
 {
     indent(fp, level);
@@ -1320,6 +1513,7 @@ static void dump_insn(jmpl_insn_t *insn, FILE *fp, int level)
     case JMPL_OP_FOREACH: dump_foreach(&insn->foreach, fp, level); break;
     case JMPL_OP_TEXT:    dump_text(&insn->text, fp, level);       break;
     case JMPL_OP_SUBST:   dump_subst(&insn->subst, fp, level);     break;
+    case JMPL_OP_MACRO:   dump_macro(&insn->macro, fp, level);     break;
     default:                                                       break;
     }
 }
