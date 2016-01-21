@@ -88,7 +88,9 @@ const char *symtab_get(int32_t id)
     tag = JMPL_SYMBOL_TAG(id);
     idx = JMPL_SYMBOL_IDX(id);
 
-    if (tag != JMPL_SYMBOL_FIELD && tag != JMPL_SYMBOL_STRING)
+    if (tag != JMPL_SYMBOL_FIELD &&
+        tag != JMPL_SYMBOL_STRING &&
+        tag != JMPL_SYMBOL_LOOP)
         return symtab_error;
 
     if (idx >= nsymbol)
@@ -103,7 +105,7 @@ const char *symtab_get(int32_t id)
 }
 
 
-int symtab_push(int32_t id, int type, void *v)
+static jmpl_symval_t *push_value(int32_t id, int type, void *v)
 {
     jmpl_symbol_t *sym;
     jmpl_symval_t *val;
@@ -112,7 +114,7 @@ int symtab_push(int32_t id, int type, void *v)
     tag = JMPL_SYMBOL_TAG(id);
     idx = JMPL_SYMBOL_IDX(id);
 
-    if (tag != JMPL_SYMBOL_FIELD)
+    if (tag != JMPL_SYMBOL_FIELD && tag != JMPL_SYMBOL_LOOP)
         goto invalid_id;
 
     if (idx >= nsymbol)
@@ -154,12 +156,78 @@ int symtab_push(int32_t id, int type, void *v)
 
     iot_list_append(sym->values, &val->hook);
 
-    return 0;
+    return val;
 
  invalid_id:
  invalid_value:
     errno = EINVAL;
  nomem:
+    return NULL;
+}
+
+
+int symtab_push(int32_t id, int type, void *v)
+{
+    return push_value(id, type, v) != NULL ? 0 : -1;
+}
+
+
+int symtab_push_loop(int32_t id, int type, void *v, int *firstp, int *lastp)
+{
+    jmpl_symval_t *val;
+
+    val = push_value(id, type, v);
+
+    if (val == NULL)
+        return -1;
+
+    val->firstp = firstp;
+    val->lastp  = lastp;
+    return 0;
+}
+
+
+int symtab_check_loop(int32_t id, int *firstp, int *lastp)
+{
+    jmpl_symbol_t *sym;
+    jmpl_symval_t *val;
+    int32_t        tag, idx;
+
+    tag = JMPL_SYMBOL_TAG(id);
+    idx = JMPL_SYMBOL_IDX(id);
+
+    if (tag != JMPL_SYMBOL_LOOP)
+        goto incompatible_id;
+
+    if (idx >= nsymbol)
+        goto invalid_id;
+
+    sym = symbols + idx;
+
+    if (!(sym->tags & tag))
+        goto symtab_error;
+
+    if (!sym->values || iot_list_empty(sym->values))
+        goto empty_stack;
+
+    val = iot_list_entry(sym->values->prev, typeof(*val), hook);
+
+    if (firstp)
+        *firstp = val->firstp ? *val->firstp : -1;
+    if (lastp)
+        *lastp  = val->lastp  ? *val->lastp  : -1;
+
+    return 0;
+
+ invalid_id:
+ incompatible_id:
+ symtab_error:    errno = EINVAL; goto out;
+ empty_stack:     errno = ENOENT; goto out;
+ out:
+    if (firstp)
+        *firstp = -1;
+    if (lastp)
+        *lastp = -1;
     return -1;
 }
 
@@ -173,7 +241,7 @@ int symtab_pop(int32_t id)
     tag = JMPL_SYMBOL_TAG(id);
     idx = JMPL_SYMBOL_IDX(id);
 
-    if (tag != JMPL_SYMBOL_FIELD)
+    if (tag != JMPL_SYMBOL_FIELD && tag != JMPL_SYMBOL_LOOP)
         goto invalid_id;
 
     if (idx >= nsymbol)
@@ -230,7 +298,7 @@ int symtab_entry(int32_t id, void **valp)
     tag = JMPL_SYMBOL_TAG(id);
     idx = JMPL_SYMBOL_IDX(id);
 
-    if (tag != JMPL_SYMBOL_FIELD)
+    if (tag != JMPL_SYMBOL_FIELD && tag != JMPL_SYMBOL_LOOP)
         goto invalid_id;
 
     if (idx >= nsymbol)
@@ -281,7 +349,7 @@ int symtab_resolve(jmpl_ref_t *r, void **valp)
     tag = JMPL_SYMBOL_TAG(id);
     idx = JMPL_SYMBOL_IDX(id);
 
-    if (tag != JMPL_SYMBOL_FIELD)
+    if (tag != JMPL_SYMBOL_FIELD && tag != JMPL_SYMBOL_LOOP)
         goto invalid_id;
 
     type = symtab_entry(r->ids[0], &v);

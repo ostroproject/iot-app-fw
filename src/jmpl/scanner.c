@@ -87,6 +87,14 @@ int scan_directive(jmpl_parser_t *jp, char **valp)
             tkn = JMPL_TKN_DO;
         else if (!strcmp(*valp, "macro"))
             tkn = JMPL_TKN_MACRO;
+        else if (!strcmp(*valp, "?first"))
+            tkn = JMPL_TKN_ISFIRST;
+        else if (!strcmp(*valp, "!first"))
+            tkn = JMPL_TKN_NONFIRST;
+        else if (!strcmp(*valp, "?last"))
+            tkn = JMPL_TKN_ISLAST;
+        else if (!strcmp(*valp, "!last"))
+            tkn = JMPL_TKN_NONLAST;
         else
             tkn = JMPL_TKN_SUBST;
 
@@ -109,7 +117,7 @@ int scan_directive(jmpl_parser_t *jp, char **valp)
 
 int scan_next_token(jmpl_parser_t *jp, char **valp, int options)
 {
-    char *b, *e, *p, *q, *t;
+    char *b, *e, *p, *q, *t, *tmp;
     size_t n;
     int tkn;
 
@@ -289,10 +297,29 @@ int scan_next_token(jmpl_parser_t *jp, char **valp, int options)
     if (!*e)
         goto parse_error;
 
+    /*
+     * Try to patch things up to terminate the id at the next directive
+     * if there is one before the found whitespace. Also remove any
+     * trailing ',' and ';' if found.
+     */
+    if ((tmp = strstr(b, jp->mbeg)) != NULL && tmp < e)
+        e = tmp;
+
+#if 1
+    if (*e == ' ' || *e == '\t' || *e == '\n' || strstr(e, jp->mbeg) == e) {
+        while (e[-1] == ',' || e[-1] == ';') /* should (dis)allow more... */
+            e--;
+    }
+    iot_debug("id token: e = '%c'", *e);
+#endif
+
     n = e - b;
     strncpy(t, b, n);
     t += n;
     *t++ = '\0';
+
+    iot_debug("id token: '%*.*s'", (int)n, (int)n, b);
+
     p = e;
 
     tkn = JMPL_TKN_ID;

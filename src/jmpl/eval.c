@@ -319,7 +319,7 @@ static int eval_foreach(jmpl_t *jmpl, jmpl_for_t *jfor)
     iot_json_iter_t it;
     char *k;
     iot_json_t *v;
-    int i, n;
+    int i, n, first, last;
 
     iot_debug("evaluating <foreach>...");
 
@@ -332,32 +332,42 @@ static int eval_foreach(jmpl_t *jmpl, jmpl_for_t *jfor)
     case JMPL_SYMVAL_JSON:
         switch (iot_json_get_type(val)) {
         case IOT_JSON_OBJECT:
+            first = 1;
             iot_json_foreach_member(val, k, v, it) {
+                last = it.entry->next == NULL;
                 if (jfor->key)
-                    symtab_push(jfor->key->ids[0], JMPL_SYMVAL_STRING, k);
+                    symtab_push_loop(jfor->key->ids[0], JMPL_SYMVAL_STRING, k,
+                                     &first, &last);
                 if (jfor->val)
-                    symtab_push(jfor->val->ids[0], JMPL_SYMVAL_JSON, v);
+                    symtab_push_loop(jfor->val->ids[0], JMPL_SYMVAL_JSON, v,
+                                &first, &last);
                 eval_block(jmpl, &jfor->body);
                 if (jfor->key)
                     symtab_pop(jfor->key->ids[0]);
                 if (jfor->val)
                     symtab_pop(jfor->val->ids[0]);
+                first = 0;
             }
             return 0;
 
         case IOT_JSON_ARRAY:
             n = iot_json_array_length(val);
+            first = 1;
             for (i = 0; i < n; i++) {
+                last = i >= n;
                 v = iot_json_array_get(val, i);
                 if (jfor->key)
-                    symtab_push(jfor->key->ids[0], JMPL_SYMVAL_INTEGER, &i);
+                    symtab_push_loop(jfor->key->ids[0], JMPL_SYMVAL_INTEGER, &i,
+                                &first, &last);
                 if (jfor->val)
-                    symtab_push(jfor->val->ids[0], JMPL_SYMVAL_JSON, v);
+                    symtab_push_loop(jfor->val->ids[0], JMPL_SYMVAL_JSON, v,
+                                &first, &last);
                 eval_block(jmpl, &jfor->body);
                 if (jfor->key)
                     symtab_pop(jfor->key->ids[0]);
                 if (jfor->val)
                     symtab_pop(jfor->val->ids[0]);
+                first = 0;
             }
             return 0;
 
@@ -465,6 +475,49 @@ static int eval_text(jmpl_t *jmpl, jmpl_text_t *text)
 }
 
 
+static int eval_loopchk(jmpl_t *jmpl, jmpl_loopchk_t *jlc)
+{
+    iot_list_hook_t *branch;
+    int              first, last;
+    const char      *kind;
+
+    switch (jlc->type) {
+    case JMPL_OP_ISFIRST:  kind = "isfirst";  break;
+    case JMPL_OP_NONFIRST: kind = "nonfirst"; break;
+    case JMPL_OP_ISLAST:   kind = "islast";   break;
+    case JMPL_OP_NONLAST:  kind = "nonlast";  break;
+    default:               kind = "unknown";  break;
+    }
+
+    iot_debug("evaluating <%s '%s'>...", kind, symtab_get(jlc->var->ids[0]));
+
+    if (symtab_check_loop(jlc->var->ids[0], &first, &last) < 0)
+        return -1;
+
+    iot_debug("<%s '%s'>: first: %d, last: %d", kind,
+              symtab_get(jlc->var->ids[0]), first, last);
+
+    switch (jlc->type) {
+    case JMPL_OP_ISFIRST:
+        branch = first ? &jlc->tbranch : &jlc->fbranch;
+        break;
+    case JMPL_OP_NONFIRST:
+        branch = !first ? &jlc->tbranch : &jlc->fbranch;
+        break;
+    case JMPL_OP_ISLAST:
+        branch = last ? &jlc->tbranch : &jlc->fbranch;
+        break;
+    case JMPL_OP_NONLAST:
+        branch = !last ? &jlc->tbranch : &jlc->fbranch;
+        break;
+    default:
+        return -1;
+    }
+
+    return eval_block(jmpl, branch);
+}
+
+
 static int eval_insn(jmpl_t *jmpl, jmpl_insn_t *insn)
 {
     switch (insn->any.type) {
@@ -474,6 +527,10 @@ static int eval_insn(jmpl_t *jmpl, jmpl_insn_t *insn)
     case JMPL_OP_SUBST:   return eval_subst(jmpl, &insn->subst);
     case JMPL_OP_TEXT:    return eval_text(jmpl, &insn->text);
     case JMPL_OP_MACRO:   return eval_macro(jmpl, &insn->macro);
+    case JMPL_OP_ISFIRST:
+    case JMPL_OP_NONFIRST:
+    case JMPL_OP_ISLAST:
+    case JMPL_OP_NONLAST: return eval_loopchk(jmpl, &insn->loopchk);
     default:
         break;
     }

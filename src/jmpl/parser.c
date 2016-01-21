@@ -55,7 +55,7 @@ static void free_reference(jmpl_ref_t *r)
 }
 
 
-static jmpl_ref_t *parse_reference(char *val)
+static jmpl_ref_t *parse_reference(char *val, int loop)
 {
     jmpl_ref_t *r;
     int32_t    *ids, id;
@@ -101,7 +101,7 @@ static jmpl_ref_t *parse_reference(char *val)
             else if (idx)
                 *idx = '\0';
 
-            id = symtab_add(b, JMPL_SYMBOL_FIELD);
+            id = symtab_add(b, !loop ? JMPL_SYMBOL_FIELD : JMPL_SYMBOL_LOOP);
 
             if (id < 0)
                 goto fail;
@@ -308,11 +308,13 @@ static jmpl_insn_t *parse_if(jmpl_parser_t *jp);
 static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp);
 static jmpl_insn_t *parse_subst(jmpl_parser_t *jp, char *val);
 static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val);
+static jmpl_insn_t *parse_loopchk(jmpl_parser_t *jp, int type);
 static void free_ifset(jmpl_ifset_t *jif);
 static void free_if(jmpl_if_t *jif);
 static void free_foreach(jmpl_for_t *jif);
 static void free_text(jmpl_text_t *jt);
 static void free_subst(jmpl_subst_t *jt);
+static void free_loopchk(jmpl_loopchk_t *jlc);
 static void free_expr(jmpl_expr_t *expr);
 static void free_reference(jmpl_ref_t *r);
 static void free_macro_ref(jmpl_macro_ref_t *jm);
@@ -329,6 +331,10 @@ static void free_insn(jmpl_insn_t *insn)
     case JMPL_OP_TEXT:    free_text(&insn->text);       break;
     case JMPL_OP_SUBST:   free_subst(&insn->subst);     break;
     case JMPL_OP_MACRO:   free_macro_ref(&insn->macro); break;
+    case JMPL_OP_ISFIRST:
+    case JMPL_OP_NONFIRST:
+    case JMPL_OP_ISLAST:
+    case JMPL_OP_NONLAST: free_loopchk(&insn->loopchk); break;
     default:                                            break;
     }
 }
@@ -430,7 +436,7 @@ static jmpl_macro_def_t *parse_macro(jmpl_parser_t *jp)
 
     iot_debug("<id> '%s'", val);
 
-    jm->name = parse_reference(val);
+    jm->name = parse_reference(val, false);
 
     if (jm->name == NULL || jm->name->nid > 1)
         goto invalid_name;
@@ -486,6 +492,18 @@ static jmpl_macro_def_t *parse_macro(jmpl_parser_t *jp)
             iot_debug("<text> '%s'", val);
 
             insn = parse_text(jp, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jm->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISFIRST:
+        case JMPL_TKN_NONFIRST:
+        case JMPL_TKN_ISLAST:
+        case JMPL_TKN_NONLAST:
+            insn = parse_loopchk(jp, tkn);
 
             if (insn == NULL)
                 goto parse_error;
@@ -557,7 +575,7 @@ static jmpl_insn_t *parse_ifset(jmpl_parser_t *jp)
 
     iot_debug("<id> '%s'", val);
 
-    jif->test = parse_reference(val);
+    jif->test = parse_reference(val, false);
 
     if (jif->test == NULL)
         goto invalid_id;
@@ -628,6 +646,18 @@ static jmpl_insn_t *parse_ifset(jmpl_parser_t *jp)
             iot_debug("<text> '%s'", val);
 
             insn = parse_text(jp, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISFIRST:
+        case JMPL_TKN_NONFIRST:
+        case JMPL_TKN_ISLAST:
+        case JMPL_TKN_NONLAST:
+            insn = parse_loopchk(jp, tkn);
 
             if (insn == NULL)
                 goto parse_error;
@@ -718,7 +748,7 @@ static jmpl_value_t *parse_value(jmpl_parser_t *jp)
     switch (tkn) {
     case JMPL_TKN_SUBST:
         v->type = JMPL_VALUE_REF;
-        v->r    = parse_reference(val);
+        v->r    = parse_reference(val, false);
 
         if (v->r == NULL)
             goto invalid_reference;
@@ -930,6 +960,18 @@ static jmpl_insn_t *parse_if(jmpl_parser_t *jp)
             iot_list_append(branch, &insn->any.hook);
             break;
 
+        case JMPL_TKN_ISFIRST:
+        case JMPL_TKN_NONFIRST:
+        case JMPL_TKN_ISLAST:
+        case JMPL_TKN_NONLAST:
+            insn = parse_loopchk(jp, tkn);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
         default:
             goto unexpected_token;
         }
@@ -990,21 +1032,21 @@ static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp)
     colon = strchr(val, ':');
 
     if (colon == NULL || colon == val) {
-        jfor->val = parse_reference(colon ? colon + 1 : val);
+        jfor->val = parse_reference(colon ? colon + 1 : val, true);
 
         if (jfor->val == NULL)
             goto invalid_valref;
     }
     else {
         *colon = '\0';
-        jfor->key = parse_reference(val);
+        jfor->key = parse_reference(val, true);
         *colon = ':';
 
         if (jfor->key == NULL)
             goto invalid_keyref;
 
         if (colon[1] != '\0') {
-            jfor->val = parse_reference(colon + 1);
+            jfor->val = parse_reference(colon + 1, true);
 
             if (jfor->val == NULL)
                 goto invalid_valref;
@@ -1022,7 +1064,7 @@ static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp)
 
     iot_debug("<subst> '%s'", val);
 
-    jfor->in = parse_reference(val);
+    jfor->in = parse_reference(val, false);
 
     if (jfor->in == NULL)
         goto invalid_inref;
@@ -1080,6 +1122,18 @@ static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp)
             iot_debug("<text> '%s'", val);
 
             insn = parse_text(jp, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jfor->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISFIRST:
+        case JMPL_TKN_NONFIRST:
+        case JMPL_TKN_ISLAST:
+        case JMPL_TKN_NONLAST:
+            insn = parse_loopchk(jp, tkn);
 
             if (insn == NULL)
                 goto parse_error;
@@ -1176,7 +1230,7 @@ static jmpl_insn_t *parse_subst(jmpl_parser_t *jp, char *val)
     if (val[0] == '\\')
         return parse_escape(jp, val);
 
-    ref = parse_reference(val);
+    ref = parse_reference(val, false);
 
     if (ref == NULL)
         return NULL;
@@ -1237,6 +1291,159 @@ static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val)
 
  nomem:
     iot_free(jt);
+    return NULL;
+}
+
+
+static void free_loopchk(jmpl_loopchk_t *jlc)
+{
+    if (jlc == NULL)
+        return;
+
+    free_reference(jlc->var);
+    free_instructions(&jlc->tbranch);
+    free_instructions(&jlc->fbranch);
+}
+
+
+static jmpl_insn_t *parse_loopchk(jmpl_parser_t *jp, int type)
+{
+    iot_list_hook_t *branch;
+    jmpl_loopchk_t  *jlc;
+    jmpl_insn_t     *insn;
+    int              tkn, op, ebr;
+    char            *val;
+    const char      *kind;
+
+    switch (type) {
+    case JMPL_TKN_ISFIRST:  kind = "isfirst";  op = JMPL_OP_ISFIRST;  break;
+    case JMPL_TKN_NONFIRST: kind = "nonfirst"; op = JMPL_OP_NONFIRST; break;
+    case JMPL_TKN_ISLAST:   kind = "islast";   op = JMPL_OP_ISLAST;   break;
+    case JMPL_TKN_NONLAST:  kind = "nonlast";  op = JMPL_OP_NONLAST;  break;
+    default:                kind = "unknown";  break;
+    }
+
+    iot_debug("<%s>", kind);
+
+    jlc = jmpl_alloc(op, sizeof(*jlc));
+
+    if (jlc == NULL)
+        return NULL;
+
+    iot_list_init(&jlc->tbranch);
+    iot_list_init(&jlc->fbranch);
+
+    tkn = scan_next_token(jp, &val, SCAN_ID);
+
+    if (tkn != JMPL_TKN_ID)
+        goto missing_id;
+
+    iot_debug("<id> '%s'", val);
+
+    jlc->var = parse_reference(val, true);
+
+    if (jlc->var == NULL)
+        goto invalid_id;
+
+    ebr = false;
+    branch = &jlc->tbranch;
+
+    while ((tkn = scan_next_token(jp, &val, SCAN_IF_BODY)) != JMPL_TKN_END) {
+        switch (tkn) {
+        case JMPL_TKN_END:
+            iot_debug("<end>");
+            return 0;
+
+        case JMPL_TKN_ELSE:
+            iot_debug("<else>");
+
+            if (ebr)
+                goto unexpected_else;
+
+            ebr = true;
+            branch = &jlc->fbranch;
+            break;
+
+        case JMPL_TKN_IFSET:
+            insn = parse_ifset(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_IF:
+            insn = parse_if(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_FOREACH:
+            insn = parse_foreach(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_SUBST:
+            iot_debug("<subst> '%s'", val);
+
+            insn = parse_subst(jp, val);
+
+            if (insn == NULL)
+                goto invalid_reference;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_TEXT:
+            iot_debug("<text> '%s'", val);
+
+            insn = parse_text(jp, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISFIRST:
+        case JMPL_TKN_NONFIRST:
+        case JMPL_TKN_ISLAST:
+        case JMPL_TKN_NONLAST:
+            insn = parse_loopchk(jp, tkn);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        default:
+            goto unexpected_token;
+        }
+    }
+
+    iot_debug("<end>");
+
+    return (jmpl_insn_t *)jlc;
+
+    return 0;
+
+ missing_id:
+ invalid_id:
+ unexpected_else:
+ unexpected_token:
+ invalid_reference:
+
+ parse_error:
+    free_loopchk(jlc);
     return NULL;
 }
 
@@ -1313,6 +1520,18 @@ jmpl_t *jmpl_parse(const char *str)
 
         case JMPL_TKN_TEXT:
             insn = parse_text(&jp, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jmpl->hook, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISFIRST:
+        case JMPL_TKN_NONFIRST:
+        case JMPL_TKN_ISLAST:
+        case JMPL_TKN_NONLAST:
+            insn = parse_loopchk(&jp, tkn);
 
             if (insn == NULL)
                 goto parse_error;
@@ -1505,16 +1724,43 @@ static void dump_text(jmpl_text_t *jt, FILE *fp, int level)
 }
 
 
+static void dump_loopchk(jmpl_loopchk_t *jlc, FILE *fp, int level)
+{
+    const char *kind;
+
+    switch (jlc->type) {
+    case JMPL_OP_ISFIRST:  kind = "isfirst";  break;
+    case JMPL_OP_NONFIRST: kind = "nonfirst"; break;
+    case JMPL_OP_ISLAST:   kind = "islast";   break;
+    case JMPL_OP_NONLAST:  kind = "nonlast";  break;
+    default:               kind = "unknown";  break;
+    }
+
+    indent(fp, level);
+    fprintf(fp, "<%s> '%s'\n", kind, symtab_get(jlc->var->ids[0]));
+    dump_instructions(&jlc->tbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<else>\n");
+    dump_instructions(&jlc->fbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<end>\n");
+}
+
+
 static void dump_insn(jmpl_insn_t *insn, FILE *fp, int level)
 {
     switch (insn->any.type) {
-    case JMPL_OP_IFSET:   dump_ifset(&insn->ifset, fp, level);     break;
-    case JMPL_OP_IF:      dump_if(&insn->ifelse, fp, level);       break;
-    case JMPL_OP_FOREACH: dump_foreach(&insn->foreach, fp, level); break;
-    case JMPL_OP_TEXT:    dump_text(&insn->text, fp, level);       break;
-    case JMPL_OP_SUBST:   dump_subst(&insn->subst, fp, level);     break;
-    case JMPL_OP_MACRO:   dump_macro(&insn->macro, fp, level);     break;
-    default:                                                       break;
+    case JMPL_OP_IFSET:    dump_ifset(&insn->ifset, fp, level);     break;
+    case JMPL_OP_IF:       dump_if(&insn->ifelse, fp, level);       break;
+    case JMPL_OP_FOREACH:  dump_foreach(&insn->foreach, fp, level); break;
+    case JMPL_OP_TEXT:     dump_text(&insn->text, fp, level);       break;
+    case JMPL_OP_SUBST:    dump_subst(&insn->subst, fp, level);     break;
+    case JMPL_OP_MACRO:    dump_macro(&insn->macro, fp, level);     break;
+    case JMPL_OP_ISFIRST:
+    case JMPL_OP_NONFIRST:
+    case JMPL_OP_ISLAST:
+    case JMPL_OP_NONLAST:  dump_loopchk(&insn->loopchk, fp, level); break;
+    default:                                                        break;
     }
 }
 

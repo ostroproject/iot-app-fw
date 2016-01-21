@@ -57,6 +57,8 @@ typedef struct jmpl_symval_s jmpl_symval_t;
 typedef struct jmpl_macro_def_s jmpl_macro_def_t;
 typedef struct jmpl_macro_ref_s jmpl_macro_ref_t;
 
+typedef struct jmpl_loopchk_s   jmpl_loopchk_t;
+
 typedef struct jmpl_parser_s jmpl_parser_t;
 
 enum jmpl_op_e {
@@ -66,6 +68,10 @@ enum jmpl_op_e {
     JMPL_OP_IF,                          /* an if-else construct */
     JMPL_OP_FOREACH,                     /* a for-each construct */
     JMPL_OP_MACRO,                       /* macro evaluation */
+    JMPL_OP_ISFIRST,                     /* isfirst/nonfirst block */
+    JMPL_OP_NONFIRST,                    /* nonfirst/isfirst block */
+    JMPL_OP_ISLAST,                      /* islast/nonlast block */
+    JMPL_OP_NONLAST,                     /* nonlast/islast block */
 };
 
 
@@ -131,6 +137,15 @@ struct jmpl_macro_ref_s {
 };
 
 
+struct jmpl_loopchk_s {
+    jmpl_op_t        type;               /* JMPL_OP_{IS,NON}{FIRST,LAST} */
+    iot_list_hook_t  hook;               /* to op list */
+    jmpl_ref_t      *var;                /* variable to test */
+    iot_list_hook_t  tbranch;            /* true branch */
+    iot_list_hook_t  fbranch;            /* false branch */
+};
+
+
 union jmpl_insn_u {
     jmpl_any_t       any;
     jmpl_ifset_t     ifset;
@@ -139,6 +154,7 @@ union jmpl_insn_u {
     jmpl_text_t      text;
     jmpl_subst_t     subst;
     jmpl_macro_ref_t macro;
+    jmpl_loopchk_t   loopchk;
 };
 
 
@@ -222,6 +238,10 @@ typedef enum {
     JMPL_TKN_FOREACH,                    /* foreach */
     JMPL_TKN_IN,                         /* in */
     JMPL_TKN_DO,                         /* do */
+    JMPL_TKN_ISFIRST,                    /* ?first */
+    JMPL_TKN_NONFIRST,                   /* !first */
+    JMPL_TKN_ISLAST,                     /* ?last */
+    JMPL_TKN_NONLAST,                    /* !last */
     JMPL_TKN_MACRO,                      /* define a macro */
     JMPL_TKN_END,                        /* end of if-set, if, or foreach */
     JMPL_TKN_ID,                         /* variable id */
@@ -255,6 +275,7 @@ enum {
     JMPL_SYMBOL_INDEX  = 0x00000000,
     JMPL_SYMBOL_FIELD  = 0x10000000,
     JMPL_SYMBOL_STRING = 0x20000000,
+    JMPL_SYMBOL_LOOP   = 0x40000000,
 } jmpl_sym_type_t;
 
 
@@ -284,6 +305,8 @@ struct jmpl_symval_s {
         int         i;
         iot_json_t *j;
     };
+    int            *firstp;              /* loop variable first/last kludge */
+    int            *lastp;               /* loop variable first/last kludge */
 };
 
 
@@ -360,6 +383,8 @@ int32_t symtab_add(const char *str, int32_t tag);
 const char *symtab_get(int32_t id);
 
 int symtab_push(int32_t id, int type, void *v);
+int symtab_push_loop(int32_t id, int type, void *v, int *firstp, int *lastp);
+int symtab_check_loop(int32_t id, int *firstp, int *lastp);
 int symtab_pop(int32_t id);
 void symtab_flush(void);
 int symtab_resolve(jmpl_ref_t *r, void **valp);
