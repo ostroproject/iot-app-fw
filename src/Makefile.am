@@ -116,6 +116,12 @@ jmpl_test_LDADD =			\
 		-lm
 
 
+# Install service file template.
+install-data-hook:
+	mkdir -p $(DESTDIR)/usr/libexec/iot-app-fw && \
+	    cp $(top_srcdir)/src/generators/service/service.jmpl \
+	        $(DESTDIR)/usr/libexec/iot-app-fw
+
 # cleanup
 clean-local:
 	-rm -f *~
