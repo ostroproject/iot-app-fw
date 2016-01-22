@@ -1023,7 +1023,6 @@ static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp)
 
     iot_list_init(&jfor->body);
 
-
     if ((tkn = scan_next_token(jp, &val, SCAN_ID)) != JMPL_TKN_ID)
         goto missing_id;
 
@@ -1270,6 +1269,8 @@ static void free_text(jmpl_text_t *jt)
 static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val)
 {
     jmpl_text_t *jt;
+    char        *t, *p, *q;
+    int          nl, c;
 
     IOT_UNUSED(jp);
 
@@ -1280,12 +1281,50 @@ static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val)
     if (jt == NULL)
         goto nomem;
 
+    t = iot_allocz(strlen(val) + 1);
+
+    if (t == NULL)
+        goto nomem;
+
+    p  = val;
+    q  = t;
+    nl = false;
+
+    while (*p) {
+        if (nl && jp->mtab && !strncmp(p, jp->mtab, jp->ltab)) {
+            c = p[jp->ltab];
+
+            if (c) {
+                p += jp->ltab;
+                while (*p == c)
+                    p++;
+            }
+
+            nl = false;
+        }
+        else {
+            if ((*q++ = *p++) == '\n')
+                nl = true;
+            else
+                nl = false;
+        }
+    }
+
+    *q = '\0';
+
+    if (strcmp(val, t))
+        iot_debug("filtered: '%s'", t);
+
     iot_list_init(&jt->hook);
     jt->type = JMPL_OP_TEXT;
+    jt->text = t;
+
+#if 0
     jt->text = iot_strdup(val);
 
     if (jt->text == NULL)
         goto nomem;
+#endif
 
     return (jmpl_insn_t *)jt;
 

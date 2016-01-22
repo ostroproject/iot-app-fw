@@ -98,8 +98,33 @@ int scan_directive(jmpl_parser_t *jp, char **valp)
         else
             tkn = JMPL_TKN_SUBST;
 
-        if (tkn != JMPL_TKN_SUBST && *p == '\n')
+        /*
+         * After a directive, filter out trailing newline and marked
+         * leading tabulation from the next token, unless the current
+         * directive is a substitution. However, if the substitution
+         * is an explicit newline, filter the next token like for any
+         * other directives.
+         *
+         * Note, that probably would allow us to remove much of our
+         * other eval-time filtering hacks... need to test.
+         */
+
+        if ((tkn != JMPL_TKN_SUBST ||
+             ((*valp)[0] == '\\' && (*valp)[1] == 'n')) && *p == '\n') {
+            char c;
+
             p++;
+
+            if (jp->mtab && !strncmp(p, jp->mtab, jp->ltab)) {
+                c = p[jp->ltab];
+
+                if (c) {
+                    p += jp->ltab;
+                    while (*p == c)
+                        p++;
+                }
+            }
+        }
 
         jp->p = p;
         jp->t = t;

@@ -85,7 +85,7 @@ static int jmpl_printf(jmpl_t *jmpl, const char *fmt, ...)
 
         jmpl->size += d;
     }
-#if 0
+#if 1
     strcpy(jmpl->buf + jmpl->used, buf);
     jmpl->used += n;
 #else
@@ -445,6 +445,9 @@ static int eval_text(jmpl_t *jmpl, jmpl_text_t *text)
 
     iot_debug("evaluating <text '%s'>...", text->text);
 
+    return jmpl_printf(jmpl, "%s", text->text) < 0 ? -1 : 0;
+
+#if 0
     b = text->text;
 
     if (jmpl->mtab == NULL || (e = strstr(b, jmpl->mtab)) == NULL)
@@ -470,6 +473,7 @@ static int eval_text(jmpl_t *jmpl, jmpl_text_t *text)
 
         e = strstr(b, jmpl->mtab);
     }
+#endif
 
     return 0;
 }
