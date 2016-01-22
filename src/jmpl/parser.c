@@ -309,12 +309,14 @@ static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp);
 static jmpl_insn_t *parse_subst(jmpl_parser_t *jp, char *val);
 static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val);
 static jmpl_insn_t *parse_loopchk(jmpl_parser_t *jp, int type);
+static jmpl_insn_t *parse_trailchk(jmpl_parser_t *jp, int type, char *val);
 static void free_ifset(jmpl_ifset_t *jif);
 static void free_if(jmpl_if_t *jif);
 static void free_foreach(jmpl_for_t *jif);
 static void free_text(jmpl_text_t *jt);
 static void free_subst(jmpl_subst_t *jt);
 static void free_loopchk(jmpl_loopchk_t *jlc);
+static void free_trailchk(jmpl_trailchk_t *jtc);
 static void free_expr(jmpl_expr_t *expr);
 static void free_reference(jmpl_ref_t *r);
 static void free_macro_ref(jmpl_macro_ref_t *jm);
@@ -325,17 +327,19 @@ static void free_insn(jmpl_insn_t *insn)
         return;
 
     switch (insn->any.type) {
-    case JMPL_OP_IFSET:   free_ifset(&insn->ifset);     break;
-    case JMPL_OP_IF:      free_if(&insn->ifelse);       break;
-    case JMPL_OP_FOREACH: free_foreach(&insn->foreach); break;
-    case JMPL_OP_TEXT:    free_text(&insn->text);       break;
-    case JMPL_OP_SUBST:   free_subst(&insn->subst);     break;
-    case JMPL_OP_MACRO:   free_macro_ref(&insn->macro); break;
+    case JMPL_OP_IFSET:    free_ifset(&insn->ifset);       break;
+    case JMPL_OP_IF:       free_if(&insn->ifelse);         break;
+    case JMPL_OP_FOREACH:  free_foreach(&insn->foreach);   break;
+    case JMPL_OP_TEXT:     free_text(&insn->text);         break;
+    case JMPL_OP_SUBST:    free_subst(&insn->subst);       break;
+    case JMPL_OP_MACRO:    free_macro_ref(&insn->macro);   break;
     case JMPL_OP_ISFIRST:
     case JMPL_OP_NONFIRST:
     case JMPL_OP_ISLAST:
-    case JMPL_OP_NONLAST: free_loopchk(&insn->loopchk); break;
-    default:                                            break;
+    case JMPL_OP_NONLAST:  free_loopchk(&insn->loopchk);   break;
+    case JMPL_OP_ISTRAIL:
+    case JMPL_OP_NOTTRAIL: free_trailchk(&insn->trailchk); break;
+    default:                                               break;
     }
 }
 
@@ -511,6 +515,16 @@ static jmpl_macro_def_t *parse_macro(jmpl_parser_t *jp)
             iot_list_append(&jm->body, &insn->any.hook);
             break;
 
+        case JMPL_TKN_ISTRAIL:
+        case JMPL_TKN_NOTTRAIL:
+            insn = parse_trailchk(jp, tkn, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jm->body, &insn->any.hook);
+            break;
+
         case JMPL_TKN_EOF:
             goto unexpected_eof;
 
@@ -658,6 +672,16 @@ static jmpl_insn_t *parse_ifset(jmpl_parser_t *jp)
         case JMPL_TKN_ISLAST:
         case JMPL_TKN_NONLAST:
             insn = parse_loopchk(jp, tkn);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISTRAIL:
+        case JMPL_TKN_NOTTRAIL:
+            insn = parse_trailchk(jp, tkn, val);
 
             if (insn == NULL)
                 goto parse_error;
@@ -972,6 +996,16 @@ static jmpl_insn_t *parse_if(jmpl_parser_t *jp)
             iot_list_append(branch, &insn->any.hook);
             break;
 
+        case JMPL_TKN_ISTRAIL:
+        case JMPL_TKN_NOTTRAIL:
+            insn = parse_trailchk(jp, tkn, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
         default:
             goto unexpected_token;
         }
@@ -1138,6 +1172,16 @@ static jmpl_insn_t *parse_foreach(jmpl_parser_t *jp)
                 goto parse_error;
 
             iot_list_append(&jfor->body, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISTRAIL:
+        case JMPL_TKN_NOTTRAIL:
+            insn = parse_trailchk(jp, tkn, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jfor->hook, &insn->any.hook);
             break;
 
         case JMPL_TKN_EOF:
@@ -1319,13 +1363,6 @@ static jmpl_insn_t *parse_text(jmpl_parser_t *jp, char *val)
     jt->type = JMPL_OP_TEXT;
     jt->text = t;
 
-#if 0
-    jt->text = iot_strdup(val);
-
-    if (jt->text == NULL)
-        goto nomem;
-#endif
-
     return (jmpl_insn_t *)jt;
 
  nomem:
@@ -1464,6 +1501,16 @@ static jmpl_insn_t *parse_loopchk(jmpl_parser_t *jp, int type)
             iot_list_append(branch, &insn->any.hook);
             break;
 
+        case JMPL_TKN_ISTRAIL:
+        case JMPL_TKN_NOTTRAIL:
+            insn = parse_trailchk(jp, tkn, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
         default:
             goto unexpected_token;
         }
@@ -1483,6 +1530,185 @@ static jmpl_insn_t *parse_loopchk(jmpl_parser_t *jp, int type)
 
  parse_error:
     free_loopchk(jlc);
+    return NULL;
+}
+
+
+static void free_trailchk(jmpl_trailchk_t *jtc)
+{
+    if (jtc == NULL)
+        return;
+
+    if (jtc->regex)
+        iot_regexp_free(jtc->re);
+    else
+        iot_free(jtc->str);
+
+    free_instructions(&jtc->tbranch);
+    free_instructions(&jtc->fbranch);
+}
+
+
+static jmpl_insn_t *parse_trailchk(jmpl_parser_t *jp, int type, char *val)
+{
+    iot_list_hook_t *branch;
+    jmpl_trailchk_t *jtc;
+    jmpl_insn_t     *insn;
+    int              tkn, op, ebr;
+    const char      *kind, *p;
+    char            *q;
+
+    switch (type) {
+    case JMPL_TKN_ISTRAIL:  kind = "istrail";  op = JMPL_OP_ISTRAIL;  break;
+    case JMPL_TKN_NOTTRAIL: kind = "nottrail"; op = JMPL_OP_NOTTRAIL; break;
+    default:                kind = "unknown";  break;
+    }
+
+    iot_debug("<%s>", kind);
+
+    jtc = jmpl_alloc(op, sizeof(*jtc));
+
+    if (jtc == NULL)
+        return NULL;
+
+    iot_list_init(&jtc->tbranch);
+    iot_list_init(&jtc->fbranch);
+
+    iot_debug("test: '%s'", val);
+
+    jtc->regex = 0;
+    jtc->str   = iot_allocz(strlen(val) + 1);
+
+    if (jtc->str == NULL)
+        goto nomem;
+
+    p = val;
+    q = jtc->str;
+
+    while (*p) {
+        if (*p == '\\') {
+            switch (p[1]) {
+            case 'n': *q++ = '\n'; p += 2; break;
+            case 't': *q++ = '\t'; p += 2; break;
+            case 0:   *q++ = 0;    p++;    break;
+            default:  *q++ = p[1]; p += 2; break;
+            }
+        }
+        else
+            *q++ = *p++;
+
+    }
+
+    jtc->len = q - jtc->str;
+
+    ebr = false;
+    branch = &jtc->tbranch;
+
+    while ((tkn = scan_next_token(jp, &val, SCAN_IF_BODY)) != JMPL_TKN_END) {
+        switch (tkn) {
+        case JMPL_TKN_END:
+            iot_debug("<end>");
+            return 0;
+
+        case JMPL_TKN_ELSE:
+            iot_debug("<else>");
+
+            if (ebr)
+                goto unexpected_else;
+
+            ebr = true;
+            branch = &jtc->fbranch;
+            break;
+
+        case JMPL_TKN_IFSET:
+            insn = parse_ifset(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_IF:
+            insn = parse_if(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_FOREACH:
+            insn = parse_foreach(jp);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_SUBST:
+            iot_debug("<subst> '%s'", val);
+
+            insn = parse_subst(jp, val);
+
+            if (insn == NULL)
+                goto invalid_reference;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_TEXT:
+            iot_debug("<text> '%s'", val);
+
+            insn = parse_text(jp, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISFIRST:
+        case JMPL_TKN_NONFIRST:
+        case JMPL_TKN_ISLAST:
+        case JMPL_TKN_NONLAST:
+            insn = parse_loopchk(jp, tkn);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISTRAIL:
+        case JMPL_TKN_NOTTRAIL:
+            insn = parse_trailchk(jp, tkn, val);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(branch, &insn->any.hook);
+            break;
+
+        default:
+            goto unexpected_token;
+        }
+    }
+
+    iot_debug("<end>");
+
+    return (jmpl_insn_t *)jtc;
+
+    return 0;
+
+ unexpected_else:
+ unexpected_token:
+ invalid_reference:
+
+ nomem:
+ parse_error:
+    free_trailchk(jtc);
     return NULL;
 }
 
@@ -1571,6 +1797,16 @@ jmpl_t *jmpl_parse(const char *str)
         case JMPL_TKN_ISLAST:
         case JMPL_TKN_NONLAST:
             insn = parse_loopchk(&jp, tkn);
+
+            if (insn == NULL)
+                goto parse_error;
+
+            iot_list_append(&jmpl->hook, &insn->any.hook);
+            break;
+
+        case JMPL_TKN_ISTRAIL:
+        case JMPL_TKN_NOTTRAIL:
+            insn = parse_trailchk(&jp, tkn, val);
 
             if (insn == NULL)
                 goto parse_error;
@@ -1786,20 +2022,43 @@ static void dump_loopchk(jmpl_loopchk_t *jlc, FILE *fp, int level)
 }
 
 
+static void dump_trailchk(jmpl_trailchk_t *jtc, FILE *fp, int level)
+{
+    const char *kind;
+
+    switch (jtc->type) {
+    case JMPL_OP_ISTRAIL:  kind = "istrail";  break;
+    case JMPL_OP_NOTTRAIL: kind = "nottrail"; break;
+    default:               kind = "unknown";  break;
+    }
+
+    indent(fp, level);
+    fprintf(fp, "<%s> '%s'\n", kind, jtc->str);
+    dump_instructions(&jtc->tbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<else>\n");
+    dump_instructions(&jtc->fbranch, fp, level + 1);
+    indent(fp, level);
+    fprintf(fp, "<end>\n");
+}
+
+
 static void dump_insn(jmpl_insn_t *insn, FILE *fp, int level)
 {
     switch (insn->any.type) {
-    case JMPL_OP_IFSET:    dump_ifset(&insn->ifset, fp, level);     break;
-    case JMPL_OP_IF:       dump_if(&insn->ifelse, fp, level);       break;
-    case JMPL_OP_FOREACH:  dump_foreach(&insn->foreach, fp, level); break;
-    case JMPL_OP_TEXT:     dump_text(&insn->text, fp, level);       break;
-    case JMPL_OP_SUBST:    dump_subst(&insn->subst, fp, level);     break;
-    case JMPL_OP_MACRO:    dump_macro(&insn->macro, fp, level);     break;
+    case JMPL_OP_IFSET:    dump_ifset(&insn->ifset, fp, level);       break;
+    case JMPL_OP_IF:       dump_if(&insn->ifelse, fp, level);         break;
+    case JMPL_OP_FOREACH:  dump_foreach(&insn->foreach, fp, level);   break;
+    case JMPL_OP_TEXT:     dump_text(&insn->text, fp, level);         break;
+    case JMPL_OP_SUBST:    dump_subst(&insn->subst, fp, level);       break;
+    case JMPL_OP_MACRO:    dump_macro(&insn->macro, fp, level);       break;
     case JMPL_OP_ISFIRST:
     case JMPL_OP_NONFIRST:
     case JMPL_OP_ISLAST:
-    case JMPL_OP_NONLAST:  dump_loopchk(&insn->loopchk, fp, level); break;
-    default:                                                        break;
+    case JMPL_OP_NONLAST:  dump_loopchk(&insn->loopchk, fp, level);   break;
+    case JMPL_OP_ISTRAIL:
+    case JMPL_OP_NOTTRAIL: dump_trailchk(&insn->trailchk, fp, level); break;
+    default:                                                          break;
     }
 }
 

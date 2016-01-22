@@ -32,6 +32,7 @@
 
 #include <iot/common/list.h>
 #include <iot/common/json.h>
+#include <iot/common/regexp.h>
 
 typedef enum   jmpl_op_e         jmpl_op_t;
 typedef enum   jmpl_expr_type_e  jmpl_expr_type_t;
@@ -58,6 +59,7 @@ typedef struct jmpl_macro_def_s jmpl_macro_def_t;
 typedef struct jmpl_macro_ref_s jmpl_macro_ref_t;
 
 typedef struct jmpl_loopchk_s   jmpl_loopchk_t;
+typedef struct jmpl_trailchk_s  jmpl_trailchk_t;
 
 typedef struct jmpl_parser_s jmpl_parser_t;
 
@@ -72,6 +74,8 @@ enum jmpl_op_e {
     JMPL_OP_NONFIRST,                    /* nonfirst/isfirst block */
     JMPL_OP_ISLAST,                      /* islast/nonlast block */
     JMPL_OP_NONLAST,                     /* nonlast/islast block */
+    JMPL_OP_ISTRAIL,                     /* istrail/nottrail block */
+    JMPL_OP_NOTTRAIL,                    /* nottrail/istrail block */
 };
 
 
@@ -146,6 +150,20 @@ struct jmpl_loopchk_s {
 };
 
 
+struct jmpl_trailchk_s {
+    jmpl_op_t        type;               /* JMPL_OP_{IS,NON}{FIRST,LAST} */
+    iot_list_hook_t  hook;               /* to op list */
+    union {
+        char         *str;               /* string to test */
+        iot_regexp_t *re;                /* regexp to test */
+    };
+    int              regex : 1;          /* whether regexp or plain text */
+    int              len : 24;
+    iot_list_hook_t  tbranch;            /* true branch */
+    iot_list_hook_t  fbranch;            /* false branch */
+};
+
+
 union jmpl_insn_u {
     jmpl_any_t       any;
     jmpl_ifset_t     ifset;
@@ -155,6 +173,7 @@ union jmpl_insn_u {
     jmpl_subst_t     subst;
     jmpl_macro_ref_t macro;
     jmpl_loopchk_t   loopchk;
+    jmpl_trailchk_t  trailchk;
 };
 
 
@@ -242,6 +261,8 @@ typedef enum {
     JMPL_TKN_NONFIRST,                   /* !first */
     JMPL_TKN_ISLAST,                     /* ?last */
     JMPL_TKN_NONLAST,                    /* !last */
+    JMPL_TKN_ISTRAIL,                    /* ?trail: */
+    JMPL_TKN_NOTTRAIL,                   /* !trail: */
     JMPL_TKN_MACRO,                      /* define a macro */
     JMPL_TKN_END,                        /* end of if-set, if, or foreach */
     JMPL_TKN_ID,                         /* variable id */

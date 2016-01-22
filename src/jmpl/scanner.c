@@ -95,6 +95,14 @@ int scan_directive(jmpl_parser_t *jp, char **valp)
             tkn = JMPL_TKN_ISLAST;
         else if (!strcmp(*valp, "!last"))
             tkn = JMPL_TKN_NONLAST;
+        else if (!strncmp(*valp, "?trail:", 7)) {
+            tkn    = JMPL_TKN_ISTRAIL;
+            *valp += 7;
+        }
+        else if (!strncmp(*valp, "!trail:", 7)) {
+            tkn    = JMPL_TKN_NOTTRAIL;
+            *valp += 7;
+        }
         else
             tkn = JMPL_TKN_SUBST;
 

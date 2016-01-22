@@ -100,7 +100,8 @@ jmpl_test_SOURCES =					\
 		common/debug.c				\
 		common/json.c				\
 		common/hash-table.c			\
-		common/utils.c
+		common/utils.c				\
+		common/regexp.c
 
 jmpl_test_CFLAGS =			\
 		$(AM_CFLAGS)		\

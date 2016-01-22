@@ -44,9 +44,8 @@ static int eval_block(jmpl_t *jmpl, iot_list_hook_t *l);
 static int jmpl_printf(jmpl_t *jmpl, const char *fmt, ...)
 {
     static int  size = 256;
-    static int  nl   = false;
-    char       *buf, *p, *q, c;
-    int         n, d, s, l;
+    char       *buf;
+    int         n, d, s;
     va_list     ap;
 
     va_start(ap, fmt);
@@ -85,41 +84,11 @@ static int jmpl_printf(jmpl_t *jmpl, const char *fmt, ...)
 
         jmpl->size += d;
     }
-#if 1
+
     strcpy(jmpl->buf + jmpl->used, buf);
     jmpl->used += n;
-#else
-    p = buf;
-    q = jmpl->buf + jmpl->used;
-    l = 0;
 
-    while (*p) {
-        if (*p == '\n') {
-            nl = true;
-            *q++ = *p++;
-            l++;
-        }
-        else {
-            if (!nl) {
-                *q++ = *p++;
-                l++;
-            }
-            else {
-                if (jmpl->mtab && !strncmp(p, jmpl->mtab, jmpl->ltab)) {
-                    p += jmpl->ltab;
-                    if ((c = *p))
-                        while (*p == c)
-                            p++;
-                }
-                nl = false;
-            }
-        }
-    }
-
-    jmpl->used += l;
-#endif
-
-    return l;
+    return n;
 }
 
 
@@ -440,42 +409,9 @@ static int eval_subst(jmpl_t *jmpl, jmpl_subst_t *subst)
 
 static int eval_text(jmpl_t *jmpl, jmpl_text_t *text)
 {
-    char *b, *e;
-    int   l, c;
-
     iot_debug("evaluating <text '%s'>...", text->text);
 
     return jmpl_printf(jmpl, "%s", text->text) < 0 ? -1 : 0;
-
-#if 0
-    b = text->text;
-
-    if (jmpl->mtab == NULL || (e = strstr(b, jmpl->mtab)) == NULL)
-        return jmpl_printf(jmpl, "%s", b) < 0 ? -1 : 0;
-
-    while (b && *b) {
-        while (e != NULL && (e == text->text || e[-1] != '\n'))
-            e = strstr(e + 1, jmpl->mtab);
-
-        if (e == NULL)
-            return jmpl_printf(jmpl, "%s", b) < 0 ? -1 : 0;
-
-        l = e - b;
-
-        if (jmpl_printf(jmpl, "%*.*s", l, l, b) < 0)
-            return -1;
-
-        b = e + jmpl->ltab;
-        c = *b;
-
-        while (*b && *b == c)
-            b++;
-
-        e = strstr(b, jmpl->mtab);
-    }
-#endif
-
-    return 0;
 }
 
 
@@ -522,19 +458,63 @@ static int eval_loopchk(jmpl_t *jmpl, jmpl_loopchk_t *jlc)
 }
 
 
+static int eval_trailchk(jmpl_t *jmpl, jmpl_trailchk_t *jtc)
+{
+    iot_list_hook_t *branch;
+    int              match;
+    const char      *kind, *trail;
+
+    switch (jtc->type) {
+    case JMPL_OP_ISTRAIL:  kind = "istrail";  break;
+    case JMPL_OP_NOTTRAIL: kind = "nottrail"; break;
+    default:               kind = "unknown";  break;
+    }
+
+    iot_debug("evaluating <%s '%s' (%d)>...", kind, jtc->str, jtc->len);
+
+    if (!jtc->regex) {
+        if ((int)jmpl->used < jtc->len) {
+            trail = NULL;
+            match = 0;
+        }
+        else {
+            trail = jmpl->buf + jmpl->used - jtc->len;
+            match = !strcmp(trail, jtc->str);
+        }
+    }
+
+    iot_debug("<%s '%s'>: trail: '%s', match: %s",
+              kind, jtc->str, trail ? trail : "", match ? "true" : "false");
+
+    switch (jtc->type) {
+    case JMPL_OP_ISTRAIL:
+        branch = match ? &jtc->tbranch : &jtc->fbranch;
+        break;
+    case JMPL_OP_NOTTRAIL:
+        branch = !match ? &jtc->tbranch : &jtc->fbranch;
+        break;
+    default:
+        return -1;
+    }
+
+    return eval_block(jmpl, branch);
+}
+
 static int eval_insn(jmpl_t *jmpl, jmpl_insn_t *insn)
 {
     switch (insn->any.type) {
-    case JMPL_OP_IFSET:   return eval_ifset(jmpl, &insn->ifset);
-    case JMPL_OP_IF:      return eval_ifelse(jmpl, &insn->ifelse);
-    case JMPL_OP_FOREACH: return eval_foreach(jmpl, &insn->foreach);
-    case JMPL_OP_SUBST:   return eval_subst(jmpl, &insn->subst);
-    case JMPL_OP_TEXT:    return eval_text(jmpl, &insn->text);
-    case JMPL_OP_MACRO:   return eval_macro(jmpl, &insn->macro);
+    case JMPL_OP_IFSET:    return eval_ifset(jmpl, &insn->ifset);
+    case JMPL_OP_IF:       return eval_ifelse(jmpl, &insn->ifelse);
+    case JMPL_OP_FOREACH:  return eval_foreach(jmpl, &insn->foreach);
+    case JMPL_OP_SUBST:    return eval_subst(jmpl, &insn->subst);
+    case JMPL_OP_TEXT:     return eval_text(jmpl, &insn->text);
+    case JMPL_OP_MACRO:    return eval_macro(jmpl, &insn->macro);
     case JMPL_OP_ISFIRST:
     case JMPL_OP_NONFIRST:
     case JMPL_OP_ISLAST:
-    case JMPL_OP_NONLAST: return eval_loopchk(jmpl, &insn->loopchk);
+    case JMPL_OP_NONLAST:  return eval_loopchk(jmpl, &insn->loopchk);
+    case JMPL_OP_ISTRAIL:
+    case JMPL_OP_NOTTRAIL: return eval_trailchk(jmpl, &insn->trailchk);
     default:
         break;
     }
