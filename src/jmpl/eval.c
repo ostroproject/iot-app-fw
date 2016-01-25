@@ -340,6 +340,23 @@ static int eval_foreach(jmpl_t *jmpl, jmpl_for_t *jfor)
             }
             return 0;
 
+        case IOT_JSON_STRING:
+            first = 1;
+            last  = 1;
+            v = val;
+            if (jfor->key)
+                symtab_push_loop(jfor->key->ids[0], JMPL_SYMVAL_STRING, "",
+                                 &first, &last);
+            if (jfor->val)
+                symtab_push_loop(jfor->val->ids[0], JMPL_SYMVAL_JSON, v,
+                                 &first, &last);
+            eval_block(jmpl, &jfor->body);
+            if (jfor->key)
+                symtab_pop(jfor->key->ids[0]);
+            if (jfor->val)
+                symtab_pop(jfor->val->ids[0]);
+            return 0;
+
         default:
             return -1;
         }
