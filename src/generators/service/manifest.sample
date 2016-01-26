@@ -1,47 +1,55 @@
+/*
+ * Application manifest keys:
+ *
+ *   - application: string
+ *         Application identifier, mostly used for generating a few
+ *         filesystem paths and file names.
+ *
+ *   - description: string
+ *         A verbose description of the application.
+ *
+ *   - user: string
+ *         Unix user the application is executed as.
+ *
+ *   - group: string
+ *         If given, the Unix group the application is executed as.
+ *
+ *   - environment: dictionary (strings keys with string values)
+ *         Extra environment variables to set for the application.
+ *
+ *   - command: array (of strings)
+ *         The command line to start the application.
+ *
+ *   - autostart: boolean
+ *         Whether to automatically attempt to start the application
+ *         upon system boot.
+ *
+ *   - container: dictionary
+ *         If the application is to be run inside a container, specifies
+ *         the configuration for the container. Note that currently only
+ *         systemd-nspawned containers are supported.
+ *
+ *         o type: string
+ *             Container type to use, currently must be 'nspawn'.
+ *         o network: string
+ *             Container network configuration. Currently 'VirtualEthernet'.
+ *         o sharedsystem: boolean
+ *             Whether to run the container in a shared PID, UTS, and IPC
+ *             namespaces.
+ *
+ */
+
 {
-    // App identifier, only used for generating the name of the service file.
-    "application": "test-1",
-
-    // App description, used as description in the generated service file.
-    "description": "A dummy application for testing.",
-
-    // User and group yo execute application as.
+    "application": "sample-app",
+    "description": "An application for frobnicating foobar and xyzzy.",
     "user": "provider-1",
     "group": "provider-1-group",
-
-    // Extra environment variables to set for this application.
     "environment": {
-        "FOO": "bar",
+        "FROB": "nicate",
         "FOOBAR": "xyzzy",
     },
-
-    // Command to start up this application.
     "command": [ "/usr/bin/test-1.sh" ],
-
-    // Whether to autostart this application on boot.
     "autostart": "true",
-
-    /*
-     * Container type and configuration to run the application in. Currently
-     * the following types are supported:
-     *
-     * - nspawn:
-     *     Run application in a systemd-nspawn'd container.
-     *
-     * - none:
-     *     Prepend application-specific directories to PATH and
-     *     LD_LIRBARY_PATH and run application without any container.
-     *
-     * For nspawn the following additional configuration options can be
-     * specified:
-     *
-     * - network:
-     *     Network setup to use, currently 'VirtualEthernet'.
-     *
-     * - sharedsystem:
-     *     Whether to turn off PID-, UTS-, and IPC-namespacing.
-     */
-
      "container": {
         "type": "nspawn",
         "network": "VirtualEthernet",
