@@ -40,17 +40,22 @@
 
 #include "jmpl/jmpl.h"
 
+#ifndef LIBDIR
+#    define LIBDIR "/usr/lib"
+#endif
+
+#ifndef LIBEXECDIR
+#    define LIBEXECDIR LIBDIR"/libexec"
+#endif
+
 /* External helper we try to exec(3) for mounting PATH_APPS. */
 #ifndef MOUNT_HELPER
-#    define MOUNT_HELPER "/usr/libexec/iot-app-fw/mount-apps"
+#    define MOUNT_HELPER LIBEXECDIR"/iot-app-fw/mount-apps"
 #endif
 
 #ifndef PATH_TEMPLATE
-#    define PATH_TEMPLATE "/usr/libexec/iot-app-fw/service.jmpl"
+#    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.jmpl"
 #endif
-
-/* Absolute path to systemd-nspawn. */
-#define PATH_NSPAWN "/usr/bin/systemd-nspawn"
 
 /* Directory where applications are installed. */
 #define PATH_APPS "/apps"
@@ -59,7 +64,7 @@
 #define PATH_CONTAINER "/run/systemd/machines"
 
 /* Directory to drop files into for systemd-sysusers. */
-#define PATH_SYSUSERS "/usr/lib/sysusers.d"
+#define PATH_SYSUSERS LIBDIR"/sysusers.d"
 
 /* Maximum allowed manifest file size. */
 #define MANIFEST_MAXSIZE (16 * 1024)

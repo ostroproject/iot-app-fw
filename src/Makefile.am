@@ -1,6 +1,5 @@
 SUBDIRS          = . # common/tests
-AM_CFLAGS        = $(WARNING_CFLAGS) $(AM_CPPFLAGS) \
-		   -DSYSCONFDIR=\"@SYSCONFDIR@\" -DLIBDIR=\"@LIBDIR@\"
+AM_CFLAGS        = $(WARNING_CFLAGS) $(AM_CPPFLAGS) $(PATHDEFS)
 IOT_CFLAGS       =
 pkgconfigdir     = ${libdir}/pkgconfig
 
@@ -22,6 +21,9 @@ BUILT_SOURCES    =
 
 GEN_LINKERSCRIPT = $(top_srcdir)/build-aux/gen-linker-script -b $(top_builddir)
 
+PATHDEFS         = -DSYSCONFDIR=\"${sysconfdir}\" \
+                   -DLIBDIR=\"${libdir}\" \
+                   -DLIBEXECDIR=\"${libexecdir}\"
 
 ###################################
 # iot-service-generator
@@ -54,6 +56,7 @@ iot_service_generator_SOURCES =				\
 
 iot_service_generator_CFLAGS =		\
 		$(AM_CFLAGS)		\
+		$(PATHDEFS)		\
 		$(SECURITY_CFLAGS)	\
 		$(JSON_CFLAGS)		\
 		$(REGEXP_CFLAGS)
@@ -118,9 +121,9 @@ jmpl_test_LDADD =			\
 
 # Install service file template.
 install-data-hook:
-	mkdir -p $(DESTDIR)/usr/libexec/iot-app-fw && \
+	mkdir -p $(DESTDIR)${libexecdir}/iot-app-fw && \
 	    cp $(top_srcdir)/src/generators/service/service.jmpl \
-	        $(DESTDIR)/usr/libexec/iot-app-fw
+	        $(DESTDIR)${libexecdir}/iot-app-fw
 
 # cleanup
 clean-local:
