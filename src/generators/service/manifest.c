@@ -39,20 +39,116 @@
 #include "generator.h"
 
 
-static iot_json_t *(*translate)(iot_json_t *);
+static IOT_LIST_HOOK(preprocessors);
 
 
-static iot_json_t *preprocess_manifest(iot_json_t *m)
+int preprocessor_register(generator_t *g, preprocessor_t *pp)
 {
-    return translate ? translate(m) : m;
+    iot_list_hook_t *l, *p, *n;
+    preprocessor_t  *lpp;
+
+    if (pp->name == NULL || pp->prep == NULL)
+        goto invalid;
+
+    iot_list_init(&pp->hook);
+
+    l = (g == NULL ? &preprocessors : &g->preprocessors);
+
+    iot_list_foreach(l, p, n) {
+        lpp = iot_list_entry(p, typeof(*lpp), hook);
+
+        if (pp->prio < lpp->prio) {
+            iot_list_insert_before(&lpp->hook, &pp->hook);
+            pp = NULL;
+            break;
+        }
+    }
+
+    if (pp)
+        iot_list_append(l, &pp->hook);
+
+    log_info("Registered preprocessor '%s'...", pp->name);
+
+    return 0;
+
+ invalid:
+    errno = EINVAL;
+    return -1;
 }
 
 
-iot_json_t *manifest_read(const char *path)
+static void merge_preprocessors(generator_t *g)
+{
+    iot_list_hook_t *sl, *sp, *sn, *dl, *dp;
+    preprocessor_t *spp, *dpp;
+
+    if (iot_list_empty(&g->preprocessors)) {
+        iot_list_move(&g->preprocessors, &preprocessors);
+        return;
+    }
+
+    sl = &preprocessors;
+    dl = &g->preprocessors;
+
+    while (sp != sl || dp != dl) {
+        sn = sp->next;
+        iot_list_init(sp);
+
+        if (dp == dl) {
+            iot_list_append(sp, dl);
+            continue;
+        }
+
+        spp = iot_list_entry(sp, typeof(*spp), hook);
+        dpp = iot_list_entry(dp, typeof(*dpp), hook);
+
+        if (spp->prio <= dpp->prio) {
+            iot_debug("%d <= %d, inserting before", spp->prio, dpp->prio);
+            iot_list_insert_before(dp, sp);
+            sp = sn;
+        }
+        else {
+            iot_debug("%d > %d, scanning forward", spp->prio, dpp->prio);
+            dp = dp->next;
+        }
+    }
+
+    iot_list_init(&preprocessors);
+}
+
+
+static iot_json_t *preprocess_manifest(generator_t *g, iot_json_t *m)
+{
+    iot_list_hook_t *p, *n;
+    preprocessor_t  *pp;
+    iot_json_t      *in, *out;
+
+    if (!iot_list_empty(&preprocessors))
+        merge_preprocessors(g);
+
+    in = out = m;
+    iot_list_foreach(&g->preprocessors, p, n) {
+        pp = iot_list_entry(p, typeof(*pp), hook);
+
+        iot_debug("Preprocessing manifest with '%s'...", pp->name);
+
+        out = pp->prep(g, in, pp->data);
+
+        if (out == NULL)
+            return NULL;
+
+        in = out;
+    }
+
+    return out;
+}
+
+
+iot_json_t *manifest_read(generator_t *g, const char *path)
 {
     struct stat  st;
     char        *buf;
-    iot_json_t  *m;
+    iot_json_t  *m, *pp;
     int          fd, n, ch;
 
     if (stat(path, &st) < 0)
@@ -87,7 +183,21 @@ iot_json_t *manifest_read(const char *path)
         goto invalid;
     }
 
-    return preprocess_manifest(m);
+    iot_json_ref(m);
+    pp = preprocess_manifest(g, m);
+    iot_json_unref(m);
+
+    if (pp == NULL) {
+        iot_json_unref(m);
+        goto failed;
+    }
+
+    if (pp != m) {
+        iot_json_unref(m);
+        m = pp;
+    }
+
+    return m;
 
  toolarge:
     errno = ENOBUFS;

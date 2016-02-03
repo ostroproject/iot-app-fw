@@ -53,6 +53,10 @@
 #    define MOUNT_HELPER LIBEXECDIR"/iot-app-fw/mount-apps"
 #endif
 
+#ifndef PATH_CONFIG
+#    define PATH_CONFIG SYSCONFDIR"/iot-app-fw/generator.cfg"
+#endif
+
 #ifndef PATH_TEMPLATE
 #    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.jmpl"
 #endif
@@ -74,6 +78,9 @@ typedef enum   mount_type_e   mount_type_t;
 typedef struct mount_s        mount_t;
 typedef struct generator_s    generator_t;
 typedef struct service_s      service_t;
+typedef struct preprocessor_s preprocessor_t;
+
+typedef iot_json_t *(*preproc_t)(generator_t *, iot_json_t *, void *data);
 
 
 /*
@@ -90,13 +97,16 @@ struct generator_s {
     const char      *dir_late;           /* systemd 'late' service dir */
     const char      *dir_apps;           /* application top directory */
     const char      *dir_service;        /* service (output) directory */
+    const char      *path_config;        /* configuration path */
     const char      *path_template;      /* template file path */
     const char      *log_path;           /* where to log to */
     int              dry_run : 1;        /* just a dry-run, don't generate */
     int              premounted : 1;     /* whether dir_apps was mounted */
     int              status;             /* service generation status */
+    iot_json_t      *cfg;                /* optional configuration */
     jmpl_t          *template;           /* service template */
     iot_list_hook_t  services;           /* generated service( file)s */
+    iot_list_hook_t  preprocessors;      /* manifest preprocessors */
 };
 
 
@@ -116,6 +126,7 @@ struct generator_s {
  * Configuration handling.
  */
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[]);
+int config_file_load(generator_t *g);
 
 
 /*
@@ -150,8 +161,45 @@ int application_discover(generator_t *g);
 int template_load(generator_t *g);
 int template_eval(service_t *s);
 
-iot_json_t *manifest_read(const char *path);
 
+
+/*
+ * Manifest handling.
+ */
+
+struct preprocessor_s {
+    iot_list_hook_t  hook;
+    char            *name;
+    preproc_t        prep;
+    int              prio;
+    void            *data;
+};
+
+int preprocessor_setup(generator_t *g);
+int preprocessor_register(generator_t *g, preprocessor_t *pp);
+
+#define PREPROCESSOR_REGISTER(_name, _prep, _prio, _data)       \
+    static void IOT_INIT register_##_prep(void)                 \
+    {                                                           \
+        static preprocessor_t pp = {                            \
+            .name = _name ? _name : #_prep,                     \
+            .prio = _prio,                                      \
+            .prep = _prep,                                      \
+            .data = _data,                                      \
+        };                                                      \
+        int r;                                                  \
+                                                                \
+        r = preprocessor_register(NULL, &pp);                   \
+                                                                \
+        IOT_ASSERT(r >= 0,                                      \
+                   "Failed to register preprocessor '%s' "      \
+                   "(%d: %s).", _name, errno, strerror(errno)); \
+    }                                                           \
+    struct __allow_trailing_semicolon
+
+
+
+iot_json_t *manifest_read(generator_t *g, const char *path);
 
 /*
  * Service file generation.

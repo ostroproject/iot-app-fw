@@ -76,7 +76,7 @@ static int scan_app_cb(const char *dir, const char *e, iot_dirent_type_t type,
 
     log_debug("Found manifest '%s'...", manifest);
 
-    m = manifest_read(manifest);
+    m = manifest_read(g, manifest);
 
     if (m == NULL) {
         if (errno != ENOENT)

@@ -58,6 +58,7 @@ static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
             "is %s.\n"
             "\n"
             "The possible opions are:\n"
+            "  -c, --config <path>    configuration to load\n"
             "  -t, --template <path>  template service file to use\n"
             "  -n, --dry-run          just print, don't generate anything\n"
             "  -l, --log <path>       where to log to (default: /dev/kmsg)\n"
@@ -77,10 +78,12 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
 {
     iot_clear(g);
     iot_list_init(&g->services);
+    iot_list_init(&g->preprocessors);
 
     g->env           = (const char **)env;
     g->argv0         = argv[0];
     g->dir_apps      = PATH_APPS;
+    g->path_config   = PATH_CONFIG;
     g->path_template = PATH_TEMPLATE;
 
     iot_log_set_mask(IOT_LOG_MASK_ERROR | IOT_LOG_MASK_WARNING);
@@ -89,8 +92,9 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
 
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 {
-#   define OPTIONS "t:nl:vd:h"
+#   define OPTIONS "c:t:nl:vd:h"
     static struct option options[] = {
+        { "config"  , required_argument, NULL, 'c' },
         { "template", required_argument, NULL, 't' },
         { "dry-run" , no_argument      , NULL, 'n' },
         { "log"     , required_argument, NULL, 'l' },
@@ -106,6 +110,10 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 
     while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
         switch (opt) {
+        case 'c':
+            g->path_config = optarg;
+            break;
+
         case 't':
             g->path_template = optarg;
             break;
@@ -168,6 +176,17 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 
     if (g->log_path == NULL)
         g->log_path = g->dry_run ? "/proc/self/fd/1" : "/dev/kmsg";
+
+    return 0;
+}
+
+
+int config_file_load(generator_t *g)
+{
+    g->cfg = iot_json_load_file(g->path_config);
+
+    if (g->cfg == NULL)
+        return errno == ENOENT ? 0 : -1;
 
     return 0;
 }

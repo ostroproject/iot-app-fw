@@ -40,8 +40,15 @@ int main(int argc, char *argv[], char *env[])
 
     log_open(g.log_path);
 
-    if (template_load(&g) < 0)
+    if (config_file_load(&g) < 0) {
+        log_error("Failed to load config file '%s'", g.path_config);
         exit(1);
+    }
+
+    if (template_load(&g) < 0) {
+        log_error("Failed to load template file '%s'", g.path_template);
+        exit(1);
+    }
 
     application_mount(&g);
     application_discover(&g);
