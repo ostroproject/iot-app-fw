@@ -32,6 +32,10 @@ PATHDEFS         = -DSYSCONFDIR=\"${sysconfdir}\" \
 systemd_generator_PROGRAMS = iot-service-generator
 systemd_generatordir = /lib/systemd/system-generators
 
+iot_service_generator_PREPROCESSORS = \
+		generators/service/preprocessors/whitelist-groups.c
+
+
 iot_service_generator_SOURCES =				\
 		generators/service/generator.c		\
 		generators/service/config.c		\
@@ -52,7 +56,8 @@ iot_service_generator_SOURCES =				\
 		common/utils.c				\
 		common/file-utils.c			\
 		common/regexp.c				\
-		common/json.c
+		common/json.c				\
+		$(iot_service_generator_PREPROCESSORS)
 
 iot_service_generator_CFLAGS =		\
 		$(AM_CFLAGS)		\
