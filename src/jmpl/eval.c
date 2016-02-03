@@ -48,14 +48,15 @@ static int jmpl_printf(jmpl_t *jmpl, const char *fmt, ...)
     int         n, d, s;
     va_list     ap;
 
-    va_start(ap, fmt);
 
  retry:
+    va_start(ap, fmt);
     buf = alloca(size);
     n = vsnprintf(buf, size, fmt, ap);
 
     if (n >= size - 1) {
         size *= 2;
+        va_end(ap);
         goto retry;
     }
 
