@@ -51,6 +51,10 @@
 
 IOT_CDECL_BEGIN
 
+#ifndef IOT_JSON_MAXFILE
+#    define IOT_JSON_MAXFILE (64 * 1024)  /**< Max. allowed file size. */
+#endif
+
 /*
  * We use json-c as the underlying json implementation, However, we do
  * not want direct json-c dependencies to spread all over the code base
@@ -255,6 +259,9 @@ int iot_json_array_get_item(iot_json_t *a, int idx, iot_json_type_t type, ...);
 
 /** Parse a JSON object from the given string. */
 int iot_json_parse_object(char **str, int *len, iot_json_t **op);
+
+/** Load JSON object from the given file (must have a singe object). */
+iot_json_t *iot_json_load_file(const char *path);
 
 IOT_CDECL_END
 

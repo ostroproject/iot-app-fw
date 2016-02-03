@@ -27,9 +27,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <unistd.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <string.h>
+#include <fcntl.h>
+#include <alloca.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "iot/config.h"
 #include <iot/common/macros.h>
@@ -607,4 +612,59 @@ int iot_json_parse_object(char **strp, int *lenp, iot_json_t **op)
 
     *op = o;
     return res;
+}
+
+
+iot_json_t *iot_json_load_file(const char *path)
+{
+    struct stat  st;
+    char        *buf;
+    iot_json_t  *o;
+    int          fd, n, ch;
+
+    if (stat(path, &st) < 0)
+        return NULL;
+
+    if (st.st_size > IOT_JSON_MAXFILE)
+        goto toolarge;
+
+    fd = open(path, O_RDONLY);
+
+    if (fd < 0)
+        goto failed;
+
+    buf = alloca(st.st_size + 1);
+    n = read(fd, buf, st.st_size);
+
+    close(fd);
+
+    if (n < st.st_size)
+        goto ioerror;
+
+    while (n > 1 && ((ch = buf[n - 1]) == '\n' || ch == '\t' || ch == ' '))
+        n--;
+
+    buf[n] = '\0';
+
+    if (iot_json_parse_object(&buf, &n, &o) < 0)
+        goto invalid;
+
+    if (o == NULL || n > 0) {
+        iot_json_unref(o);
+        goto invalid;
+    }
+
+    return o;
+
+ toolarge:
+    errno = ENOBUFS;
+    return NULL;
+ ioerror:
+    errno = EIO;
+    return NULL;
+ invalid:
+    errno = EINVAL;
+    return NULL;
+ failed:
+    return NULL;
 }
