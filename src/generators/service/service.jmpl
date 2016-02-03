@@ -52,7 +52,7 @@ Description={data.manifest.description}
 >    Type=simple
 >    User={U}
 >    Environment=LD_LIBRARY_PATH={A}/lib:{A}/lib64:/lib:/lib64:/usr/lib:/usr/lib64
-     Environment=PATH={A}/bin:/bin:/usr/bin:/sbin:/usr/sbin
+>    Environment=PATH={A}/bin:/bin:/usr/bin:/sbin:/usr/sbin
 >    ExecStart={foreach} arg {in} {data.manifest.command} {do}{arg} {end}
 {end}
 {ENSURE-NL}
