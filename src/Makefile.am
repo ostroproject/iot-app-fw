@@ -124,6 +124,51 @@ jmpl_test_LDADD =			\
 		-lm
 
 
+###################################
+# JSON template test
+#
+
+noinst_PROGRAMS += smpl-test
+
+smpl_test_SOURCES =					\
+		smpl/smpl-test.c			\
+		smpl/smpl.c				\
+		smpl/errors.c				\
+		smpl/symtbl.c				\
+		smpl/parser.c				\
+		smpl/preproc.c				\
+		smpl/template.c				\
+		smpl/template-macro.c			\
+		smpl/template-block.c			\
+		smpl/template-text.c			\
+		smpl/template-vref.c			\
+		smpl/template-branch.c			\
+		smpl/template-loop.c			\
+		smpl/template-switch.c			\
+		smpl/buffer.c				\
+		smpl/varref.c				\
+		smpl/expr.c				\
+		smpl/json.c				\
+		common/mm.c				\
+		common/log.c				\
+		common/debug.c				\
+		common/json.c				\
+		common/hash-table.c			\
+		common/utils.c				\
+		common/regexp.c
+
+smpl_test_CFLAGS =			\
+		$(AM_CFLAGS)		\
+		$(JSON_CFLAGS)
+
+
+smpl_test_LDADD =			\
+		$(JSON_LIBS)		\
+		-lm
+
+
+
+
 # Install service file template.
 install-data-hook:
 	mkdir -p $(DESTDIR)${libexecdir}/iot-app-fw && \
