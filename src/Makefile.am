@@ -8,8 +8,8 @@ sbin_PROGRAMS    =
 bin_SCRIPTS      =
 libexec_PROGRAMS =
 noinst_PROGRAMS  =
-
 lib_LTLIBRARIES  =
+noinst_LIBRARIES =
 pkgconfig_DATA   =
 EXTRA_DIST       =
 
@@ -24,6 +24,75 @@ GEN_LINKERSCRIPT = $(top_srcdir)/build-aux/gen-linker-script -b $(top_builddir)
 PATHDEFS         = -DSYSCONFDIR=\"${sysconfdir}\" \
                    -DLIBDIR=\"${libdir}\" \
                    -DLIBEXECDIR=\"${libexecdir}\"
+
+
+###################################
+# common library
+#
+
+noinst_LIBRARIES += libcommon.a
+
+libcommon_a_SOURCES =					\
+		common/mm.c				\
+		common/log.c				\
+		common/debug.c				\
+		common/json.c				\
+		common/hash-table.c			\
+		common/utils.c				\
+		common/regexp.c				\
+		common/file-utils.c
+
+libcommon_a_CFLAGS =					\
+		$(AM_CFLAGS)				\
+		$(JSON_CFLAGS)				\
+		$(REGEXP_CFLAGS)
+
+
+###################################
+# template library
+#
+
+noinst_LIBRARIES += libsmpl.a
+noinst_PROGRAMS  += smpl-test
+
+libsmpl_a_SOURCES =					\
+		smpl/smpl.c				\
+		smpl/errors.c				\
+		smpl/symtbl.c				\
+		smpl/parser.c				\
+		smpl/preproc.c				\
+		smpl/template.c				\
+		smpl/template-macro.c			\
+		smpl/template-block.c			\
+		smpl/template-text.c			\
+		smpl/template-vref.c			\
+		smpl/template-branch.c			\
+		smpl/template-loop.c			\
+		smpl/template-switch.c			\
+		smpl/buffer.c				\
+		smpl/varref.c				\
+		smpl/expr.c				\
+		smpl/json.c
+
+libsmpl_a_CFLAGS =					\
+		$(libcommon_a_CFLAGS)
+
+libsmpl_a_LIBADD =					\
+		libcommon.a
+
+
+smpl_test_SOURCES =					\
+		smpl/smpl-test.c
+
+smpl_test_CFLAGS =					\
+		$(libsmpl_a_CFLAGS)
+
+smpl_test_LDADD =					\
+		libsmpl.a				\
+		libcommon.a				\
+		$(JSON_LIBS)				\
+		$(REGEXP_LIBS)				\
+		-lm
 
 ###################################
 # iot-service-generator
@@ -44,31 +113,6 @@ iot_service_generator_SOURCES =				\
 		generators/service/service.c		\
 		generators/service/template.c		\
 		generators/service/filesystem.c		\
-		smpl/smpl.c				\
-		smpl/errors.c				\
-		smpl/symtbl.c				\
-		smpl/parser.c				\
-		smpl/preproc.c				\
-		smpl/template.c				\
-		smpl/template-macro.c			\
-		smpl/template-block.c			\
-		smpl/template-text.c			\
-		smpl/template-vref.c			\
-		smpl/template-branch.c			\
-		smpl/template-loop.c			\
-		smpl/template-switch.c			\
-		smpl/buffer.c				\
-		smpl/varref.c				\
-		smpl/expr.c				\
-		smpl/json.c				\
-		common/mm.c				\
-		common/log.c				\
-		common/debug.c				\
-		common/json.c				\
-		common/hash-table.c			\
-		common/utils.c				\
-		common/regexp.c				\
-		common/file-utils.c			\
 		$(iot_service_generator_PREPROCESSORS)
 
 iot_service_generator_CFLAGS =		\
@@ -79,8 +123,39 @@ iot_service_generator_CFLAGS =		\
 		$(REGEXP_CFLAGS)
 
 iot_service_generator_LDADD =		\
+		libsmpl.a		\
+		libcommon.a		\
 		$(JSON_LIBS)		\
 		$(REGEXP_LIBS)		\
+		-lm
+
+###################################
+# original proto template library
+#
+
+noinst_LIBRARIES += libjmpl.a
+noinst_PROGRAMS  += jmpl-test
+
+libjmpl_a_SOURCES =					\
+		jmpl/jmpl.c				\
+		jmpl/scanner.c				\
+		jmpl/parser.c				\
+		jmpl/eval.c				\
+		jmpl/symtab.c
+
+libjmpl_a_CFLAGS =					\
+		$(libcommon_a_CFLAGS)
+
+jmpl_test_SOURCES =					\
+		jmpl/jmpl-test.c
+
+jmpl_test_CFLAGS =					\
+		$(libjmpl_a_CFLAGS)
+
+jmpl_test_LDADD =					\
+		libjmpl.a				\
+		libcommon.a				\
+		$(JSON_LIBS)				\
 		-lm
 
 ###################################
@@ -103,82 +178,6 @@ iot_service_generator_LDADD =		\
 #		$(SECURITY_CFLAGS)
 #
 #iot_exec_LDADD =
-
-
-###################################
-# JSON template test
-#
-
-noinst_PROGRAMS += jmpl-test
-
-jmpl_test_SOURCES =					\
-		jmpl/jmpl-test.c			\
-		jmpl/jmpl.c				\
-		jmpl/scanner.c				\
-		jmpl/parser.c				\
-		jmpl/eval.c				\
-		jmpl/symtab.c				\
-		common/mm.c				\
-		common/log.c				\
-		common/debug.c				\
-		common/json.c				\
-		common/hash-table.c			\
-		common/utils.c				\
-		common/regexp.c
-
-jmpl_test_CFLAGS =			\
-		$(AM_CFLAGS)		\
-		$(JSON_CFLAGS)
-
-
-jmpl_test_LDADD =			\
-		$(JSON_LIBS)		\
-		-lm
-
-
-###################################
-# JSON template test
-#
-
-noinst_PROGRAMS += smpl-test
-
-smpl_test_SOURCES =					\
-		smpl/smpl-test.c			\
-		smpl/smpl.c				\
-		smpl/errors.c				\
-		smpl/symtbl.c				\
-		smpl/parser.c				\
-		smpl/preproc.c				\
-		smpl/template.c				\
-		smpl/template-macro.c			\
-		smpl/template-block.c			\
-		smpl/template-text.c			\
-		smpl/template-vref.c			\
-		smpl/template-branch.c			\
-		smpl/template-loop.c			\
-		smpl/template-switch.c			\
-		smpl/buffer.c				\
-		smpl/varref.c				\
-		smpl/expr.c				\
-		smpl/json.c				\
-		common/mm.c				\
-		common/log.c				\
-		common/debug.c				\
-		common/json.c				\
-		common/hash-table.c			\
-		common/utils.c				\
-		common/regexp.c
-
-smpl_test_CFLAGS =			\
-		$(AM_CFLAGS)		\
-		$(JSON_CFLAGS)
-
-
-smpl_test_LDADD =			\
-		$(JSON_LIBS)		\
-		-lm
-
-
 
 
 # Install service file template.
