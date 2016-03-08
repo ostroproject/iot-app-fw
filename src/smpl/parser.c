@@ -399,15 +399,42 @@ static int collect_text(smpl_t *smpl, smpl_token_t *t)
 
 static int collect_escape(smpl_t *smpl, char *b, int len, smpl_token_t *t)
 {
-    SMPL_UNUSED(smpl);
+    char buf[len + 1], *p;
 
-    if (len == 2 && b[1] == 'n') {
-        t->type = SMPL_TOKEN_TEXT;
-        t->str  = "\n";
-
-        return t->type;
+    p = buf;
+    while (len > 0) {
+        if (*b == '\\') {
+            switch (b[1]) {
+            case 'n':  *p++ = '\n'; break;
+            case 't':  *p++ = '\t'; break;
+            case 'r':  *p++ = '\r'; break;
+            case '\0':
+                goto invalid_sequence;
+            default:
+                if (p != b)
+                    goto invalid_sequence;
+                else
+                    *p++ = b[1];
+                break;
+            }
+            b   += 2;
+            len -= 2;
+        }
+        else {
+            *p++ = *b++;
+            len--;
+        }
     }
 
+    *p = '\0';
+
+    t->type = SMPL_TOKEN_TEXT;
+    t->str  = store_token(smpl, buf, p - buf);
+
+    return t->type;
+
+ invalid_sequence:
+    smpl_fail(-1, smpl, EINVAL, "invalid escape sequence '%*.*s'", len, len, b);
     return -1;
 }
 
@@ -479,7 +506,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
             break;
     }
 
-    if (dir->str == NULL)                /* can't happen... (varref) */
+    if (dir->str == NULL)             /* shouldn't happen... (varref catchall) */
         goto unknown_directive;
 
     switch (dir->token) {
@@ -573,7 +600,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
 
     case SMPL_TOKEN_ESCAPE:
         if (collect_escape(smpl, b, e - b, t) < 0)
-            goto unknown_directive;
+            goto invalid_escape;
         in->p = n;
         return t->type;
 
@@ -605,6 +632,11 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
     t->type = SMPL_TOKEN_ERROR;
     t->str  = "<unterminated block comment>";
     smpl_fail(-1, smpl, EINVAL, "unterminated block comment");
+
+ invalid_escape:
+    t->type = SMPL_TOKEN_ERROR;
+    t->str  = "<unknown directive>";
+    smpl_fail(-1, smpl, EINVAL, "invalid escape sequence '%*.*s'", l, l, b);
 
  nomem:
     t->type = SMPL_TOKEN_ERROR;
@@ -949,6 +981,8 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
 
         first = false;
     }
+
+    return -1;
 
  misplaced_include:
     end->type = SMPL_TOKEN_ERROR;

@@ -86,13 +86,18 @@ void smpl_destroy(smpl_t *smpl)
 }
 
 
-smpl_t *smpl_load_template(const char *path, char ***errbuf)
+smpl_t *smpl_load_template(const char *path, char ***errors)
 {
     smpl_t *smpl;
 
-    smpl = smpl_create(errbuf);
+    smpl = smpl_create(errors);
 
     if (smpl == NULL)
+        goto nomem;
+
+    smpl->result = buffer_create(8192);
+
+    if (smpl->result == NULL)
         goto nomem;
 
     smpl->parser = parser_create(smpl);
@@ -101,21 +106,33 @@ smpl_t *smpl_load_template(const char *path, char ***errbuf)
         goto nomem;
 
     if (preproc_push_file(smpl, path) < 0)
-        goto cleanup;
+        goto file_fail;
 
     if (template_parse(smpl) < 0)
-        goto cleanup;
+        goto parse_fail;
 
     preproc_trim(smpl);
 
     return smpl;
 
- cleanup:
+ nomem:
+    smpl_destroy(smpl);
+    return NULL;
+
+ file_fail:
+    smpl_errmsg(smpl, errno, path, 0, "Failed to open template '%s'.", path);
     smpl->errors = NULL;
     smpl_destroy(smpl);
 
- nomem:
     return NULL;
+
+ parse_fail:
+    smpl_errmsg(smpl, errno, path, 0, "Failed to parse template.");
+    smpl->errors = NULL;
+    smpl_destroy(smpl);
+
+    return NULL;
+
 }
 
 
@@ -148,34 +165,24 @@ char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors)
         *errors = NULL;
 
     smpl->errors = errors;
-    smpl->result = buffer_create(8192);
-
-    if (smpl->result == NULL)
-        goto nomem;
-
-    symtbl_flush(smpl);
 
     if (symtbl_push(smpl, smpl->data, SMPL_VALUE_OBJECT, data) < 0)
-        goto push_fail;
+        goto data_fail;
 
     if (template_evaluate(smpl) < 0)
         goto eval_fail;
 
-    result = buffer_steal(smpl->result);
+    symtbl_flush(smpl);
 
-    buffer_destroy(smpl->result);
-    smpl->result = NULL;
+    result = buffer_steal(smpl->result);
 
     return result;
 
- nomem:
-    return NULL;
-
- push_fail:
-    smpl_fail(NULL, smpl, errno, "failed to set data");
+ data_fail:
+    smpl_fail(NULL, smpl, errno, "Failed to set substitution data.");
 
  eval_fail:
-    smpl_fail(NULL, smpl, errno, "failed to evaluate template");
+    smpl_fail(NULL, smpl, errno, "Failed to evaluate template.");
 }
 
 

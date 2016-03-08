@@ -59,7 +59,7 @@ int vref_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     return -1;
 
  invalid:
-    smpl_fail(-1, smpl, EINVAL, "invalid index/variable reference", t->str);
+    smpl_fail(-1, smpl, EINVAL, "invalid index/variable reference");
     smpl_free(vref);
     return -1;
 }
