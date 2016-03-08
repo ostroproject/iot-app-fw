@@ -44,19 +44,31 @@ iot_service_generator_SOURCES =				\
 		generators/service/service.c		\
 		generators/service/template.c		\
 		generators/service/filesystem.c		\
-		jmpl/jmpl.c				\
-		jmpl/scanner.c				\
-		jmpl/parser.c				\
-		jmpl/eval.c				\
-		jmpl/symtab.c				\
+		smpl/smpl.c				\
+		smpl/errors.c				\
+		smpl/symtbl.c				\
+		smpl/parser.c				\
+		smpl/preproc.c				\
+		smpl/template.c				\
+		smpl/template-macro.c			\
+		smpl/template-block.c			\
+		smpl/template-text.c			\
+		smpl/template-vref.c			\
+		smpl/template-branch.c			\
+		smpl/template-loop.c			\
+		smpl/template-switch.c			\
+		smpl/buffer.c				\
+		smpl/varref.c				\
+		smpl/expr.c				\
+		smpl/json.c				\
 		common/mm.c				\
 		common/log.c				\
 		common/debug.c				\
+		common/json.c				\
 		common/hash-table.c			\
 		common/utils.c				\
-		common/file-utils.c			\
 		common/regexp.c				\
-		common/json.c				\
+		common/file-utils.c			\
 		$(iot_service_generator_PREPROCESSORS)
 
 iot_service_generator_CFLAGS =		\

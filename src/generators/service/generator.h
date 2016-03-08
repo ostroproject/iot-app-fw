@@ -38,7 +38,7 @@
 #include <iot/common/list.h>
 #include <iot/common/json.h>
 
-#include "jmpl/jmpl.h"
+#include "smpl/smpl.h"
 
 #ifndef LIBDIR
 #    define LIBDIR "/usr/lib"
@@ -58,7 +58,7 @@
 #endif
 
 #ifndef PATH_TEMPLATE
-#    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.jmpl"
+#    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.smpl"
 #endif
 
 /* Directory where applications are installed. */
@@ -104,7 +104,7 @@ struct generator_s {
     int              premounted : 1;     /* whether dir_apps was mounted */
     int              status;             /* service generation status */
     iot_json_t      *cfg;                /* optional configuration */
-    jmpl_t          *template;           /* service template */
+    smpl_t          *template;           /* service template */
     iot_list_hook_t  services;           /* generated service( file)s */
     iot_list_hook_t  preprocessors;      /* manifest preprocessors */
 };

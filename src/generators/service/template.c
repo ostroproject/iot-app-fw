@@ -31,12 +31,23 @@
 
 int template_load(generator_t *g)
 {
-    g->template = jmpl_load_template(g->path_template);
+    char **errors;
+
+    g->template = smpl_load_template(g->path_template, &errors);
 
     if (g->template != NULL)
         return 0;
     else {
+        int i;
+
         log_error("Failed to load template file '%s'.", g->path_template);
+
+        if (errors != NULL) {
+            for (i = 0; errors[i] != NULL; i++)
+                log_error("error: %s", errors[i]);
+            smpl_errors_free(errors);
+        }
+
         return -1;
     }
 }
@@ -44,13 +55,24 @@ int template_load(generator_t *g)
 
 int template_eval(service_t *s)
 {
-    s->output = jmpl_eval(s->g->template, s->data);
+    char **errors;
+
+    s->output = smpl_evaluate(s->g->template, s->data, &errors);
 
     if (s->output != NULL)
         return 0;
     else {
+        int i;
+
         log_error("Failed to generate service file for %s / %s.",
                   s->provider, s->app);
+
+        if (errors != NULL) {
+            for (i = 0; errors[i] != NULL; i++)
+                log_error("error: %s", errors[i]);
+            smpl_errors_free(errors);
+        }
+
         return -1;
     }
 }
