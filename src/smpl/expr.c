@@ -672,6 +672,12 @@ static inline int comparison_value(smpl_value_t *v1, smpl_value_t *v2, int type)
 }
 
 
+int expr_compare_values(smpl_value_t *v1, smpl_value_t *v2)
+{
+    return comparison_value(v1, v2, SMPL_VALUE_EQUAL);
+}
+
+
 static inline int negative_value(smpl_value_t *v)
 {
     int neg;

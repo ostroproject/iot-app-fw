@@ -185,7 +185,6 @@ const char *token_name(int type)
     case SMPL_TOKEN_ELSE:        return "<ELSE>";
     case SMPL_TOKEN_END:         return "<END>";
     case SMPL_TOKEN_CASE:        return "<CASE>";
-    case SMPL_TOKEN_DEFAULT:     return "<DEFAULT>";
     case SMPL_TOKEN_FIRST:       return "<FIRST>";
     case SMPL_TOKEN_LAST:        return "<LAST>";
     case SMPL_TOKEN_TRAIL:       return "<TRAIL>";
@@ -464,7 +463,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
         KEYWORD("else"   , ELSE   ),
         KEYWORD("end"    , END    ),
         KEYWORD("case"   , CASE   ),
-        KEYWORD("default", DEFAULT),
+        KEYWORD("default", ELSE   ),
         KEYWORD("first"  , FIRST  ),
         KEYWORD("?first" , FIRST  ),
         KEYWORD("!first" , FIRST  ),
@@ -579,7 +578,6 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
     case SMPL_TOKEN_ELSE:
     case SMPL_TOKEN_END:
     case SMPL_TOKEN_CASE:
-    case SMPL_TOKEN_DEFAULT:
     case SMPL_TOKEN_FIRST:
     case SMPL_TOKEN_LAST:
     case SMPL_TOKEN_TRAIL:
@@ -870,6 +868,11 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
         collect_expr(smpl, t);
         goto out;
 
+    case SMPL_PARSE_SWITCH:
+        skip_whitespace(in);
+        collect_directive(smpl, t);
+        goto out;
+
     default:
         smpl_fail(-1, smpl, EINVAL, "unknown parser flag 0x%x", flags);
     }
@@ -958,6 +961,8 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
             break;
 
         case SMPL_TOKEN_SWITCH:
+            if (switch_parse(smpl, block) < 0)
+                goto parse_error;
             break;
 
         case SMPL_TOKEN_FIRST:

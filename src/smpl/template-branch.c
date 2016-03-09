@@ -131,11 +131,11 @@ int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     blks[ neg] = &br->posbr;
     blks[!neg] = &br->negbr;
 
-    if (parse_block(smpl, SMPL_PARSE_BLOCK, blks[0], &end) < 0)
+    if (block_parse(smpl, SMPL_PARSE_BLOCK, blks[0], &end) < 0)
         goto parse_error;
 
     if (end.type == SMPL_TOKEN_ELSE)
-        if (parse_block(smpl, SMPL_PARSE_BLOCK, blks[1], &end) < 0)
+        if (block_parse(smpl, SMPL_PARSE_BLOCK, blks[1], &end) < 0)
             goto parse_error;
 
     if (end.type != SMPL_TOKEN_END)
