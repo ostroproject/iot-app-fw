@@ -599,7 +599,16 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
     case SMPL_TOKEN_ESCAPE:
         if (collect_escape(smpl, b, e - b, t) < 0)
             goto invalid_escape;
+
         in->p = n;
+
+        if (e >= b + 2 && e[-2] == '\\' && e[-1] == 'n') {
+            if (*in->p == '\n') {
+                in->p++;
+                in->line++;
+            }
+        }
+
         return t->type;
 
     default:
