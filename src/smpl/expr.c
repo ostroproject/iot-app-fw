@@ -226,6 +226,10 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
 {
     smpl_value_t *v, *a1, *a2;
     smpl_list_t  *p1, *p2;
+    smpl_value_t *arg;
+    smpl_list_t  *p, *n;
+    int           narg;
+
 
     smpl_debug("VALUE %s (%s)", token_name(t->type), t->str);
 
@@ -288,6 +292,31 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
         v->expr.arg1 = a1;
         break;
 
+    case SMPL_TOKEN_INVOKE:
+        v->type   = SMPL_VALUE_INVOKE;
+        v->call.m = t->m;
+
+        narg = 0;
+        smpl_list_foreach(q, p, n) {
+            arg = smpl_list_entry(p, typeof(*arg), hook);
+
+            smpl_list_delete(&arg->hook);
+
+            if (v->call.args == NULL)
+                v->call.args = arg;
+            else
+                smpl_list_append(&v->call.args->hook, &arg->hook);
+
+            narg++;
+        }
+
+        if (narg != v->call.m->narg) {
+            smpl_error("macro '%s' called with %d args, declared with %d.",
+                      t->str, narg, v->call.m->narg);
+            goto narg_mismatch;
+        }
+        break;
+
     default:
         goto invalid_token;
     }
@@ -308,6 +337,12 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
     smpl_free(v);
     smpl_return_error(NULL, smpl, EINVAL, t->path, t->line,
                       "invalid token type 0x%x in expression", t->type);
+
+ narg_mismatch:
+    smpl_free(v);
+    smpl_return_error(NULL, smpl, EINVAL, t->path, t->line,
+                      "macro '%s' called with incorrect number of arguments",
+                      t->str);
 
  invalid_rpnq:
     smpl_free(v);
@@ -334,7 +369,7 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
 {
     smpl_list_t   tknq;
     smpl_token_t *tkn, *t;
-    int           type;
+    int           type, nparen;
 
     smpl_list_init(&tknq);
     smpl_list_init( valq);
@@ -347,12 +382,14 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
      * RPN.
      */
 
+    nparen = 0;
     tkn = end;
 
     while (1) {
         parser_pull_token(smpl, SMPL_PARSE_EXPR, tkn);
 
         smpl_debug("token %s ('%s')", token_name(tkn->type), tkn->str);
+        smpl_debug("* nparen = %d", nparen);
 
         switch (tkn->type) {
         case SMPL_TOKEN_VARREF:
@@ -362,6 +399,28 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
         case SMPL_TOKEN_DOUBLE:
             if (!value_push(smpl, valq, tkn))
                 goto push_failed;
+            break;
+
+        case SMPL_TOKEN_INVOKE:
+            if (!token_push(&tknq, token_copy(tkn)))
+                goto push_failed;
+            break;
+
+        case ',':
+            while ((type = token_peek(&tknq, &t)) != '(') {
+                smpl_debug("poke %s ('%s')", token_name(t->type), t->str);
+
+                if (type == SMPL_TOKEN_EOF || type == SMPL_TOKEN_ERROR)
+                    goto invalid_arglist;
+
+                if (!isop(t->type)) {
+                    smpl_warn("expecting operator, got token %s",
+                              token_name(t->type));
+                }
+
+                if (!value_push(smpl, valq, t))
+                    goto push_failed;
+            }
             break;
 
         case SMPL_TOKEN_NOT:
@@ -381,6 +440,7 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
         case '(':
             if (!token_push(&tknq, token_copy(tkn)))
                 goto push_failed;
+            nparen++;
             break;
 
         case ')':
@@ -394,6 +454,18 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
                 }
             }
             token_free(t);
+
+            if ((type = token_peek(&tknq, &t)) == SMPL_TOKEN_INVOKE) {
+                if (!value_push(smpl, valq, t))
+                    goto push_failed;
+                token_free(t);
+            }
+
+            nparen--;
+#if 1
+            if (!nparen)
+                smpl_debug("would have jumped to check_tokenq...");
+#endif
             break;
 
         case SMPL_TOKEN_ERROR:
@@ -432,6 +504,14 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
     end->type = SMPL_TOKEN_ERROR;
     end->str  = "<parse error>";
     smpl_fail(-1, smpl, EINVAL, "unbalanced parenthesis");
+
+ invalid_arglist:
+    token_purgeq(&tknq);
+    value_purgeq( valq);
+
+    end->type = SMPL_TOKEN_ERROR;
+    end->str  = "<parse error>";
+    smpl_fail(-1, smpl, EINVAL, "misplaced comman or parenthesis in arglist");
 
  parse_error:
     token_purgeq(&tknq);
@@ -539,8 +619,41 @@ smpl_expr_t *expr_trail_parse(smpl_t *smpl, smpl_token_t *t)
 
 void expr_free(smpl_expr_t *expr)
 {
+    smpl_list_t  *h, *n;
+    smpl_value_t *a;
+
     if (expr == NULL)
         return;
+
+    switch (expr->type) {
+    case SMPL_VALUE_AND:
+    case SMPL_VALUE_OR:
+    case SMPL_VALUE_EQUAL:
+    case SMPL_VALUE_NOTEQ:
+        expr_free(expr->expr.arg2);
+    case SMPL_VALUE_NOT:
+    case SMPL_VALUE_IS:
+        expr_free(expr->expr.arg1);
+        break;
+
+    case SMPL_VALUE_INVOKE:
+        a = expr->call.args;
+        h = &a->hook;
+
+        while (a != NULL) {
+            n = a->hook.next;
+            expr_free(a);
+
+            if (n != h)
+                a = smpl_list_entry(n, typeof(*a), hook);
+            else
+                a = NULL;
+        }
+        break;
+
+    default:
+        break;
+    }
 
     smpl_list_delete(&expr->hook);
 
@@ -550,7 +663,9 @@ void expr_free(smpl_expr_t *expr)
 
 int expr_print(smpl_t *smpl, smpl_expr_t *e, char *buf, size_t size)
 {
-    char *op, arg1[512], arg2[512];
+    char        *op, arg1[512], arg2[512], *p;
+    smpl_expr_t *a;
+    int          n, l;
 
     if (e == NULL)
         goto null_expr;
@@ -590,6 +705,50 @@ int expr_print(smpl_t *smpl, smpl_expr_t *e, char *buf, size_t size)
                         e->type == SMPL_VALUE_FIRST ? "first" : "last",
                         symtbl_get(smpl, e->sym));
 
+    case SMPL_VALUE_INVOKE:
+        p = buf;
+        l = (int)size;
+        n = snprintf(p, l, "{*%s}(", symtbl_get(smpl, e->call.m->name));
+
+        if (n >= l)
+            goto overflow;
+
+        p += n;
+        l -= n;
+
+        a = e->call.args;
+        while (a != NULL) {
+            if (l <= 2)
+                goto overflow;
+
+            if (a != e->call.args) {
+                *p++ = ',';
+                *p++ = ' ';
+                l -= 2;
+            }
+
+            n = expr_print(smpl, a, p, l);
+
+            if (n >= l)
+                goto overflow;
+
+            p += n;
+            l -= n;
+
+            if (a->hook.next != &e->call.args->hook)
+                a = smpl_list_entry(a->hook.next, typeof(*a), hook);
+            else
+                a = NULL;
+        }
+
+        if (l <= 2)
+            goto overflow;
+
+        *p++ = ')';
+        *p   = '\0';
+
+        return p - buf;
+
     default:
         break;
     }
@@ -598,6 +757,9 @@ int expr_print(smpl_t *smpl, smpl_expr_t *e, char *buf, size_t size)
 
  null_expr:
     return snprintf(buf, size, "<null expression>");
+
+ overflow:
+    return snprintf(buf, size, "<expression buffer overflow>");
 }
 
 

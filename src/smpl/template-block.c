@@ -118,11 +118,11 @@ int block_eval(smpl_t *smpl, smpl_list_t *block)
         case SMPL_INSN_SWITCH:
             r = switch_eval(smpl, &insn->swtch);
             break;
-#if 0
+
         case SMPL_INSN_INVOKE:
-            invoke_eval(smpl, &insn->invoke);
+            r = macro_eval(smpl, &insn->invoke);
             break;
-#endif
+
         default:
             r = -1;
             errno = EINVAL;

@@ -33,10 +33,64 @@
 #include <smpl/types.h>
 
 
+
+static int arglist_parse(smpl_t *smpl, smpl_macro_t *m, smpl_token_t *end)
+{
+    smpl_token_t *arg  = end;
+    int           narg = 0;
+
+    if (parser_pull_token(smpl, SMPL_PARSE_ARGS, end) != '(')
+        goto nolist;
+
+    while (parser_pull_token(smpl, SMPL_PARSE_ARGS, arg) == SMPL_TOKEN_NAME) {
+        smpl_debug("argument #%d: '%s'", narg++, arg->str);
+
+        if (smpl_reallocz(m->args, m->narg, m->narg + 1) == NULL)
+            goto nomem;
+
+        m->args[m->narg] = symtbl_add(smpl, arg->str, SMPL_SYMBOL_ARG);
+
+        if (m->args[m->narg] < 0)
+            goto arg_failed;
+
+        m->narg++;
+
+        switch (parser_pull_token(smpl, SMPL_PARSE_ARGS, arg)) {
+        case ',':
+            break;
+        case ')':
+            goto out;
+        default:
+            goto invalid_arglist;
+        }
+
+    }
+
+ out:
+    if (end->type != ')')
+        goto invalid_arglist;
+
+    return 0;
+
+ nolist:
+    m->narg = -1;
+    return 0;
+
+ nomem:
+    return -1;
+
+ arg_failed:
+    smpl_fail(-1, smpl, errno, "failed to parse/add macro argument");
+
+ invalid_arglist:
+    smpl_fail(-1, smpl, EINVAL, "invalid argument list");
+}
+
+
 int macro_parse(smpl_t *smpl)
 {
     smpl_macro_t *m;
-    smpl_token_t  name;
+    smpl_token_t  name, end;
 
     m = smpl_alloct(typeof(*m));
 
@@ -53,6 +107,9 @@ int macro_parse(smpl_t *smpl)
 
     if (m->name < 0)
         goto name_failed;
+
+    if (arglist_parse(smpl, m, &end) < 0)
+        goto failed;
 
     if (block_parse(smpl, SMPL_PARSE_BLOCK, &m->body, NULL) != SMPL_TOKEN_END)
         goto failed;
@@ -99,9 +156,159 @@ void macro_purge(smpl_list_t *macros)
 }
 
 
+int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
+{
+    smpl_insn_invoke_t *c;
+    smpl_value_t       *v;
+    smpl_token_t        end;
+
+    c = smpl_alloct(typeof(*c));
+
+    if (c == NULL)
+        goto nomem;
+
+    smpl_list_init(&c->hook);
+    c->type = SMPL_INSN_INVOKE;
+    c->m    = t->m;
+
+    if (c->m->narg >= 0) {
+        if (parser_push_token(smpl, t) < 0)
+            goto failed;
+
+        v = expr_parse(smpl, &end);
+
+        if (v == NULL)
+            goto failed;
+
+        if (v->type != SMPL_VALUE_INVOKE)
+            goto failed;
+
+        if (v->call.m != c->m)
+            goto failed;
+
+        c->args = v->call.args;
+
+        v->call.args = NULL;
+        expr_free(v);
+
+        if (parser_push_token(smpl, &end) < 0)
+            goto failed;
+    }
+
+    smpl_list_append(block, &c->hook);
+
+    return 0;
+
+ nomem:
+ failed:
+    return -1;
+}
+
+
+int macro_eval(smpl_t *smpl, smpl_insn_invoke_t *c)
+{
+    smpl_macro_t *m;
+    int           i, r;
+    smpl_expr_t  *a;
+    smpl_value_t  v;
+    void         *vp;
+
+    m = c->m;
+    a = c->args;
+
+    for (i = 0; i < m->narg; i++) {
+        if (expr_eval(smpl, a, &v) < 0)
+            goto invalid_arg;
+
+        switch (v.type) {
+        case SMPL_VALUE_STRING:  vp = v.str;  break;
+        case SMPL_VALUE_INTEGER: vp = &v.i32; break;
+        case SMPL_VALUE_DOUBLE:  vp = &v.dbl; break;
+        case SMPL_VALUE_OBJECT:
+        case SMPL_VALUE_ARRAY:   vp = v.json; break;
+        default:
+            goto invalid_arg;
+        }
+
+        if (symtbl_push(smpl, m->args[i], v.type, vp) < 0)
+            goto push_failed;
+
+        a = smpl_list_entry(a->hook.next, typeof(*a), hook);
+    }
+
+    r = block_eval(smpl, &c->m->body);
+
+    for (i = 0; i < m->narg; i++) {
+        symtbl_pop(smpl, m->args[i]);
+    }
+
+    if (r < 0)
+        goto failed;
+
+    return 0;
+
+ invalid_arg:
+    smpl_fail(-1, smpl, EINVAL, "failed to evaluate macro argument #%d", i + 1);
+
+ push_failed:
+    smpl_fail(-1, smpl, EINVAL, "failed to push macro argument #%d", i + 1);
+
+ failed:
+    return -1;
+}
+
+
+static char *arglist_dump(smpl_t *smpl, char *buf, size_t size,
+                          smpl_sym_t *args, int narg)
+{
+    char *p, *t;
+    int   n, l, i;
+
+    if (narg < 0)
+        goto nolist;
+
+    if (narg == 0)
+        goto noargs;
+
+    p = buf;
+    l = (int)size;
+
+    *p++ = '(';
+    l--;
+
+    for (i = 0, t = ""; i < narg; i++, t = ", ") {
+        n = snprintf(p, l, "%s%s", t, symtbl_get(smpl, args[i]));
+
+        if (n >= l - 2)
+            return "<arglist buffer overflow>";
+
+        p += n;
+        l -= n;
+    }
+
+    *p++ = ')';
+    *p   = '\0';
+
+    return buf;
+
+ nolist:
+    *buf = '\0';
+    return buf;
+
+ noargs:
+    buf[0] = '(';
+    buf[1] = ')';
+    buf[2] = '\0';
+    return buf;
+}
+
+
 void macro_dump(smpl_t *smpl, int fd, smpl_macro_t *m)
 {
-    dprintf(fd, "<macro '%s'>\n", symtbl_get(smpl, m->name));
+    char args[512];
+
+    dprintf(fd, "<macro '%s'%s>\n", symtbl_get(smpl, m->name),
+            arglist_dump(smpl, args, sizeof(args), m->args, m->narg));
     block_dump(smpl, fd, &m->body, 1);
 }
 
@@ -122,5 +329,21 @@ smpl_macro_t *macro_find(smpl_t *smpl, smpl_sym_t sym)
     }
 
  notfound:
+    return NULL;
+}
+
+
+smpl_macro_t *macro_by_name(smpl_t *smpl, const char *name)
+{
+    smpl_list_t  *p, *n;
+    smpl_macro_t *m;
+
+    smpl_list_foreach(&smpl->macros, p, n) {
+        m = smpl_list_entry(p, typeof(*m), hook);
+
+        if (!strcmp(name, symtbl_get(smpl, m->name)))
+            return m;
+    }
+
     return NULL;
 }

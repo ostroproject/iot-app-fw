@@ -203,9 +203,8 @@ int branch_eval(smpl_t *smpl, smpl_insn_branch_t *br)
         return block_eval(smpl, &br->negbr);
 
  invalid_test:
-/*
     smpl_fail(-1, smpl, EINVAL, "failed to evaluate branch test expression");
-*/
+
     return 0;
 }
 

@@ -473,7 +473,9 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
         KEYHEAD("trail:" , TRAIL  ),
         KEYHEAD("?trail:", TRAIL  ),
         KEYHEAD("!trail:", TRAIL  ),
+#if 0
         KEYHEAD("*"      , INVOKE ),
+#endif
         KEYHEAD("\\"     , ESCAPE ),
         KEYHEAD(""       , VARREF ),
         { NULL, 0, 0, false }
@@ -591,6 +593,14 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
             if (*in->p == '\n') {
                 in->p++;
                 in->line++;
+            }
+        }
+        else {
+            smpl_macro_t *m = macro_by_name(smpl, t->str);
+
+            if (m != NULL) {
+                t->type = SMPL_TOKEN_INVOKE;
+                t->m    = m;
             }
         }
 
@@ -824,6 +834,42 @@ static int collect_expr(smpl_t *smpl, smpl_token_t *t)
 }
 
 
+static int collect_arg(smpl_t *smpl, smpl_token_t *t)
+{
+    smpl_input_t *in = smpl->parser->in;
+    char         *p;
+
+    skip_whitespace(in);
+
+    p = in->p;
+
+    switch (*p) {
+    case '(':
+        t->str  = "(";
+        t->type = '(';
+        p++;
+        break;
+    case ')':
+        t->str  = ")";
+        t->type = ')';
+        p++;
+        break;
+    case ',':
+        t->str  = ",";
+        t->type = ',';
+        p++;
+        break;
+    default:
+        return collect_name(smpl, t);
+    }
+
+    in->p = p;
+    skip_whitespace(in);
+
+    return t->type;
+}
+
+
 int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
 {
     smpl_parser_t *parser = smpl->parser;
@@ -839,7 +885,7 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
         smpl_list_init(&t->hook);
         smpl_free(tkn);
 
-        goto out;
+        return t->type;
     }
 
     in = parser->in;
@@ -882,6 +928,10 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
         collect_directive(smpl, t);
         goto out;
 
+    case SMPL_PARSE_ARGS:
+        collect_arg(smpl, t);
+        goto out;
+
     default:
         smpl_fail(-1, smpl, EINVAL, "unknown parser flag 0x%x", flags);
     }
@@ -892,6 +942,27 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
     t->line = line;
 
     return t->type;
+}
+
+
+int parser_push_token(smpl_t *smpl, smpl_token_t *tkn)
+{
+    smpl_parser_t *parser = smpl->parser;
+    smpl_token_t  *t;
+
+    t = smpl_alloct(typeof(*t));
+
+    if (t == NULL)
+        goto nomem;
+
+    *t = *tkn;
+    smpl_list_init(&t->hook);
+    smpl_list_append(&parser->tknq, &t->hook);
+
+    return 0;
+
+ nomem:
+    return -1;
 }
 
 
@@ -951,6 +1022,11 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
 
         case SMPL_TOKEN_VARREF:
             if (vref_parse(smpl, &t, block) < 0)
+                goto parse_error;
+            break;
+
+        case SMPL_TOKEN_INVOKE:
+            if (macro_parse_ref(smpl, &t, block) < 0)
                 goto parse_error;
             break;
 

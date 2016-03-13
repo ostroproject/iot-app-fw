@@ -209,6 +209,7 @@ static smpl_symbol_t *push_value(smpl_t *smpl, smpl_sym_t sym, smpl_value_t *v)
             goto already_set;
     case SMPL_SYMBOL_FIELD:
     case SMPL_SYMBOL_LOOP:
+    case SMPL_SYMBOL_ARG:
         break;
     default:
         goto invalid_symbol;
@@ -378,6 +379,7 @@ int symtbl_pop(smpl_t *smpl, smpl_sym_t sym)
     case SMPL_SYMBOL_DATA:
     case SMPL_SYMBOL_FIELD:
     case SMPL_SYMBOL_LOOP:
+    case SMPL_SYMBOL_ARG:
         break;
     default:
         goto invalid_symbol;
