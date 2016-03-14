@@ -42,14 +42,12 @@ void block_free(smpl_list_t *block)
         insn = smpl_list_entry(p, typeof(*insn), any.hook);
 
         switch (insn->type) {
-        case SMPL_INSN_TEXT:    text_free(insn);   break;
-        case SMPL_INSN_VARREF:  vref_free(insn);   break;
-        case SMPL_INSN_BRANCH:  branch_free(insn); break;
-        case SMPL_INSN_FOR:     loop_free(insn);   break;
-        case SMPL_INSN_SWITCH:  switch_free(insn); break;
-#if 0
-        case SMPL_INSN_INVOKE:  invoke_free(insn); break;
-#endif
+        case SMPL_INSN_TEXT:    text_free(insn);      break;
+        case SMPL_INSN_VARREF:  vref_free(insn);      break;
+        case SMPL_INSN_BRANCH:  branch_free(insn);    break;
+        case SMPL_INSN_FOR:     loop_free(insn);      break;
+        case SMPL_INSN_SWITCH:  switch_free(insn);    break;
+        case SMPL_INSN_CALL:    macro_free_ref(insn); break;
         default:
             break;
         }
@@ -81,11 +79,6 @@ void block_dump(smpl_t *smpl, int fd, smpl_list_t *block, int indent)
         case SMPL_INSN_SWITCH:
             switch_dump(smpl, fd, &insn->swtch, indent + 1);
             break;
-#if 0
-        case SMPL_INSN_INVOKE:
-            invoke_dump(smpl, fd, &insn->invoke, indent + 1);
-            break;
-#endif
         default:
             break;
         }
@@ -119,8 +112,8 @@ int block_eval(smpl_t *smpl, smpl_list_t *block)
             r = switch_eval(smpl, &insn->swtch);
             break;
 
-        case SMPL_INSN_INVOKE:
-            r = macro_eval(smpl, &insn->invoke);
+        case SMPL_INSN_CALL:
+            r = macro_eval(smpl, &insn->call);
             break;
 
         default:

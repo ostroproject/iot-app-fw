@@ -59,6 +59,9 @@ int switch_parse(smpl_t *smpl, smpl_list_t *block)
     if ((sw->test = expr_parse(smpl, &end)) == NULL)
         goto invalid_expression;
 
+    if (parser_pull_token(smpl, SMPL_PARSE_SWITCH, &t) != SMPL_TOKEN_IN)
+        goto missing_in;
+
     while (parser_pull_token(smpl, SMPL_PARSE_SWITCH, &t) != SMPL_TOKEN_END) {
         switch (t.type) {
         case SMPL_TOKEN_CASE:
@@ -88,6 +91,9 @@ int switch_parse(smpl_t *smpl, smpl_list_t *block)
  invalid_expression:
     smpl_fail(-1, smpl, EINVAL, "failed to parse switch expression");
 
+ missing_in:
+    smpl_fail(-1, smpl, EINVAL, "missing do keyword in switch");
+
  invalid_case:
     smpl_fail(-1, smpl, EINVAL, "failed to parse switch case");
 
@@ -112,6 +118,8 @@ void switch_free(smpl_insn_t *insn)
         return;
 
     smpl_list_delete(&sw->hook);
+
+    expr_free(sw->test);
 
     smpl_list_foreach(&sw->cases, p, n) {
         c = smpl_list_entry(p, typeof(*c), hook);
@@ -200,10 +208,8 @@ static int case_parse(smpl_t *smpl, smpl_list_t *cases)
     if ((c->expr = expr_parse(smpl, &end)) == NULL)
         goto invalid_expression;
 
-    if (end.type != SMPL_TOKEN_DO)
-        goto expected_do;
-
-    flags = SMPL_PARSE_BLOCK | SMPL_ALLOW_INCLUDE;
+    flags  = SMPL_SKIP_WHITESPACE | SMPL_ALLOW_INCLUDE;
+    flags |= SMPL_PARSE_BLOCK | SMPL_BLOCK_DOEND;
     if (block_parse(smpl, flags, &c->body, NULL) < 0)
         goto invalid_block;
 
@@ -216,9 +222,6 @@ static int case_parse(smpl_t *smpl, smpl_list_t *cases)
 
  invalid_expression:
     smpl_fail(-1, smpl, EINVAL, "failed to parse case expression");
-
- expected_do:
-    smpl_fail(-1, smpl, EINVAL, "expecting 'do' after case expression");
 
  invalid_block:
     smpl_fail(-1, smpl, EINVAL, "failed to parse case block");
@@ -248,17 +251,12 @@ static void case_dump(smpl_t *smpl, int fd, smpl_insn_case_t *c, int indent)
 
 static int default_parse(smpl_t *smpl, smpl_list_t *d)
 {
-    smpl_token_t t;
-    int          flags;
+    int flags;
 
-    if (parser_pull_token(smpl, SMPL_PARSE_EXPR, &t) != SMPL_TOKEN_DO)
-        goto expected_do;
+    flags  = SMPL_SKIP_WHITESPACE | SMPL_ALLOW_INCLUDE;
+    flags |= SMPL_PARSE_BLOCK | SMPL_BLOCK_DOEND;
 
-    flags = SMPL_PARSE_BLOCK | SMPL_ALLOW_INCLUDE;
     return block_parse(smpl, flags, d, NULL);
-
- expected_do:
-    smpl_fail(-1, smpl, EINVAL, "expecting 'do' after siwtch default");
 }
 
 

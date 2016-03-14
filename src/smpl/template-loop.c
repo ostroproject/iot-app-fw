@@ -39,6 +39,7 @@ int loop_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     smpl_token_t     n;
     smpl_varref_t   *ref;
     smpl_sym_t       key, val;
+    int              flags;
 
     SMPL_UNUSED(t);
 
@@ -90,10 +91,6 @@ int loop_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     if ((ref = varref_parse(smpl, n.str, n.path, n.line)) == NULL)
         goto invalid_varref;
 
-    if (parser_pull_token(smpl, SMPL_PARSE_EXPR, &n) != SMPL_TOKEN_DO)
-        goto missing_do;
-
-
     loop = smpl_alloct(typeof(*loop));
 
     if (loop == NULL)
@@ -106,7 +103,8 @@ int loop_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     loop->val  = val;
     loop->ref  = ref;
 
-    if (block_parse(smpl, SMPL_PARSE_BLOCK, &loop->body, NULL) != SMPL_TOKEN_END)
+    flags = SMPL_SKIP_WHITESPACE|SMPL_PARSE_BLOCK|SMPL_BLOCK_DOEND;
+    if (block_parse(smpl, flags, &loop->body, NULL) != SMPL_TOKEN_END)
         goto parse_error;
 
     smpl_list_append(block, &loop->hook);
@@ -128,9 +126,6 @@ int loop_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
  invalid_varref:
     smpl_fail(-1, smpl, EINVAL, "invalid variable reference '%s'", n.str);
 
- missing_do:
-    smpl_fail(-1, smpl, EINVAL, "missing do keyword in loop");
-
  parse_error:
     smpl_fail(-1, smpl, EINVAL, "failed to parse for loop");
 }
@@ -144,6 +139,7 @@ void loop_free(smpl_insn_t *insn)
         return;
 
     smpl_list_delete(&loop->hook);
+    varref_free(loop->ref);
     block_free(&loop->body);
     smpl_free(loop);
 }
@@ -179,7 +175,7 @@ static int loop_push(smpl_t *smpl, smpl_sym_t sym,
     int32_t i32;
     double  dbl;
 
-    if (sym == 0)
+    if (sym <= 0)
         return 0;
 
     if (type != SMPL_VALUE_OBJECT && type != SMPL_VALUE_ARRAY)
@@ -224,10 +220,10 @@ static int loop_push(smpl_t *smpl, smpl_sym_t sym,
 
 static int loop_pop(smpl_t *smpl, smpl_sym_t sym)
 {
-    if (sym == 0)
+    if (sym <= 0)
         return 0;
-    else
-        return symtbl_pop(smpl, sym);
+
+    return symtbl_pop(smpl, sym);
 }
 
 
@@ -286,7 +282,7 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop)
     case SMPL_VALUE_STRING:  vptr =  value.str; goto eval;
     case SMPL_VALUE_INTEGER: vptr = &value.i32; goto eval;
     case SMPL_VALUE_DOUBLE:  vptr = &value.dbl; goto eval;
-    case SMPL_VALUE_UNSET:   vptr = "";
+    case SMPL_VALUE_UNSET:                      goto out;
     eval:
         fl = SMPL_LOOP_FIRST | SMPL_LOOP_LAST;
         loop_push(smpl, loop->key, SMPL_SYMBOL_STRING, ""  , &fl);
@@ -303,6 +299,7 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop)
         goto invalid_value;
     }
 
+ out:
     return 0;
 
  invalid_reference:

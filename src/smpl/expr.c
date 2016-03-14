@@ -292,8 +292,8 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
         v->expr.arg1 = a1;
         break;
 
-    case SMPL_TOKEN_INVOKE:
-        v->type   = SMPL_VALUE_INVOKE;
+    case SMPL_TOKEN_CALL:
+        v->type   = SMPL_VALUE_CALL;
         v->call.m = t->m;
 
         narg = 0;
@@ -401,7 +401,7 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
                 goto push_failed;
             break;
 
-        case SMPL_TOKEN_INVOKE:
+        case SMPL_TOKEN_CALL:
             if (!token_push(&tknq, token_copy(tkn)))
                 goto push_failed;
             break;
@@ -420,6 +420,7 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
 
                 if (!value_push(smpl, valq, t))
                     goto push_failed;
+                token_free(t);
             }
             break;
 
@@ -436,7 +437,10 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
                     goto push_failed;
                 token_free(t);
             }
-            /* fallthru */
+            if (!token_push(&tknq, token_copy(tkn)))
+                goto push_failed;
+            break;
+
         case '(':
             if (!token_push(&tknq, token_copy(tkn)))
                 goto push_failed;
@@ -455,23 +459,22 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
             }
             token_free(t);
 
-            if ((type = token_peek(&tknq, &t)) == SMPL_TOKEN_INVOKE) {
+            if ((type = token_peek(&tknq, &t)) == SMPL_TOKEN_CALL) {
                 if (!value_push(smpl, valq, t))
                     goto push_failed;
                 token_free(t);
             }
 
             nparen--;
-#if 1
             if (!nparen)
-                smpl_debug("would have jumped to check_tokenq...");
-#endif
+                goto check_tokenq;
             break;
 
         case SMPL_TOKEN_ERROR:
             goto parse_error;
 
         default:
+            parser_push_token(smpl, tkn); /* push back terminating non-')' */
             goto check_tokenq;
         }
     }
@@ -480,12 +483,14 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
     while (token_pop(&tknq, &t) != SMPL_TOKEN_EOF) {
         if (t->type == '(' || t->type == ')')
             goto mismatched_paren;
-        else
+        else {
             if (!value_push(smpl, valq, t))
                 goto push_failed;
+            token_free(t);
+        }
     }
 
-    token_purgeq(&tknq);
+    /*token_purgeq(&tknq);*/
 
     return 0;
 
@@ -636,7 +641,11 @@ void expr_free(smpl_expr_t *expr)
         expr_free(expr->expr.arg1);
         break;
 
-    case SMPL_VALUE_INVOKE:
+    case SMPL_VALUE_VARREF:
+        varref_free(expr->ref);
+        break;
+
+    case SMPL_VALUE_CALL:
         a = expr->call.args;
         h = &a->hook;
 
@@ -649,6 +658,10 @@ void expr_free(smpl_expr_t *expr)
             else
                 a = NULL;
         }
+        break;
+
+    case SMPL_VALUE_TRAIL:
+        smpl_free(expr->str);
         break;
 
     default:
@@ -705,7 +718,7 @@ int expr_print(smpl_t *smpl, smpl_expr_t *e, char *buf, size_t size)
                         e->type == SMPL_VALUE_FIRST ? "first" : "last",
                         symtbl_get(smpl, e->sym));
 
-    case SMPL_VALUE_INVOKE:
+    case SMPL_VALUE_CALL:
         p = buf;
         l = (int)size;
         n = snprintf(p, l, "{*%s}(", symtbl_get(smpl, e->call.m->name));

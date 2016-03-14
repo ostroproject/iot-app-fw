@@ -89,15 +89,7 @@ void vref_dump(smpl_t *smpl, int fd, smpl_insn_vref_t *vref, int indent)
 
 int vref_eval(smpl_t *smpl, smpl_insn_vref_t *vref)
 {
-    smpl_macro_t *m;
-    char          buf[1024];
-
-    if (vref->ref->nsymbol == 1) {
-        m = macro_find(smpl, vref->ref->symbols[0]);
-
-        if (m != NULL)
-            return block_eval(smpl, &m->body);
-    }
+    char buf[1024];
 
     return buffer_printf(smpl->result, "%s",
                          varref_string(smpl, vref->ref, buf, sizeof(buf)));

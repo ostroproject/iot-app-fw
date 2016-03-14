@@ -48,11 +48,25 @@ int symtbl_create(smpl_t *smpl)
 void symtbl_destroy(smpl_t *smpl)
 {
     smpl_symtbl_t *tbl = smpl->symtbl;
+    smpl_symbol_t *s;
+    int            i;
 
     if (tbl == NULL)
         return;
 
+    for (i = 0, s = tbl->symbols; i < tbl->nsymbol; i++, s++) {
+        if (s->values != NULL) {
+            while (!smpl_list_empty(s->values))
+                symtbl_pop(smpl, SMPL_SYMBOL_FIELD | i);
+            smpl_free(s->values);
+        }
+
+        smpl_free(s->symbol);
+    }
+
+    smpl_free(tbl->symbols);
     smpl_free(tbl);
+
     smpl->symtbl = NULL;
 }
 
@@ -334,8 +348,9 @@ int symtbl_push_loop(smpl_t *smpl, smpl_sym_t sym,
     smpl_free(v);
     smpl_fail(-1, smpl, EINVAL, "invalid value, type 0x%x, sym 0x%x", type, sym);
 
- nomem:
  failed:
+    smpl_free(v);
+ nomem:
     return -1;
 }
 
@@ -504,9 +519,6 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
 
     switch (tag) {
     case SMPL_SYMBOL_LOOP:
-#if 0
-    case SMPL_SYMBOL_DATA:
-#endif
     case SMPL_SYMBOL_FIELD:
         break;
     default:
@@ -619,6 +631,9 @@ void symtbl_flush(smpl_t *smpl)
     smpl_symbol_t *s;
     int            i;
 
+    if (tbl == NULL)
+        return;
+
     for (s = tbl->symbols, i = 0; i < tbl->nsymbol; i++, s++) {
         if (s->values == NULL)
             continue;
@@ -627,3 +642,5 @@ void symtbl_flush(smpl_t *smpl)
             symtbl_pop(smpl, SMPL_SYMBOL_FIELD | i);
     }
 }
+
+

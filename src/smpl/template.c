@@ -44,7 +44,7 @@ int template_parse(smpl_t *smpl)
 
 void template_free(smpl_list_t *body)
 {
-    SMPL_UNUSED(body);
+    block_free(body);
 }
 
 

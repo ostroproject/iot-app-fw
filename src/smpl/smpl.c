@@ -74,10 +74,12 @@ void smpl_destroy(smpl_t *smpl)
     if (smpl == NULL)
         return;
 
+    macro_purge(&smpl->macros);
+    template_free(&smpl->body);
+
+    buffer_destroy(smpl->result);
     parser_destroy(smpl);
     symtbl_destroy(smpl);
-
-    template_free(&smpl->body);
 
     if (smpl->errors != NULL)
         smpl_errors_free(*smpl->errors);
@@ -112,6 +114,8 @@ smpl_t *smpl_load_template(const char *path, char ***errors)
         goto parse_fail;
 
     preproc_trim(smpl);
+
+    smpl->errors = NULL;
 
     return smpl;
 
@@ -173,16 +177,21 @@ char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors)
         goto eval_fail;
 
     symtbl_flush(smpl);
+    smpl->errors = NULL;
 
     result = buffer_steal(smpl->result);
 
     return result;
 
  data_fail:
-    smpl_fail(NULL, smpl, errno, "Failed to set substitution data.");
+    smpl_errmsg(smpl, errno, NULL, 0, "Failed to set substitution data.");
+    smpl->errors = NULL;
+    return NULL;
 
  eval_fail:
-    smpl_fail(NULL, smpl, errno, "Failed to evaluate template.");
+    smpl_errmsg(smpl, errno, NULL, 0, "Failed to evaluate template.");
+    smpl->errors = NULL;
+    return NULL;
 }
 
 

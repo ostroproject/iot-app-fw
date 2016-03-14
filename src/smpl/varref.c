@@ -93,19 +93,6 @@ smpl_varref_t *varref_parse(smpl_t *smpl, char *str, const char *path, int line)
 
     smpl_debug("varref '%s'", str);
 
-    sym = symtbl_find(smpl, skip_whitespace(&str), SMPL_SYMBOL_MACRO);
-
-    if (sym != SMPL_SYMBOL_UNKNOWN) {
-        syms = smpl_alloct(typeof(*syms));
-
-        if (syms == NULL)
-            goto nomem;
-
-        *syms = sym;
-        nsym  = 1;
-        goto parsed;
-    }
-
     syms = NULL;
     nsym = 0;
     p    = str;
@@ -174,7 +161,6 @@ smpl_varref_t *varref_parse(smpl_t *smpl, char *str, const char *path, int line)
         }
     }
 
- parsed:
     vref = smpl_alloct(typeof(*vref));
 
     if (vref == NULL)

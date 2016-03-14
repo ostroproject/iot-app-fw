@@ -33,53 +33,13 @@
 #include <smpl/types.h>
 
 
-smpl_expr_t *first_parse(smpl_t *smpl, smpl_token_t *t)
-{
-    smpl_token_t end;
-#if 0
-    smpl_expr_t   *expr;
-    smpl_token_t  *tkn, name;
-    smpl_sym_t     sym;
-
-    if (parser_pull_token(smpl, SMPL_PARSE_NAME, &name) != SMPL_TOKEN_NAME)
-        goto invalid_name;
-
-    if ((sym = symtbl_add(smpl, name.str, SMPL_SYMBOL_LOOP)) < 0)
-        goto invalid_name;
-
-    if ((tkn = smpl_alloct(typeof(*tkn))) == NULL)
-        goto nomem;
-
-    return expr_parse(smpl, &end);
-
- invalid_name:
-    smpl_fail(NULL, smpl, EINVAL, "missing/invalid symbol name in '%s' test",
-              t->type == SMPL_TOKEN_FIRST ? "first" : "last");
- nomem:
-    return NULL;
-#else
-    SMPL_UNUSED(t);
-    return expr_parse(smpl, &end);
-#endif
-}
-
-
-smpl_expr_t *trail_parse(smpl_t *smpl, smpl_token_t *t)
-{
-    SMPL_UNUSED(smpl);
-    SMPL_UNUSED(t);
-
-    return NULL;
-}
-
-
 int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
 {
     smpl_insn_branch_t *br;
     smpl_expr_t        *test;
     smpl_token_t        var, end;
     smpl_list_t        *blks[2];
-    int                 neg;
+    int                 neg, flags;
 
     smpl_debug("branch %s", t->str);
 
@@ -88,8 +48,6 @@ int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     case SMPL_TOKEN_IF:
         if ((test = expr_parse(smpl, &end)) == NULL)
             goto parse_error;
-        if (end.type != SMPL_TOKEN_DO)
-            goto missing_do;
         neg = 0;
         break;
 
@@ -111,10 +69,8 @@ int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
         goto invalid_branch;
     }
 
-#if 0
     if (test == NULL)
         goto parse_error;
-#endif
 
     br = smpl_alloct(typeof(*br));
 
@@ -131,12 +87,15 @@ int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     blks[ neg] = &br->posbr;
     blks[!neg] = &br->negbr;
 
-    if (block_parse(smpl, SMPL_PARSE_BLOCK, blks[0], &end) < 0)
+    flags = SMPL_SKIP_WHITESPACE|SMPL_PARSE_BLOCK|SMPL_BLOCK_DOELSEEND;
+    if (block_parse(smpl, flags, blks[0], &end) < 0)
         goto parse_error;
 
-    if (end.type == SMPL_TOKEN_ELSE)
-        if (block_parse(smpl, SMPL_PARSE_BLOCK, blks[1], &end) < 0)
+    if (end.type == SMPL_TOKEN_ELSE) {
+        flags = SMPL_PARSE_BLOCK|SMPL_BLOCK_END;
+        if (block_parse(smpl, flags, blks[1], &end) < 0)
             goto parse_error;
+    }
 
     if (end.type != SMPL_TOKEN_END)
         goto parse_error;
@@ -151,9 +110,6 @@ int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
 
  invalid_branch:
     smpl_fail(-1, smpl, EINVAL, "invalid branch type");
-
- missing_do:
-    smpl_fail(-1, smpl, EINVAL, "missing do keyword after if");
 
  parse_error:
     smpl_fail(-1, smpl, EINVAL, "failed to parse branch");

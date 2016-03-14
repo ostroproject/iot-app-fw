@@ -67,12 +67,14 @@ void parser_destroy(smpl_t *smpl)
     if (smpl == NULL || (p = smpl->parser) == NULL)
         return;
 
+    preproc_purge(smpl);
+    buffer_purge(&p->bufq);
+
     smpl_free(p->mbeg);
     smpl_free(p->mend);
     smpl_free(p->mtab);
     smpl_free(p);
 
-    preproc_purge(smpl);
 
     smpl->parser = NULL;
 }
@@ -189,7 +191,7 @@ const char *token_name(int type)
     case SMPL_TOKEN_LAST:        return "<LAST>";
     case SMPL_TOKEN_TRAIL:       return "<TRAIL>";
 
-    case SMPL_TOKEN_INVOKE:      return "<INVOKE>";
+    case SMPL_TOKEN_CALL:        return "<CALL>";
     case SMPL_TOKEN_TEXT:        return "<TEXT>";
     case SMPL_TOKEN_NAME:        return "<NAME>";
     case SMPL_TOKEN_VARREF:      return "<VARREF>";
@@ -206,14 +208,18 @@ const char *token_name(int type)
 }
 
 
-static inline char *skip_whitespace(smpl_input_t *in)
+static inline char *skip_whitespace(smpl_t *smpl)
 {
-    char c;
+    smpl_input_t *in = smpl->parser->in;
+    char          c;
 
-    while ((c = *in->p) == ' ' || c == '\t' || c == '\n') {
-        in->p++;
-        if (c == '\n')
-            in->line++;
+    /* don't skip anything if we have pushed back tokens pending */
+    if (smpl_list_empty(&smpl->parser->tknq)) {
+        while ((c = *in->p) == ' ' || c == '\t' || c == '\n') {
+            in->p++;
+            if (c == '\n')
+                in->line++;
+        }
     }
 
     return in->p;
@@ -473,9 +479,6 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
         KEYHEAD("trail:" , TRAIL  ),
         KEYHEAD("?trail:", TRAIL  ),
         KEYHEAD("!trail:", TRAIL  ),
-#if 0
-        KEYHEAD("*"      , INVOKE ),
-#endif
         KEYHEAD("\\"     , ESCAPE ),
         KEYHEAD(""       , VARREF ),
         { NULL, 0, 0, false }
@@ -558,7 +561,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
 
     case SMPL_TOKEN_INCLUDE:
         in->p = n;
-        n = skip_whitespace(in);
+        n = skip_whitespace(smpl);
 
         if (collect_string(smpl, t) < 0)
             goto invalid_include;
@@ -583,7 +586,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
     case SMPL_TOKEN_FIRST:
     case SMPL_TOKEN_LAST:
     case SMPL_TOKEN_TRAIL:
-    case SMPL_TOKEN_INVOKE:
+    case SMPL_TOKEN_CALL:
     case SMPL_TOKEN_VARREF:
         t->type = dir->token;
         t->str  = store_token(smpl, b, e - b);
@@ -599,7 +602,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
             smpl_macro_t *m = macro_by_name(smpl, t->str);
 
             if (m != NULL) {
-                t->type = SMPL_TOKEN_INVOKE;
+                t->type = SMPL_TOKEN_CALL;
                 t->m    = m;
             }
         }
@@ -668,7 +671,7 @@ static int collect_name(smpl_t *smpl, smpl_token_t *t)
     char         *b, *e;
     int           l;
 
-    skip_whitespace(in);
+    skip_whitespace(smpl);
 
     b = in->p;
     e = b;
@@ -711,9 +714,7 @@ static int collect_expr(smpl_t *smpl, smpl_token_t *t)
     smpl_input_t *in = smpl->parser->in;
     char         *p;
 
-#if 1
-    skip_whitespace(in);
-#endif
+    skip_whitespace(smpl);
     p = in->p;
 
  next_token:
@@ -839,7 +840,7 @@ static int collect_arg(smpl_t *smpl, smpl_token_t *t)
     smpl_input_t *in = smpl->parser->in;
     char         *p;
 
-    skip_whitespace(in);
+    skip_whitespace(smpl);
 
     p = in->p;
 
@@ -864,7 +865,7 @@ static int collect_arg(smpl_t *smpl, smpl_token_t *t)
     }
 
     in->p = p;
-    skip_whitespace(in);
+    skip_whitespace(smpl);
 
     return t->type;
 }
@@ -888,12 +889,7 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
         return t->type;
     }
 
-    in = parser->in;
-#if 0
-    /* XXX: we shouldn't do this here, it eats relevant whitespace... */
-    skip_whitespace(in);
-#endif
-
+    in   = parser->in;
     path = in->path;
     line = in->line;
 
@@ -916,7 +912,7 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
 
     case SMPL_PARSE_NAME:
         collect_name(smpl, t);
-        skip_whitespace(in);
+        skip_whitespace(smpl);
         goto out;
 
     case SMPL_PARSE_EXPR:
@@ -924,7 +920,7 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
         goto out;
 
     case SMPL_PARSE_SWITCH:
-        skip_whitespace(in);
+        skip_whitespace(smpl);
         collect_directive(smpl, t);
         goto out;
 
@@ -950,6 +946,9 @@ int parser_push_token(smpl_t *smpl, smpl_token_t *tkn)
     smpl_parser_t *parser = smpl->parser;
     smpl_token_t  *t;
 
+    smpl_debug("pushing back token %s ('%s')",
+               token_name(tkn->type), tkn->str);
+
     t = smpl_alloct(typeof(*t));
 
     if (t == NULL)
@@ -969,15 +968,42 @@ int parser_push_token(smpl_t *smpl, smpl_token_t *tkn)
 int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
 {
     smpl_token_t t, e;
-    int          macros, include, first;
+    int          macros, include, skipws, delim;
 
     if (end == NULL)
         end = &e;
 
     include = flags & SMPL_ALLOW_INCLUDE;
     macros  = flags & SMPL_ALLOW_MACROS;
-    flags  &= ~(SMPL_ALLOW_INCLUDE | SMPL_ALLOW_MACROS);
-    first   = true;
+    skipws  = flags & SMPL_SKIP_WHITESPACE;
+    delim   = flags & (SMPL_BLOCK_DO | SMPL_BLOCK_ELSE | SMPL_BLOCK_END);
+
+    flags  &= ~(SMPL_ALLOW_INCLUDE | SMPL_ALLOW_MACROS | SMPL_SKIP_WHITESPACE);
+    flags  &= ~delim;
+
+    if (skipws) {
+        smpl_debug("skipping whitespace");
+        skip_whitespace(smpl);
+    }
+
+    if (delim) {
+        smpl_debug("block delimiters: %s%s%s",
+                   delim & SMPL_BLOCK_DO   ? "do "   : "",
+                   delim & SMPL_BLOCK_ELSE ? "else " : "",
+                   delim & SMPL_BLOCK_END  ? "end"   : "");
+    }
+
+    if (delim && (SMPL_BLOCK_DO | SMPL_BLOCK_ELSE)) {
+        if (parser_pull_token(smpl, flags, &t) < 0)
+            goto parse_error;
+
+        if (delim & SMPL_BLOCK_DO) {
+            if (t.type != SMPL_TOKEN_DO)
+                goto missing_do;
+        }
+        else if ((delim & SMPL_BLOCK_ELSE) && t.type != SMPL_TOKEN_ELSE)
+            goto missing_else;
+    }
 
     while (parser_pull_token(smpl, flags, &t) >= SMPL_TOKEN_EOF) {
         smpl_debug("token %s ('%s')", token_name(t.type), t.str);
@@ -996,22 +1022,20 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
         case SMPL_TOKEN_EOF:
             if (!preproc_pull(smpl)) {
                 *end = t;
-                return t.type;
+                goto out;
             }
             break;
 
         case SMPL_TOKEN_DO:
-            if (!first)
-                goto misplaced_do;
-            break;
+            goto misplaced_do;
 
         case SMPL_TOKEN_ELSE:
             *end = t;
-            return t.type;
+            goto out;
 
         case SMPL_TOKEN_END:
             *end = t;
-            return t.type;
+            goto out;
 
         case SMPL_TOKEN_MACRO:
             if (!macros)
@@ -1025,7 +1049,7 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
                 goto parse_error;
             break;
 
-        case SMPL_TOKEN_INVOKE:
+        case SMPL_TOKEN_CALL:
             if (macro_parse_ref(smpl, &t, block) < 0)
                 goto parse_error;
             break;
@@ -1068,11 +1092,33 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
         default:
             goto parse_error;
         }
-
-        first = false;
     }
 
-    return -1;
+ out:
+    switch (t.type) {
+    case SMPL_TOKEN_END:
+        if (!(delim & SMPL_BLOCK_END))
+            goto misplaced_end;
+        return t.type;
+
+    case SMPL_TOKEN_ELSE:
+        if (!(delim & SMPL_BLOCK_ELSE))
+            goto misplaced_else;
+        return t.type;
+
+    case SMPL_TOKEN_EOF:
+        if (delim & SMPL_BLOCK_END)
+            goto missing_end;
+        return t.type;
+
+    case SMPL_TOKEN_ERROR:
+        return t.type;
+
+    default:
+        if (delim & SMPL_BLOCK_END)
+            goto missing_end;
+        return t.type;
+    }
 
  misplaced_include:
     end->type = SMPL_TOKEN_ERROR;
@@ -1087,9 +1133,32 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
     end->type = SMPL_TOKEN_ERROR;
     smpl_fail(-1, smpl, EINVAL, "misplaced macro definition, not allowed here");
 
+ missing_do:
+    end->type = SMPL_TOKEN_ERROR;
+    smpl_fail(-1, smpl, EINVAL, "expected do keyword, got %s",
+              token_name(t.type));
+
+ missing_else:
+    end->type = SMPL_TOKEN_ERROR;
+    smpl_fail(-1, smpl, EINVAL, "expected else keyword, got %s",
+              token_name(t.type));
+
+ missing_end:
+    end->type = SMPL_TOKEN_ERROR;
+    smpl_fail(-1, smpl, EINVAL, "expected end keyword, got %s",
+              token_name(t.type));
+
  misplaced_do:
     end->type = SMPL_TOKEN_ERROR;
     smpl_fail(-1, smpl, EINVAL, "misplaced do keyword, not expected here");
+
+ misplaced_else:
+    end->type = SMPL_TOKEN_ERROR;
+    smpl_fail(-1, smpl, EINVAL, "misplaced else keyword, not expected here");
+
+ misplaced_end:
+    end->type = SMPL_TOKEN_ERROR;
+    smpl_fail(-1, smpl, EINVAL, "misplaced end keyword, not expected here");
 
  parse_error:
     end->type = SMPL_TOKEN_ERROR;
