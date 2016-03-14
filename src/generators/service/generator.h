@@ -160,7 +160,7 @@ int application_discover(generator_t *g);
  */
 int template_load(generator_t *g);
 int template_eval(service_t *s);
-
+void template_destroy(generator_t *g);
 
 
 /*

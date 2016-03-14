@@ -56,6 +56,8 @@ int main(int argc, char *argv[], char *env[])
     service_generate(&g);
     service_write(&g);
 
+    template_destroy(&g);
+
     log_close();
 
     return g.status;

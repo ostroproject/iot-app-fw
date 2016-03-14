@@ -53,14 +53,35 @@ int template_load(generator_t *g)
 }
 
 
+void template_destroy(generator_t *g)
+{
+    smpl_free_template(g->template);
+    g->template = NULL;
+}
+
+
 int template_eval(service_t *s)
 {
     char **errors;
 
     s->output = smpl_evaluate(s->g->template, s->data, &errors);
 
-    if (s->output != NULL)
+    if (s->output != NULL) {
+        if (errors != NULL) {
+            int i;
+
+            log_error("template for %s / %s evaluated with errors:",
+                      s->provider, s->app);
+
+            if (errors != NULL) {
+                for (i = 0; errors[i] != NULL; i++)
+                    log_error("error: %s", errors[i]);
+                smpl_errors_free(errors);
+            }
+        }
+
         return 0;
+    }
     else {
         int i;
 
