@@ -42,12 +42,13 @@ void block_free(smpl_list_t *block)
         insn = smpl_list_entry(p, typeof(*insn), any.hook);
 
         switch (insn->type) {
-        case SMPL_INSN_TEXT:    text_free(insn);      break;
-        case SMPL_INSN_VARREF:  vref_free(insn);      break;
-        case SMPL_INSN_BRANCH:  branch_free(insn);    break;
-        case SMPL_INSN_FOR:     loop_free(insn);      break;
-        case SMPL_INSN_SWITCH:  switch_free(insn);    break;
-        case SMPL_INSN_CALL:    macro_free_ref(insn); break;
+        case SMPL_INSN_TEXT:     text_free(insn);         break;
+        case SMPL_INSN_VARREF:   vref_free(insn);         break;
+        case SMPL_INSN_BRANCH:   branch_free(insn);       break;
+        case SMPL_INSN_FOR:      loop_free(insn);         break;
+        case SMPL_INSN_SWITCH:   switch_free(insn);       break;
+        case SMPL_INSN_MACROREF: macro_free_ref(insn);    break;
+        case SMPL_INSN_FUNCREF:  function_free_ref(insn); break;
         default:
             break;
         }
@@ -112,8 +113,11 @@ int block_eval(smpl_t *smpl, smpl_list_t *block)
             r = switch_eval(smpl, &insn->swtch);
             break;
 
-        case SMPL_INSN_CALL:
+        case SMPL_INSN_MACROREF:
             r = macro_eval(smpl, &insn->call);
+            break;
+        case SMPL_INSN_FUNCREF:
+            r = function_eval(smpl, &insn->call);
             break;
 
         default:

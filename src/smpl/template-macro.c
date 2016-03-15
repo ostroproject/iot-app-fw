@@ -174,7 +174,7 @@ int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
         goto nomem;
 
     smpl_list_init(&c->hook);
-    c->type = SMPL_INSN_CALL;
+    c->type = SMPL_INSN_MACROREF;
 
     e    = NULL;
     name = t->str;
@@ -187,7 +187,7 @@ int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
 
         e = expr_parse(smpl, &end);
 
-        if (e == NULL || e->type != SMPL_VALUE_CALL)
+        if (e == NULL || e->type != SMPL_VALUE_MACROREF)
             goto invalid_expr;
 
         if (e->call.m != c->m)
@@ -250,6 +250,8 @@ int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
 
         if (symtbl_push(smpl, m->args[i], v.type, vp) < 0)
             goto push_failed;
+
+        value_reset(&v);
 
         a = smpl_list_entry(a->hook.next, typeof(*a), hook);
     }

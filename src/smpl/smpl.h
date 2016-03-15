@@ -144,6 +144,33 @@ void smpl_free_data(smpl_data_t *data);
 void smpl_free_errors(char **errors);
 
 /**
+ * @brief Register a template processing function.
+ *
+ * Register the given function with the given name and make it
+ * available for calling from templates.
+ *
+ * @param [in] name       name used to refer to this function
+ * @param [in] fn         pointer to function handler
+ * @param [in] user_data  opaque user data to pass to @fn
+ *
+ * @return Return 0 upon success, -1 upon error.
+ */
+int smpl_register_function(char *name, smpl_fn_t fn, void *user_data);
+
+/**
+ * @brief Unregister the given template processing function.
+ *
+ * @param [in] name  function name to unregister
+ * @param [in] fn    pointer to double-check upon unregistering
+ *
+ * @return Returns 0 upon success, -1 otherwise.
+ */
+int smpl_unregister_function(char *name, smpl_fn_t fn);
+
+smpl_value_t *smpl_value_set(smpl_value_t *v, int type, ...);
+int smpl_printf(smpl_t *smpl, const char *fmt, ...);
+
+/**
  * @brief Print/write a template in human-readable form.
  *
  * Print out the given template in a format suitable for reading back

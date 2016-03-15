@@ -97,6 +97,7 @@
 #define SMPL_JSON_OBJECT        IOT_JSON_OBJECT
 #define SMPL_JSON_ARRAY         IOT_JSON_ARRAY
 #define smpl_json_load_file     iot_json_load_file
+#define smpl_json_ref           iot_json_ref
 #define smpl_json_unref         iot_json_unref
 #define smpl_json_type          iot_json_get_type
 #define smpl_json_get           iot_json_get

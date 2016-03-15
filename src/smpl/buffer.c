@@ -113,13 +113,13 @@ char *buffer_alloc(smpl_list_t *bufs, int size)
 }
 
 
-int buffer_printf(smpl_buffer_t *b, const char *fmt, ...)
+int buffer_vprintf(smpl_buffer_t *b, const char *fmt, va_list vl)
 {
     va_list ap;
     int     l, n, d;
 
  print:
-    va_start(ap, fmt);
+    va_copy(ap, vl);
     l = b->size - (b->p - b->buf);
     n = vsnprintf(b->p, l, fmt, ap);
     va_end(ap);
@@ -149,6 +149,19 @@ int buffer_printf(smpl_buffer_t *b, const char *fmt, ...)
 
  nomem:
     return -1;
+}
+
+
+int buffer_printf(smpl_buffer_t *b, const char *fmt, ...)
+{
+    va_list ap;
+    int     r;
+
+    va_start(ap, fmt);
+    r = buffer_vprintf(b, fmt, ap);
+    va_end(ap);
+
+    return r;
 }
 
 

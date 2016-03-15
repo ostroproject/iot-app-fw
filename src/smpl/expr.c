@@ -230,7 +230,6 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
     smpl_list_t  *p, *n;
     int           narg;
 
-
     smpl_debug("VALUE %s (%s)", token_name(t->type), t->str);
 
     v = smpl_alloct(typeof(*v));
@@ -292,8 +291,8 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
         v->expr.arg1 = a1;
         break;
 
-    case SMPL_TOKEN_CALL:
-        v->type   = SMPL_VALUE_CALL;
+    case SMPL_TOKEN_MACROREF:
+        v->type   = SMPL_VALUE_MACROREF;
         v->call.m = t->m;
 
         narg = 0;
@@ -315,6 +314,27 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
                       t->str, narg, v->call.m->narg);
             goto narg_mismatch;
         }
+        v->call.narg = narg;
+        break;
+
+    case SMPL_TOKEN_FUNCREF:
+        v->type   = SMPL_VALUE_FUNCREF;
+        v->call.f = t->f;
+
+        narg = 0;
+        smpl_list_foreach(q, p, n) {
+            arg = smpl_list_entry(p, typeof(*arg), hook);
+
+            smpl_list_delete(&arg->hook);
+
+            if (v->call.args == NULL)
+                v->call.args = arg;
+            else
+                smpl_list_append(&v->call.args->hook, &arg->hook);
+
+            narg++;
+        }
+        v->call.narg = narg;
         break;
 
     default:
@@ -401,7 +421,8 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
                 goto push_failed;
             break;
 
-        case SMPL_TOKEN_CALL:
+        case SMPL_TOKEN_MACROREF:
+        case SMPL_TOKEN_FUNCREF:
             if (!token_push(&tknq, token_copy(tkn)))
                 goto push_failed;
             break;
@@ -459,7 +480,8 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
             }
             token_free(t);
 
-            if ((type = token_peek(&tknq, &t)) == SMPL_TOKEN_CALL) {
+            type = token_peek(&tknq, &t);
+            if (type == SMPL_TOKEN_MACROREF || type == SMPL_TOKEN_FUNCREF) {
                 if (!value_push(smpl, valq, t))
                     goto push_failed;
                 token_free(t);
@@ -490,7 +512,7 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
         }
     }
 
-    /*token_purgeq(&tknq);*/
+    token_purgeq(&tknq);
 
     return 0;
 
@@ -645,7 +667,8 @@ void expr_free(smpl_expr_t *expr)
         varref_free(expr->ref);
         break;
 
-    case SMPL_VALUE_CALL:
+    case SMPL_VALUE_MACROREF:
+    case SMPL_VALUE_FUNCREF:
         a = expr->call.args;
         h = &a->hook;
 
@@ -718,10 +741,14 @@ int expr_print(smpl_t *smpl, smpl_expr_t *e, char *buf, size_t size)
                         e->type == SMPL_VALUE_FIRST ? "first" : "last",
                         symtbl_get(smpl, e->sym));
 
-    case SMPL_VALUE_CALL:
+    case SMPL_VALUE_MACROREF:
+    case SMPL_VALUE_FUNCREF:
         p = buf;
         l = (int)size;
-        n = snprintf(p, l, "{*%s}(", symtbl_get(smpl, e->call.m->name));
+        if (e->type == SMPL_VALUE_MACROREF)
+            n = snprintf(p, l, "{%s}(", symtbl_get(smpl, e->call.m->name));
+        else
+            n = snprintf(p, l, "{%s}(", e->call.f->name);
 
         if (n >= l)
             goto overflow;
@@ -800,6 +827,8 @@ static inline int logical_value(smpl_t *smpl, int type,
         break;
     }
 
+    value_reset(&v1);
+
     if ((type == SMPL_VALUE_AND && !val1) || (type == SMPL_VALUE_OR && val1))
         return val1;
 
@@ -808,8 +837,8 @@ static inline int logical_value(smpl_t *smpl, int type,
 
     switch (v2.type) {
     case SMPL_VALUE_STRING:  val2 = v2.str && v2.str[0]; break;
-    case SMPL_VALUE_INTEGER: val2 = v2.i32 != 0;          break;
-    case SMPL_VALUE_DOUBLE:  val2 = v2.i32 != 0;          break;
+    case SMPL_VALUE_INTEGER: val2 = v2.i32 != 0;         break;
+    case SMPL_VALUE_DOUBLE:  val2 = v2.i32 != 0;         break;
     case SMPL_VALUE_OBJECT:
         val2 = smpl_json_object_length(v2.json) != 0;
         break;
@@ -819,6 +848,8 @@ static inline int logical_value(smpl_t *smpl, int type,
     default:
         val2 = 0;
     }
+
+    value_reset(&v2);
 
     return type == SMPL_VALUE_AND ? (val1 && val2) : (val1 || val2);
 
@@ -876,40 +907,32 @@ static inline int negative_value(smpl_value_t *v)
 int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
 {
     smpl_value_t arg1, arg2;
+    int32_t      lv;
 
     switch (e->type) {
+    case SMPL_VALUE_UNSET:
+        return value_set(v, SMPL_VALUE_UNSET)->type;
+
     case SMPL_VALUE_VARREF:
         if (symtbl_resolve(smpl, e->ref, v) < 0)
             goto invalid_ref;
         return v->type;
 
     case SMPL_VALUE_STRING:
-        v->type = e->type;
-        v->str  = e->str;
-        return v->type;
-
     case SMPL_VALUE_INTEGER:
-        v->type = e->type;
-        v->i32  = e->i32;
-        return v->type;
-
     case SMPL_VALUE_DOUBLE:
-        v->type = e->type;
-        v->dbl  = e->dbl;
-        return v->type;
-
     case SMPL_VALUE_OBJECT:
     case SMPL_VALUE_ARRAY:
-        v->type = e->type;
-        v->json = e->json;
-        return v->type;
+        return value_copy(v, e)->type;
 
     case SMPL_VALUE_AND:
     case SMPL_VALUE_OR:
-        v->type = SMPL_VALUE_INTEGER;
-        v->i32  = logical_value(smpl, e->type, e->expr.arg1, e->expr.arg2);
+        lv = logical_value(smpl, e->type, e->expr.arg1, e->expr.arg2) ? 1 : 0;
 
-        return v->i32 < 0 ? -1 : v->type;
+        if (lv < 0)
+            return value_set(v, SMPL_VALUE_UNKNOWN)->type;
+        else
+            return value_set(v, SMPL_VALUE_INTEGER, lv)->type;
 
     case SMPL_VALUE_EQUAL:
     case SMPL_VALUE_NOTEQ:
@@ -918,22 +941,34 @@ int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
         if (expr_eval(smpl, e->expr.arg2, &arg2) < 0)
             goto fail;
 
-        v->type = SMPL_VALUE_INTEGER;
-        v->i32  = comparison_value(&arg1, &arg2, e->type);
+        lv = comparison_value(&arg1, &arg2, e->type) ? 1 : 0;
+        value_reset(&arg1);
+        value_reset(&arg2);
 
-        return v->type;
+        return value_set(v, SMPL_VALUE_INTEGER, lv)->type;
 
     case SMPL_VALUE_NOT:
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        return negative_value(&arg1);
+        lv = negative_value(&arg1) ? 1 : 0;
+        value_reset(&arg1);
+
+        return value_set(v, SMPL_VALUE_INTEGER, lv)->type;
 
     case SMPL_VALUE_IS:
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        return !negative_value(&arg1);
+        lv = !negative_value(&arg1) ? 1 : 0;
+        value_reset(&arg1);
+
+        return value_set(v, SMPL_VALUE_INTEGER, lv)->type;
+
+    case SMPL_VALUE_FUNCREF:
+        if (function_call(smpl, e->call.f, e->call.narg, e->call.args, v) < 0)
+            goto fail;
+        return v->type;
 
     default:
         goto invalid_expr;
@@ -956,32 +991,31 @@ int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
 
 int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
 {
-    smpl_value_t arg1, arg2;
+    smpl_value_t arg1, arg2, rv;
+    int32_t      lv;
 
-    v->type = SMPL_VALUE_INTEGER;
+    v->type    = SMPL_VALUE_INTEGER;
+    v->dynamic = 0;
 
     switch (e->type) {
     case SMPL_VALUE_VARREF:
         if (symtbl_resolve(smpl, e->ref, &arg1) < 0)
             goto invalid_ref;
-        v->i32 = !negative_value(&arg1);
-
-        return v->type;
+        lv = !negative_value(&arg1);
+        break;
 
     case SMPL_VALUE_STRING:
     case SMPL_VALUE_INTEGER:
     case SMPL_VALUE_DOUBLE:
     case SMPL_VALUE_OBJECT:
     case SMPL_VALUE_ARRAY:
-        v->i32 = !negative_value(e);
-
-        return v->type;
+        lv = !negative_value(e);
+        break;
 
     case SMPL_VALUE_AND:
     case SMPL_VALUE_OR:
-        v->i32 = logical_value(smpl, e->type, e->expr.arg1, e->expr.arg2);
-
-        return v->i32 < 0 ? -1 : v->type;
+        lv = logical_value(smpl, e->type, e->expr.arg1, e->expr.arg2);
+        break;
 
     case SMPL_VALUE_EQUAL:
     case SMPL_VALUE_NOTEQ:
@@ -990,47 +1024,62 @@ int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
         if (expr_eval(smpl, e->expr.arg2, &arg2) < 0)
             goto fail;
 
-        v->i32 = comparison_value(&arg1, &arg2, e->type);
+        lv = comparison_value(&arg1, &arg2, e->type);
 
-        return v->type;
+        value_reset(&arg1);
+        value_reset(&arg2);
+        break;
 
     case SMPL_VALUE_NOT:
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        v->i32 = negative_value(&arg1);
-
-        return v->type;
+        lv = negative_value(&arg1);
+        value_reset(&arg1);
+        break;
 
     case SMPL_VALUE_IS:
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        return !negative_value(&arg1);
+        lv = !negative_value(&arg1);
+        value_reset(&arg1);
+        break;
 
     case SMPL_VALUE_TRAIL: {
         int   len = strlen(e->str);
         char *p   = smpl->result->p - len;
 
         if (len > smpl->result->size)
-            v->i32 = 0;
-
-        v->i32 = strncmp(p, e->str, len);
-
-        return v->type;
+            lv = 0;
+        else
+            lv = !strncmp(p, e->str, len);
+        break;
     }
 
     case SMPL_VALUE_FIRST:
-        v->i32 = symtbl_loopflag(smpl, e->sym, SMPL_LOOP_FIRST) ? 1 : 0;
-        return v->type;
+        lv = symtbl_loopflag(smpl, e->sym, SMPL_LOOP_FIRST);
+        break;
 
     case SMPL_VALUE_LAST:
-        v->i32 = symtbl_loopflag(smpl, e->sym, SMPL_LOOP_LAST) ? 1 : 0;
-        return v->type;
+        lv = symtbl_loopflag(smpl, e->sym, SMPL_LOOP_LAST);
+        break;
+
+    case SMPL_VALUE_FUNCREF:
+        if (function_call(smpl, e->call.f, e->call.narg, e->call.args, &rv) < 0)
+            goto fail;
+        lv = expr_test(smpl, &rv, v);
+        value_reset(&rv);
+        break;
 
     default:
         goto invalid_expr;
     }
+
+    if (lv < 0)
+        return value_set(v, SMPL_VALUE_UNKNOWN)->type;
+    else
+        return value_set(v, SMPL_VALUE_INTEGER, (int32_t)(lv ? 1 : 0))->type;
 
  invalid_ref:
     v->type = -1;
@@ -1044,4 +1093,157 @@ int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
 
  fail:
     return -1;
+}
+
+
+int value_eval(smpl_t *smpl, smpl_expr_t *e)
+{
+    smpl_value_t v;
+    int          r;
+
+    if (expr_eval(smpl, e, &v) < 0)
+        goto invalid_value;
+
+    switch (v.type) {
+    case SMPL_VALUE_UNKNOWN:
+        goto invalid_value;
+
+    case SMPL_VALUE_UNSET:
+        r = 0;
+        break;
+    case SMPL_VALUE_STRING:
+        r = buffer_printf(smpl->result, "%s", v.str);
+        break;
+    case SMPL_VALUE_INTEGER:
+        r = buffer_printf(smpl->result, "%d", v.i32);
+        break;
+    case SMPL_VALUE_DOUBLE:
+        r = buffer_printf(smpl->result, "%d", v.dbl);
+        break;
+
+    default:
+        goto unprintable_value;
+    }
+
+    value_reset(&v);
+
+    return r;
+
+ invalid_value:
+    return -1;
+
+ unprintable_value:
+    smpl_fail(-1, smpl, EINVAL, "unprintable value of type 0x%x in evaluation",
+              v.type);
+}
+
+
+smpl_value_t *value_setv(smpl_value_t *v, int type, va_list aq)
+{
+    va_list ap;
+
+    v->type    = type & ~SMPL_VALUE_DYNAMIC;
+    v->dynamic = type &  SMPL_VALUE_DYNAMIC;
+
+    va_copy(ap, aq);
+
+    switch (v->type) {
+    case SMPL_VALUE_UNKNOWN:
+    case SMPL_VALUE_UNSET:
+        break;
+
+    case SMPL_VALUE_INTEGER:
+        v->i32 = va_arg(ap, int32_t);
+        break;
+
+    case SMPL_VALUE_DOUBLE:
+        v->dbl = va_arg(ap, double);
+        break;
+
+    case SMPL_VALUE_STRING:
+        v->str = va_arg(ap, char *);
+        if (v->dynamic)
+            v->str = smpl_strdup(v->str);
+        break;
+
+    case SMPL_VALUE_OBJECT:
+    case SMPL_VALUE_ARRAY:
+        v->json = va_arg(ap, smpl_json_t *);
+        if (v->dynamic)
+            smpl_json_ref(v->json);
+        break;
+
+    default:
+        v->type = SMPL_VALUE_UNKNOWN;
+        break;
+    }
+
+    va_end(ap);
+
+    return v;
+}
+
+
+smpl_value_t *value_set(smpl_value_t *v, int type, ...)
+{
+    va_list ap;
+
+    va_start(ap, type);
+    v = value_setv(v, type, ap);
+    va_end(ap);
+
+    return v;
+}
+
+
+smpl_value_t *value_copy(smpl_value_t *dst, smpl_value_t *src)
+{
+    if (dst != src) {
+        *dst = *src;
+        smpl_list_init(&dst->hook);
+    }
+
+    if (!dst->dynamic)
+        return dst;
+
+    switch (dst->type) {
+    case SMPL_VALUE_STRING:
+        dst->str = smpl_strdup(dst->str);
+        break;
+
+    case SMPL_VALUE_OBJECT:
+    case SMPL_VALUE_ARRAY:
+        smpl_json_ref(dst->json);
+        break;
+
+    default:
+        dst->type = SMPL_VALUE_UNKNOWN;
+        break;
+    }
+
+    return dst;
+}
+
+
+void value_reset(smpl_value_t *v)
+{
+
+    if (v->dynamic != 0 && v->dynamic != 1)
+        smpl_error("%s(): dynamic = %d !!!", __func__, v->dynamic);
+
+    if (v->dynamic) {
+        switch (v->type) {
+        case SMPL_VALUE_STRING:
+            smpl_free(v->str);
+            break;
+        case SMPL_VALUE_OBJECT:
+        case SMPL_VALUE_ARRAY:
+            smpl_json_unref(v->json);
+            break;
+        default:
+            break;
+        }
+    }
+
+    v->type = SMPL_VALUE_UNSET;
 }

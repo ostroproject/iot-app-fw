@@ -268,7 +268,8 @@ int symtbl_push(smpl_t *smpl, smpl_sym_t sym, smpl_value_type_t type, void *val)
         goto nomem;
 
     smpl_list_init(&v->hook);
-    v->type = type;
+    v->type    = type & ~SMPL_VALUE_DYNAMIC;
+    v->dynamic = type &  SMPL_VALUE_DYNAMIC;
 
     switch (v->type) {
     case SMPL_VALUE_STRING:
@@ -413,6 +414,9 @@ int symtbl_pop(smpl_t *smpl, smpl_sym_t sym)
     }
 
     smpl_list_delete(&v->hook);
+#if 1
+    value_reset(v);
+#endif
     smpl_free(v);
 
     return 0;
@@ -449,9 +453,7 @@ int symbtl_value(smpl_t *smpl, smpl_sym_t sym, smpl_value_t *val)
     case SMPL_SYMBOL_LOOP:
         break;
     case SMPL_SYMBOL_STRING:
-        val->type = SMPL_VALUE_STRING;
-        val->str  = s->symbol;
-        goto out;
+        return value_set(val, SMPL_VALUE_STRING, s->symbol)->type;
     default:
         goto invalid_symbol;
     }
@@ -461,6 +463,10 @@ int symbtl_value(smpl_t *smpl, smpl_sym_t sym, smpl_value_t *val)
 
     v = smpl_list_entry(s->values->next, typeof(*v), hook);
 
+
+    return value_copy(val, v)->type;
+
+#if 0
     val->type = v->type;
 
     switch (val->type) {
@@ -483,6 +489,7 @@ int symbtl_value(smpl_t *smpl, smpl_sym_t sym, smpl_value_t *val)
 
  out:
     return val->type;
+#endif
 
  no_symbol:
     return (val->type = SMPL_VALUE_UNSET);
@@ -529,6 +536,7 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
         goto no_values;
 
     v = smpl_list_entry(s->values->next, typeof(*v), hook);
+    val->dynamic = v->dynamic;
 
     switch (val->type = v->type) {
     case SMPL_VALUE_STRING:
@@ -607,20 +615,20 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
         }
     }
 
-    return val->type;
+    return value_copy(val, val)->type;
 
  no_symbol:
-    return (val->type = SMPL_VALUE_UNSET);
+    return value_set(val, SMPL_VALUE_UNSET)->type;
 
  no_values:
-    return (val->type = SMPL_VALUE_UNSET);
+    return value_set(val, SMPL_VALUE_UNSET)->type;
 
  invalid_symbol:
-    val->type = -1;
+    value_set(val, SMPL_VALUE_UNKNOWN);
     smpl_fail(-1, smpl, EINVAL, "can't get value for symbol 0x%x", *sym);
 
  invalid_value:
-    val->type = -1;
+    value_set(val, SMPL_VALUE_UNKNOWN);
     smpl_fail(-1, smpl, EINVAL, "invalid value for symbol 0x%x", *sym);
 }
 

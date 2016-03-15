@@ -63,6 +63,7 @@ libsmpl_a_SOURCES =					\
 		smpl/preproc.c				\
 		smpl/template.c				\
 		smpl/template-macro.c			\
+		smpl/template-function.c		\
 		smpl/template-block.c			\
 		smpl/template-text.c			\
 		smpl/template-vref.c			\

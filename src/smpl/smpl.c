@@ -48,6 +48,7 @@ smpl_t *smpl_create(char ***errbuf)
         goto nomem;
 
     smpl_list_init(&smpl->macros);
+    smpl_list_init(&smpl->functions);
     smpl_list_init(&smpl->body);
 
     smpl->data   = symtbl_add(smpl, "data", SMPL_SYMBOL_DATA);
@@ -75,6 +76,7 @@ void smpl_destroy(smpl_t *smpl)
         return;
 
     macro_purge(&smpl->macros);
+    function_purge(&smpl->functions);
     template_free(&smpl->body);
 
     buffer_destroy(smpl->result);
@@ -158,6 +160,55 @@ smpl_data_t *smpl_load_data(const char *path, char ***errors)
 void smpl_free_data(smpl_data_t *data)
 {
     smpl_json_free(data);
+}
+
+
+int smpl_add_function(smpl_t *smpl, char *name, smpl_fn_t fn, void *user_data)
+{
+    return function_register(smpl, name, fn, user_data);
+}
+
+
+int smpl_register_function(char *name, smpl_fn_t fn, void *user_data)
+{
+    return function_register(NULL, name, fn, user_data);
+}
+
+
+int smpl_unregister_function(char *name, smpl_fn_t fn)
+{
+    return function_unregister(NULL, name, fn);
+}
+
+
+smpl_value_t *smpl_value_set(smpl_value_t *v, int type, ...)
+{
+    va_list ap;
+
+    va_start(ap, type);
+    v = value_setv(v, type, ap);
+    va_end(ap);
+
+    return v;
+}
+
+
+int smpl_printf(smpl_t *smpl, const char *fmt, ...)
+{
+    va_list ap;
+    int     r;
+
+    if (smpl->callbacks <= 0)
+        goto no_callback;
+
+    va_start(ap, fmt);
+    r = buffer_vprintf(smpl->result, fmt, ap);
+    va_end(ap);
+
+    return r;
+
+ no_callback:
+    smpl_fail(-1, smpl, EINVAL, "not in a function callback");
 }
 
 

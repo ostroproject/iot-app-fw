@@ -191,7 +191,8 @@ const char *token_name(int type)
     case SMPL_TOKEN_LAST:        return "<LAST>";
     case SMPL_TOKEN_TRAIL:       return "<TRAIL>";
 
-    case SMPL_TOKEN_CALL:        return "<CALL>";
+    case SMPL_TOKEN_MACROREF:    return "<MACRO-CALL>";
+    case SMPL_TOKEN_FUNCREF:     return "<FUNCTION-CALL>";
     case SMPL_TOKEN_TEXT:        return "<TEXT>";
     case SMPL_TOKEN_NAME:        return "<NAME>";
     case SMPL_TOKEN_VARREF:      return "<VARREF>";
@@ -586,7 +587,6 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
     case SMPL_TOKEN_FIRST:
     case SMPL_TOKEN_LAST:
     case SMPL_TOKEN_TRAIL:
-    case SMPL_TOKEN_CALL:
     case SMPL_TOKEN_VARREF:
         t->type = dir->token;
         t->str  = store_token(smpl, b, e - b);
@@ -599,11 +599,16 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
             }
         }
         else {
-            smpl_macro_t *m = macro_by_name(smpl, t->str);
+            smpl_function_t *f = function_find(smpl, t->str);
+            smpl_macro_t    *m = macro_by_name(smpl, t->str);
 
             if (m != NULL) {
-                t->type = SMPL_TOKEN_CALL;
+                t->type = SMPL_TOKEN_MACROREF;
                 t->m    = m;
+            }
+            else if (f != NULL) {
+                t->type = SMPL_TOKEN_FUNCREF;
+                t->f    = f;
             }
         }
 
@@ -993,7 +998,7 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
                    delim & SMPL_BLOCK_END  ? "end"   : "");
     }
 
-    if (delim && (SMPL_BLOCK_DO | SMPL_BLOCK_ELSE)) {
+    if (delim & (SMPL_BLOCK_DO | SMPL_BLOCK_ELSE)) {
         if (parser_pull_token(smpl, flags, &t) < 0)
             goto parse_error;
 
@@ -1049,8 +1054,13 @@ int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end)
                 goto parse_error;
             break;
 
-        case SMPL_TOKEN_CALL:
+        case SMPL_TOKEN_MACROREF:
             if (macro_parse_ref(smpl, &t, block) < 0)
+                goto parse_error;
+            break;
+
+        case SMPL_TOKEN_FUNCREF:
+            if (function_parse_ref(smpl, &t, block) < 0)
                 goto parse_error;
             break;
 

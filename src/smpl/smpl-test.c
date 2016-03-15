@@ -140,6 +140,74 @@ static void parse_cmdline(smpl_test_t *t, int argc, char *argv[])
 }
 
 
+static int fn_test(smpl_t *smpl, int argc, smpl_value_t *argv,
+                   smpl_value_t *rv, void *user_data)
+{
+    smpl_value_t *v;
+    int           i;
+
+    SMPL_UNUSED(user_data);
+
+    smpl_printf(smpl, "function %s called with %d arguments:\n", __func__, argc);
+
+    for (i = 0; i < argc; i++) {
+        v = argv + i;
+
+        switch (v->type) {
+        case SMPL_VALUE_STRING:
+            smpl_printf(smpl, "  argv[%d]: '%s'", i, v->str);
+            break;
+        case SMPL_VALUE_INTEGER:
+            smpl_printf(smpl, "  argv[%d]: %d", i, v->i32);
+            break;
+        case SMPL_VALUE_DOUBLE:
+            smpl_printf(smpl, "  argv[%d]: %f", i, v->dbl);
+            break;
+        default:
+            smpl_printf(smpl, "  argv[%d]: <value of type 0x%x>", i, v->type);
+            break;
+        }
+
+        if (i < argc - 1)
+            smpl_printf(smpl, "\n");
+    }
+
+    if (rv != NULL)
+        smpl_value_set(rv, SMPL_VALUE_UNSET);
+
+    return 0;
+}
+
+
+static int fn_check(smpl_t *smpl, int argc, smpl_value_t *argv,
+                    smpl_value_t *rv, void *user_data)
+{
+    const char *str;
+
+    SMPL_UNUSED(smpl);
+    SMPL_UNUSED(user_data);
+
+    if (rv != NULL) {
+        if (argc <= 0)
+            smpl_value_set(rv, SMPL_VALUE_INTEGER, 0);
+        else {
+            switch (argv[0].type) {
+            case SMPL_VALUE_STRING:  str = "string";  break;
+            case SMPL_VALUE_INTEGER: str = "integer"; break;
+            case SMPL_VALUE_DOUBLE:  str = "double";  break;
+            case SMPL_VALUE_ARRAY:   str = "array";   break;
+            case SMPL_VALUE_OBJECT:  str = "object";  break;
+            case SMPL_VALUE_VARREF:  str = "varref";  break;
+            default:                 str = "other";   break;
+            }
+
+            smpl_value_set(rv, SMPL_VALUE_STRING, str);
+        }
+    }
+
+    return 0;
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -147,6 +215,16 @@ int main(int argc, char *argv[])
     smpl_test_t  t;
 
     parse_cmdline(&t, argc, argv);
+
+    if (smpl_register_function("TESTFN", fn_test, NULL) < 0) {
+        smpl_error("Failed to register test function as TESTFN.");
+        exit(1);
+    }
+
+    if (smpl_register_function("CHECKFN", fn_check, NULL) < 0) {
+        smpl_error("Failed to register test function as TESTFN.");
+        exit(1);
+    }
 
     t.data = smpl_load_data(t.path_data, &errors);
 

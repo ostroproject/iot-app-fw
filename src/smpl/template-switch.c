@@ -153,6 +153,7 @@ int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw)
     smpl_insn_case_t *c;
     smpl_list_t      *p, *n;
     smpl_value_t      test, expr;
+    int               r;
 
     if (expr_eval(smpl, sw->test, &test) < 0)
         goto invalid_test;
@@ -162,8 +163,10 @@ int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw)
 
         if (expr_eval(smpl, c->expr, &expr) < 0)
             goto invalid_case;
+        r = expr_compare_values(&test, &expr);
+        value_reset(&expr);
 
-        if (expr_compare_values(&test, &expr)) {
+        if (r) {
             if (block_eval(smpl, &c->body) < 0)
                 goto case_failed;
             else
@@ -175,6 +178,7 @@ int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw)
         goto default_failed;
 
  out:
+    value_reset(&test);
     return 0;
 
  invalid_test:
