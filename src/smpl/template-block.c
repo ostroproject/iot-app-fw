@@ -80,6 +80,12 @@ void block_dump(smpl_t *smpl, int fd, smpl_list_t *block, int indent)
         case SMPL_INSN_SWITCH:
             switch_dump(smpl, fd, &insn->swtch, indent + 1);
             break;
+        case SMPL_INSN_MACROREF:
+            macro_dump_ref(smpl, fd, &insn->call, indent + 1);
+            break;
+        case SMPL_INSN_FUNCREF:
+            function_dump_ref(smpl, fd, &insn->call, indent + 1);
+            break;
         default:
             break;
         }

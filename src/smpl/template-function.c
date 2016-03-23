@@ -195,6 +195,16 @@ int function_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
 }
 
 
+void function_dump_ref(smpl_t *smpl, int fd, smpl_insn_call_t *c, int indent)
+{
+    char buf[1024];
+
+    expr_print(smpl, c->expr, buf, sizeof(buf));
+    dprintf(fd, SMPL_INDENT_FMT"<macro call>%s\n",
+            SMPL_INDENT_ARG(indent), buf);
+}
+
+
 void function_free_ref(smpl_insn_t *insn)
 {
     smpl_insn_call_t *c = &insn->call;

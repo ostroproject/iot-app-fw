@@ -285,6 +285,9 @@ int symtbl_push(smpl_t *smpl, smpl_sym_t sym, smpl_value_type_t type, void *val)
     case SMPL_VALUE_ARRAY:
         v->json = val;
         break;
+    case SMPL_VALUE_UNSET:
+        v->str = NULL;
+        break;
     default:
         goto invalid_value;
     }

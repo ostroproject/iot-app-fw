@@ -646,7 +646,7 @@ smpl_expr_t *expr_trail_parse(smpl_t *smpl, smpl_token_t *t)
 
 void expr_free(smpl_expr_t *expr)
 {
-    smpl_list_t  *h, *n;
+    smpl_list_t  *n;
     smpl_value_t *a;
 
     if (expr == NULL)
@@ -670,16 +670,16 @@ void expr_free(smpl_expr_t *expr)
     case SMPL_VALUE_MACROREF:
     case SMPL_VALUE_FUNCREF:
         a = expr->call.args;
-        h = &a->hook;
 
         while (a != NULL) {
-            n = a->hook.next;
+            if (smpl_list_empty(&a->hook))
+                n = NULL;
+            else
+                n = a->hook.next;
+
             expr_free(a);
 
-            if (n != h)
-                a = smpl_list_entry(n, typeof(*a), hook);
-            else
-                a = NULL;
+            a = n ? smpl_list_entry(n, typeof(*a), hook) : NULL;
         }
         break;
 

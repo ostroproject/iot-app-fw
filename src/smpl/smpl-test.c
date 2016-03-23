@@ -253,6 +253,8 @@ int main(int argc, char *argv[])
     printf("Template '%s' evaluated with data '%s' produced:\n%s\n",
            t.path_template, t.path_data, str);
 
+    smpl_free_template(t.smpl);
+
     return 0;
 
  dump_errors:

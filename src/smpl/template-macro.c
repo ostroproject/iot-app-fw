@@ -244,6 +244,7 @@ int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
         case SMPL_VALUE_DOUBLE:  vp = &v.dbl; break;
         case SMPL_VALUE_OBJECT:
         case SMPL_VALUE_ARRAY:   vp = v.json; break;
+        case SMPL_VALUE_UNSET:   vp = NULL;   break;
         default:
             goto invalid_arg;
         }
@@ -330,6 +331,16 @@ void macro_dump(smpl_t *smpl, int fd, smpl_macro_t *m)
     dprintf(fd, "<macro '%s'%s>\n", symtbl_get(smpl, m->name),
             arglist_dump(smpl, args, sizeof(args), m->args, m->narg));
     block_dump(smpl, fd, &m->body, 1);
+}
+
+
+void macro_dump_ref(smpl_t *smpl, int fd, smpl_insn_call_t *c, int indent)
+{
+    char buf[1024];
+
+    expr_print(smpl, c->expr, buf, sizeof(buf));
+    dprintf(fd, SMPL_INDENT_FMT"<macro call>%s\n",
+            SMPL_INDENT_ARG(indent), buf);
 }
 
 
