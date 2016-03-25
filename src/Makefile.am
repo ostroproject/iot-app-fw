@@ -130,6 +130,9 @@ iot_service_generator_LDADD =		\
 		$(REGEXP_LIBS)		\
 		-lm
 
+SERVICE_TEMPLATES =       		\
+		generators/service/templates/ostro/*.{smpl,inc}
+
 ###################################
 # original proto template library
 #
@@ -181,11 +184,14 @@ jmpl_test_LDADD =					\
 #iot_exec_LDADD =
 
 
-# Install service file template.
-install-data-hook:
+# Install service file template(s).
+install-service-templates:
 	mkdir -p $(DESTDIR)${libexecdir}/iot-app-fw && \
-	    cp $(top_srcdir)/src/generators/service/service.jmpl \
+	    cp $(top_srcdir)/src/$(SERVICE_TEMPLATES) \
 	        $(DESTDIR)${libexecdir}/iot-app-fw
+
+# Install various runtime data we need.
+install-data-hook: install-service-templates
 
 # cleanup
 clean-local:
