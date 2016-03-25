@@ -309,7 +309,7 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
             narg++;
         }
 
-        if (narg != v->call.m->narg) {
+        if (v->call.m->narg >= 0 && narg != v->call.m->narg) {
             smpl_error("macro '%s' called with %d args, declared with %d.",
                       t->str, narg, v->call.m->narg);
             goto narg_mismatch;
