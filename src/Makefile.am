@@ -60,7 +60,6 @@ libsmpl_a_SOURCES =					\
 		smpl/symtbl.c				\
 		smpl/parser.c				\
 		smpl/preproc.c				\
-		smpl/template.c				\
 		smpl/template-macro.c			\
 		smpl/template-function.c		\
 		smpl/template-block.c			\

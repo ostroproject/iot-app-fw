@@ -417,9 +417,8 @@ int symtbl_pop(smpl_t *smpl, smpl_sym_t sym)
     }
 
     smpl_list_delete(&v->hook);
-#if 1
+
     value_reset(v);
-#endif
     smpl_free(v);
 
     return 0;
@@ -469,31 +468,6 @@ int symbtl_value(smpl_t *smpl, smpl_sym_t sym, smpl_value_t *val)
 
     return value_copy(val, v)->type;
 
-#if 0
-    val->type = v->type;
-
-    switch (val->type) {
-    case SMPL_VALUE_STRING:
-        val->str = v->str;
-        break;
-    case SMPL_VALUE_INTEGER:
-        val->i32 = v->i32;
-        break;
-    case SMPL_VALUE_DOUBLE:
-        val->dbl = v->dbl;
-        break;
-    case SMPL_VALUE_OBJECT:
-    case SMPL_VALUE_ARRAY:
-        val->json = v->json;
-        break;
-    default:
-        goto invalid_value;
-    }
-
- out:
-    return val->type;
-#endif
-
  no_symbol:
     return (val->type = SMPL_VALUE_UNSET);
 
@@ -503,10 +477,6 @@ int symbtl_value(smpl_t *smpl, smpl_sym_t sym, smpl_value_t *val)
 
  no_values:
     return (val->type =  SMPL_VALUE_UNSET);
-
- invalid_value:
-    val->type = -1;
-    smpl_fail(-1, smpl, EINVAL, "invalid value for symbol 0x%x", sym);
 }
 
 

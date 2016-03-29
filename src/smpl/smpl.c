@@ -77,7 +77,7 @@ void smpl_destroy(smpl_t *smpl)
 
     macro_purge(&smpl->macros);
     function_purge(&smpl->functions);
-    template_free(&smpl->body);
+    block_free(&smpl->body);
 
     buffer_destroy(smpl->result);
     parser_destroy(smpl);
@@ -112,7 +112,7 @@ smpl_t *smpl_load_template(const char *path, char ***errors)
     if (preproc_push_file(smpl, path) < 0)
         goto file_fail;
 
-    if (template_parse(smpl) < 0)
+    if (block_parse(smpl, SMPL_PARSE_MAIN, &smpl->body, NULL) != SMPL_TOKEN_EOF)
         goto parse_fail;
 
     preproc_trim(smpl);
@@ -224,7 +224,7 @@ char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors)
     if (symtbl_push(smpl, smpl->data, SMPL_VALUE_OBJECT, data) < 0)
         goto data_fail;
 
-    if (template_evaluate(smpl) < 0)
+    if (block_eval(smpl, &smpl->body) < 0)
         goto eval_fail;
 
     symtbl_flush(smpl);
@@ -262,13 +262,27 @@ void smpl_free_errors(char **errors)
 
 int smpl_print_template(smpl_t *smpl, int fd)
 {
-    return template_print(smpl, fd);
+    SMPL_UNUSED(smpl);
+    SMPL_UNUSED(fd);
+
+    return 0;
 }
 
 
 void smpl_dump_template(smpl_t *smpl, int fd)
 {
-    template_dump(smpl, fd);
+    smpl_macro_t *m = NULL;
+    smpl_list_t  *p, *n;
+
+    smpl_list_foreach(&smpl->macros, p, n) {
+        m = smpl_list_entry(p, typeof(*m), hook);
+        macro_dump(smpl, fd, m);
+    }
+
+    if (m != NULL)
+        dprintf(fd, "\n");
+
+    block_dump(smpl, fd, &smpl->body, 0);
 }
 
 
