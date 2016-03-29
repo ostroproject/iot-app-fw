@@ -1,7 +1,0 @@
-{
-    "name": "iot-appfw",
-    "version": "0.0.1",
-    "description": "IoT OS Application Framework Bindings",
-    "gypfile": true,
-    "dependencies": { }
-}

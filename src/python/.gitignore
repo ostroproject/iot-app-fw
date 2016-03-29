@@ -1,5 +1,0 @@
-*sublime*
-*.o
-*.so
-/build/*
-*.pyc

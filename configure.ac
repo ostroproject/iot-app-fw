@@ -115,206 +115,6 @@ fi
 AM_CONDITIONAL(DEBUG_ENABLED, [test "$enable_debug_infra" = "yes"])
 AC_SUBST(DEBUG_ENABLED)
 
-# Check if development/developer mode should be disabled.
-AC_ARG_ENABLE(development-mode,
-              [  --enable-development-mode    enable development mode],
-              [enable_devel_mode=$enableval], [enable_devel_mode=yes])
-
-if test "$enable_devel_mode" = "yes"; then
-    AC_DEFINE([DEVEL_MODE_ENABLED], 1, [Enable development mode ?])
-fi
-AM_CONDITIONAL(DEVEL_MODE_ENABLED, [test "$enable_devel_mode" = "yes"])
-AC_SUBST(DEVEL_MODE_ENABLED)
-
-# Check if PulseAudio mainloop support was enabled.
-AC_ARG_ENABLE(pulse,
-              [  --enable-pulse          enable PulseAudio mainloop support],
-	      [enable_pulse=$enableval], [enable_pulse=auto])
-
-if test "$enable_pulse" != "no"; then
-    PKG_CHECK_MODULES(PULSE, libpulse >= 0.9.22,
-    			     [have_pulse=yes], [have_pulse=no])
-    if test "$have_pulse" = "no" -a "$enable_pulse" = "yes"; then
-        AC_MSG_ERROR([PulseAudio development libraries not found.])
-    fi
-
-    if test "$enable_gpl" = "no"; then
-        if test "$enable_pulse" = "yes"; then
-           AC_MSG_ERROR([PulseAudio support requires the --enable-gpl option.])
-        else
-           enable_pulse="no"
-        fi
-    else
-        enable_pulse="$have_pulse"
-    fi
-else
-    AC_MSG_NOTICE([PulseAudio mainloop support is disabled.])
-fi
-
-if test "$enable_pulse" = "yes"; then
-    AC_DEFINE([PULSE_ENABLED], 1, [Enable PulseAudio mainloop support ?])
-fi
-AM_CONDITIONAL(PULSE_ENABLED, [test "$enable_pulse" = "yes"])
-AC_SUBST(PULSE_ENABLED)
-AC_SUBST(PULSE_CFLAGS)
-AC_SUBST(PULSE_LIBS)
-
-# Check if EFL/ecore mainloop support was enabled.
-AC_ARG_ENABLE(ecore,
-              [  --enable-ecore          enable EFL/ecore mainloop support],
-	      [enable_ecore=$enableval], [enable_ecore=auto])
-
-
-if test "$enable_ecore" != "no"; then
-    # We are using features which are present only at ecore 1.2 onwards.
-    PKG_CHECK_MODULES(ECORE, ecore >= 1.2,
-                      [have_ecore=yes], [have_ecore=no])
-    if test "$have_ecore" = "no" -a "$enable_ecore" = "yes"; then
-        AC_MSG_ERROR([EFL/ecore development libraries not found.])
-    fi
-
-    enable_ecore="$have_ecore"
-else
-    AC_MSG_NOTICE([EFL/ecore mainloop support is disabled.])
-fi
-
-if test "$enable_ecore" = "yes"; then
-    AC_DEFINE([ECORE_ENABLED], 1, [Enable EFL/ecore mainloop support ?])
-fi
-AM_CONDITIONAL(ECORE_ENABLED, [test "$enable_ecore" = "yes"])
-AC_SUBST(ECORE_ENABLED)
-AC_SUBST(ECORE_CFLAGS)
-AC_SUBST(ECORE_LIBS)
-
-# Check if glib mainloop support was enabled.
-AC_ARG_ENABLE(glib,
-              [  --enable-glib           enable glib mainloop support],
-	      [enable_glib=$enableval], [enable_glib=auto])
-
-if test "$enable_glib" != "no"; then
-    PKG_CHECK_MODULES(GLIB, glib-2.0,
-                      [have_glib=yes], [have_glib=no])
-    if test "$have_glib" = "no" -a "$enable_glib" = "yes"; then
-        AC_MSG_ERROR([glib development libraries not found.])
-    fi
-
-    enable_glib="$have_glib"
-else
-    AC_MSG_NOTICE([glib mainloop support is disabled.])
-fi
-
-if test "$enable_glib" = "yes"; then
-    AC_DEFINE([GLIB_ENABLED], 1, [Enable glib mainloop support ?])
-fi
-AM_CONDITIONAL(GLIB_ENABLED, [test "$enable_glib" = "yes"])
-AC_SUBST(GLIB_ENABLED)
-AC_SUBST(GLIB_CFLAGS)
-AC_SUBST(GLIB_LIBS)
-
-# Check if qt mainloop support was enabled.
-AC_ARG_ENABLE(qt,
-              [  --enable-qt             enable qt mainloop support],
-              [enable_qt=$enableval], [enable_qt=auto])
-
-if test "$enable_qt" != "no"; then
-    PKG_CHECK_MODULES(QTCORE, QtCore,
-                      [have_qt=yes], [have_qt=no])
-    if test "$have_qt" = "no" -a "$enable_qt" = "yes"; then
-        AC_MSG_ERROR([Qt(Core) development libraries not found.])
-    fi
-
-    enable_qt="$have_qt"
-else
-    AC_MSG_NOTICE([Qt mainloop support is disabled.])
-fi
-
-if test "$enable_qt" = "yes"; then
-    AC_DEFINE([QT_ENABLED], 1, [Enable qt mainloop support ?])
-    QT_MOC="`pkg-config --variable moc_location QtCore`"
-    AC_SUBST(QT_MOC)
-fi
-AM_CONDITIONAL(QT_ENABLED, [test "$enable_qt" = "yes"])
-AC_SUBST(QT_ENABLED)
-AC_SUBST(QTCORE_CFLAGS)
-AC_SUBST(QTCORE_LIBS)
-
-# Check if UV mainloop support was enabled.
-AC_ARG_ENABLE(uv,
-              [  --enable-uv             enable LIBUV mainloop support],
-	      [enable_libuv=$enableval], [enable_libuv=auto])
-
-if test "$enable_libuv" != "no"; then
-    PKG_CHECK_MODULES(LIBUV, libuv, [have_libuv=yes], [have_libuv=no])
-    if test "$have_libuv" = "no" -a "$enable_libuv" = "yes"; then
-        AC_MSG_ERROR([LIBUV development libraries not found.])
-    fi
-
-    enable_libuv="$have_libuv"
-    if test "$have_libuv" = "yes"; then
-        shared_libuv="yes"
-    else
-        shared_libuv="no"
-    fi
-else
-    AC_MSG_NOTICE([LIBUV mainloop support is disabled.])
-fi
-
-# Check if NodeJS support was enabled.
-CHECK_NODEJS()
-
-echo "NODE_CXXFLAGS: $NODE_CXXFLAGS"
-echo "NODE_LIBS: $NODE_LIBS"
-echo "NODE_PREFIX: $NODE_PREFIX"
-echo "LIBUV_CFLAGS: $LIBUV_CFLAGS"
-echo "LIBUV_LIBS: $LIBUV_LIBS"
-echo "LIBUV_SHARED: $LIBUV_SHARED"
-
-# Check for python
-AC_ARG_ENABLE(python,
-              [ --enable-python   enable Python bindings],
-        [enable_python=$enableval], [enable_python=no])
-
-if test "$enable_python" = "yes"; then
-    PKG_CHECK_MODULES(PYTHON, python,
-                      [have_python=yes], [have_python=no])
-    if test "$have_python" = "no"; then
-        AC_MSG_ERROR([Python development libraries not found.])
-    fi
-
-    if test "$enable_glib" != "yes"; then
-        PKG_CHECK_MODULES(GLIB, glib-2.0,
-                        [have_glib=yes], [have_glib=no])
-        if test "$have_glib" = "no" -a "$enable_glib" = "yes"; then
-            AC_MSG_ERROR([Python support requires glib.])
-        fi
-    fi
-
-    GLIB_INCLUDES_TEMP=$(echo $GLIB_CFLAGS | tr -s "\t" | tr " " "\n" | \
-        grep "^-I" | sed "s/-I//g")
-    t=""
-    GLIB_INCLUDES=""
-    for i in $GLIB_INCLUDES_TEMP;
-    do
-        GLIB_INCLUDES="$GLIB_INCLUDES$t\"$i\""
-        t=","
-    done
-fi
-
-AC_SUBST(GLIB_INCLUDES)
-AM_CONDITIONAL(PYTHON_ENABLED, [test "$enable_python" = "yes"])
-
-# Python build arguments for bitbake
-PYTHON_CONFIG([PYTHONPATH])
-PYTHON_CONFIG([BUILD_SYS])
-PYTHON_CONFIG([HOST_SYS])
-PYTHON_CONFIG([STAGING_INCDIR])
-PYTHON_CONFIG([STAGING_LIBDIR])
-PYTHON_CONFIG([INSTALL_LIB])
-PYTHON_CONFIG([INSTALL_DATA])
-
-PYTHON_EXECUTABLE=python
-PYTHON_CONFIG([PYTHON_EXECUTABLE])
-
 # Check if we should use PCRE for regexp matching.
 AC_ARG_ENABLE(pcre,
               [  --enable-pcre           enable PCRE regexp backend],
@@ -344,35 +144,6 @@ AC_SUBST(PCRE_CFLAGS)
 AC_SUBST(PCRE_LIBS)
 AC_SUBST(REGEXP_CFLAGS)
 AC_SUBST(REGEXP_LIBS)
-
-# Check if systemd socket-based activation was enabled.
-AC_ARG_ENABLE(systemd,
-              [  --enable-systemd       enable systemd socket-based activation],
-	      [enable_systemd=$enableval], [enable_systemd=auto])
-
-if test "$enable_systemd" != "no"; then
-    PKG_CHECK_MODULES(SYSTEMD, libsystemd-daemon,
-                      [have_systemd=yes], [have_systemd=no])
-    if test "$have_systemd" = "no"; then
-        PKG_CHECK_MODULES(SYSTEMD, libsystemd,
-                      [have_systemd=yes], [have_systemd=no])
-    fi
-    if test "$have_systemd" = "no" -a "$enable_systemd" = "yes"; then
-        AC_MSG_ERROR([Systemd development libraries not found.])
-    fi
-
-    enable_systemd="$have_systemd"
-else
-    AC_MSG_NOTICE([systemd support is disabled.])
-fi
-
-if test "$enable_systemd" = "yes"; then
-    AC_DEFINE([SYSTEMD_ENABLED], 1, [Enable systemd socket-based activation ?])
-fi
-
-AM_CONDITIONAL(SYSTEMD_ENABLED, [test "$enable_systemd" = "yes"])
-AC_SUBST(SYSTEMD_CFLAGS)
-AC_SUBST(SYSTEMD_LIBS)
 
 # Check for json(-c).
 PKG_CHECK_MODULES(JSON, [json], [have_json=yes], [have_json=no])
@@ -423,136 +194,6 @@ if test "$have_json_tokener_get_error" = "yes"; then
     AC_DEFINE([HAVE_JSON_TOKENER_GET_ERROR], 1, [json_tokener_get_error ?])
 fi
 
-# Check for libcap.
-PKG_CHECK_MODULES(LIBCAP, [libcap], [have_libcap=yes], [have_libcap=no])
-
-# Older libcap did not have pkg-config file. Try to deal with those.
-if test "$have_libcap" = "no"; then
-    AC_CHECK_HEADERS([sys/capability.h], [have_libcap=yes], [have_libcap=no])
-    AC_CHECK_LIB([cap], [cap_init], [have_libcap=yes], [have_libcap=no])
-fi
-
-if test "$have_libcap" = "no"; then
-    AC_MSG_ERROR([Required libcap library not found.])
-else
-    LIBCAP_CFLAGS=""
-    LIBCAP_LIBS="-lcap"
-fi
-
-AC_SUBST(LIBCAP_CFLAGS)
-AC_SUBST(LIBCAP_LIBS)
-
-# Check if support for Security Framework is enabled.
-AC_ARG_ENABLE(security,
-              [  --enable-security        enable support for Security Framework],
-	      [enable_security=$enableval], [enable_security=no])
-
-if test "$enable_security" = "yes"; then
-    PKG_CHECK_MODULES(SECURITY, security-manager cynara-client libsmack,
-                      [have_security=yes], [have_security=no])
-    if test "$have_security" = "no"; then
-        AC_MSG_ERROR([security-manager development libraries not found.])
-    fi
-else
-    AC_MSG_NOTICE([Security Framework support is disabled.])
-fi
-
-if test "$enable_security" = "yes"; then
-    AC_DEFINE([ENABLE_SECURITY_MANAGER], 1, [Enable Security Framework support ?])
-    AC_DEFINE([ENABLE_SMACK], 1, [Enable SMACK support ?])
-fi
-AM_CONDITIONAL(ENABLE_SECURITY_MANAGER, [test "$enable_security" = "yes"])
-AM_CONDITIONAL(ENABLE_SMACK,            [test "$enable_security" = "yes"])
-
-AC_SUBST(SECURITY_CFLAGS)
-AC_SUBST(SECURITY_LIBS)
-
-# Check for package manager backend
-AC_ARG_WITH(backend,
-            [  --with-backend           backend to use in package manager, eg. rpm4, rpm5],
-            [backend=$with_backend], [backend=none])            
-case $backend in
-     rpm4)
-        backend_type="rpm4"
-        PKG_CHECK_MODULES(LIBRPM, [rpm < 5.0], [have_rpm=yes], [have_rpm=no])
-        PKG_CHECK_MODULES(POPT, popt, [have_popt=yes], [have_popt=no])
-        
-        if test "$have_rpm" != "yes"; then
-           AC_MSG_ERROR([RPM4 or popt development libraries not found.])
-        fi
-        
-        AC_SUBST(LIBRPM_CFLAGS)
-        AC_SUBST(POPT_CFLAGS)
-        AC_SUBST(LIBRPM_LIBS)
-        AC_SUBST(POPT_LIBS)
-        ;;
-     rpm5)
-        backend_type="rpm5"
-        PKG_CHECK_MODULES(LIBRPM, [rpm >= 5.0], [have_rpm=yes], [have_rpm=no])
-        PKG_CHECK_MODULES(POPT, popt, [have_popt=yes], [have_popt=no])
-
-        if test "$have_rpm" != "yes" -o "$have_popt" != "yes"; then
-           AC_MSG_ERROR([RPM5 or popt development libraries not found.])
-        fi
-
-        AC_SUBST(LIBRPM_CFLAGS)
-        AC_SUBST(POPT_CFLAGS)
-        AC_SUBST(LIBRPM_LIBS)
-        AC_SUBST(POPT_LIBS)
-        ;;
-      none|no)
-        backend_type="none"
-        ;;
-     *)
-        AC_MSG_ERROR([invalid or missing package manager backend])
-        ;;
-esac
-AM_CONDITIONAL(BACKEND_RPM5, test "$backend_type" = "rpm5")
-AM_CONDITIONAL(BACKEND_RPM4, test "$backend_type" = "rpm4")
-AM_CONDITIONAL(BACKEND_DISABLED, test "$backend_type" = "none")
-AC_SUBST(BACKEND_TYPE, $backend_type)
-
-AC_ARG_WITH(package-prefix,
-            [  --with-package-prefix    package prefixe eg. iot-appfw],
-            [pkg_prefix="${with_package_prefix}-"], [pkg_prefix=""])
-AC_SUBST(PKG_PREFIX, $pkg_prefix)
-
-AC_ARG_WITH(appdir,
-            [  --with-appdir            application directory under HOME],
-            [appdir=${with_appdir}], [appdir=""])
-AC_SUBST(APPDIR, $appdir)
-
-# test user
-
-if test "$backend_type" != "none"; then
-    AC_ARG_WITH(sample-user, 
-                [  --with-sample-user       user for sample packages],
-                [sample_user="${with_sample_user}"], [sample_user=$USER])
-    AC_SUBST(SAMPLE_USER_NAME, [$sample_user])
-    AC_SUBST(SAMPLE_USER_ID, `id -u $sample_user`)
-fi
-
-# Enable/disable sample application.
-AC_ARG_ENABLE(sample-app,
-              [  --enable-sample-app    enable sample application],
-	      [enable_sample=$enableval], [enable_sample=auto])
-
-if test "$enable_sample" = "auto"; then
-    if test "${SAMPLE_USER_NAME}x" != "x" -a "$backend_type" != "none"; then
-        enable_sample=yes
-    else
-        enable_sample=no
-    fi
-fi
-
-AM_CONDITIONAL(BUILD_SAMPLES, [test "$enable_sample" = "yes" ])
-
-# Set up IoT CFLAGS and LIBS.
-IOT_CFLAGS=""
-IOT_LIBS=""
-AC_SUBST(IOT_CFLAGS)
-AC_SUBST(IOT_LIBS)
-
 # Allow substitution for LIBDIR and SYSCONFDIR.
 AC_MSG_CHECKING([libdir])
 AC_MSG_RESULT([$libdir])
@@ -569,61 +210,26 @@ AC_CONFIG_FILES([
         build-aux/shave
         build-aux/shave-libtool
         Makefile
-        utils/Makefile
         src/Makefile
         src/common/iot-common.pc
-        src/app/iot-app.pc
-        src/utils/iot-utils.pc
         src/common/iot-pulse.pc
         src/common/iot-ecore.pc
         src/common/iot-glib.pc
         src/common/iot-uv.pc
         src/common/iot-qt.pc
-        src/nodejs/binding.gyp
-        src/python/setup.py
-        src/package-manager/register/register-preinstalled-apps
-        src/package-manager/sample/hello-world.manifest
-    ], [
-        chmod +x src/package-manager/register/register-preinstalled-apps
-    ]
-)
+    ])
 AC_OUTPUT
 
 # Display the configuration.
 echo "----- configuration -----"
 echo "Extra C warnings flags: $WARNING_CFLAGS"
 echo "Debugging infra: $enable_debug_infra"
-echo "Development mode: $enable_devel_mode"
 echo "Cross-compiling: $cross_compiling"
 if test "$cross_compiling" != "no"; then
     echo "     * native compiler: $UNSHAVED_CC_FOR_BUILD"
 fi
-echo "PulseAudio mainloop support: $enable_pulse"
-echo "EFL/ecore mainloop support: $enable_ecore"
-echo "glib mainloop support: $enable_glib"
-echo "LIBUV mainloop support: $enable_libuv"
-echo "    * libuv shared library: $shared_libuv"
-if test "$LIBUV_SHARED" = "yes"; then
-    echo "    * libuv CFLAGS: $LIBUV_CFLAGS"
-    echo "    * libuv LIBS: $LIBUV_LIBS"
-fi
-echo "package manager backend: ${BACKEND_TYPE}"
-if test "$backend_type" != "none"; then
-    echo "sample user: ${SAMPLE_USER_NAME}(${SAMPLE_USER_ID})"
-fi
-echo "build sample packages: ${enable_sample}"
-echo "NodeJS bindings: ${NODEJS_ENABLED:-no}"
-if test "$NODEJS_ENABLED" = "yes"; then
-    echo "    * NodeJS prefix: $NODE_PREFIX"
-    echo "    * NodeJS path: $NODE_PREFIX/bin/node"
-    echo "    * NodeJS CXXFLAGS: $NODE_CXXFLAGS"
-    echo "    * NodeJS LIBS: $NODE_LIBS"
-fi
-echo "Python bindings: $enable_python"
-echo "Qt mainloop support: $enable_qt"
 if test "$enable_pcre" = "yes"; then
     echo "Using PCRE regexp backend."
 else
     echo "Using POSIX/libc regexp backend."
 fi
-echo "Systemd socket-based activation: $enable_systemd"

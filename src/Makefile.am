@@ -1,6 +1,5 @@
 SUBDIRS          = . # common/tests
 AM_CFLAGS        = $(WARNING_CFLAGS) $(AM_CPPFLAGS) $(PATHDEFS)
-IOT_CFLAGS       =
 pkgconfigdir     = ${libdir}/pkgconfig
 
 bin_PROGRAMS     =

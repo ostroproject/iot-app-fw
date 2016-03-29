@@ -1,8 +1,0 @@
-[Socket]
-ListenStream=@iot-launcher
-ListenStream=@iot-appfw
-Accept=false
-Accept=false
-
-[Install]
-WantedBy=sockets.target
