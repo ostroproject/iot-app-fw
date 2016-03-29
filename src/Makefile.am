@@ -133,35 +133,6 @@ SERVICE_TEMPLATES =       		\
 		generators/service/templates/ostro/*.{smpl,inc}
 
 ###################################
-# original proto template library
-#
-
-noinst_LIBRARIES += libjmpl.a
-noinst_PROGRAMS  += jmpl-test
-
-libjmpl_a_SOURCES =					\
-		jmpl/jmpl.c				\
-		jmpl/scanner.c				\
-		jmpl/parser.c				\
-		jmpl/eval.c				\
-		jmpl/symtab.c
-
-libjmpl_a_CFLAGS =					\
-		$(libcommon_a_CFLAGS)
-
-jmpl_test_SOURCES =					\
-		jmpl/jmpl-test.c
-
-jmpl_test_CFLAGS =					\
-		$(libjmpl_a_CFLAGS)
-
-jmpl_test_LDADD =					\
-		libjmpl.a				\
-		libcommon.a				\
-		$(JSON_LIBS)				\
-		-lm
-
-###################################
 # iot-exec
 #
 #
