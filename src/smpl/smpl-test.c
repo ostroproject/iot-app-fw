@@ -37,6 +37,8 @@
 #include <smpl/macros.h>
 #include <smpl/smpl.h>
 
+#define FN_CONCAT "CONCAT"
+
 
 typedef struct {
     smpl_t      *smpl;
@@ -179,6 +181,75 @@ static int fn_test(smpl_t *smpl, int argc, smpl_value_t *argv,
 }
 
 
+static int fn_concat(smpl_t *smpl, int argc, smpl_value_t *argv,
+                     smpl_value_t *rv, void *user_data)
+{
+    smpl_value_t *arg;
+    char         *p, buf[4096];
+    int           l, n, i;
+
+    IOT_UNUSED(user_data);
+
+    if (rv == NULL)
+        goto invalid_retval;
+
+    p = buf;
+    l = sizeof(buf) - 1;
+
+    for (i = 0, arg = argv; i < argc; i++, arg++) {
+        switch (arg->type) {
+        case SMPL_VALUE_STRING:
+            n = snprintf(p, l, "%s", arg->str);
+            break;
+        case SMPL_VALUE_INTEGER:
+            n = snprintf(p, l, "%d", arg->i32);
+            break;
+        case SMPL_VALUE_DOUBLE:
+            n = snprintf(p, l, "%f", arg->dbl);
+            break;
+        case SMPL_VALUE_UNSET:
+            n = 0;
+            break;
+        default:
+            goto invalid_arg;
+        }
+
+        if (n >= l)
+            goto overflow;
+
+        p += n;
+        l -= n;
+    }
+
+    *p = '\0';
+    rv->type    = SMPL_VALUE_STRING;
+    rv->str     = smpl_strdup(buf);
+    rv->dynamic = 1;
+
+    if (rv->str == NULL)
+        goto nomem;
+
+    return 0;
+
+ invalid_retval:
+    smpl_fail(-1, smpl, EINVAL,
+              "%s() called without a return value", FN_CONCAT);
+
+ invalid_arg:
+    rv->type = SMPL_VALUE_UNKNOWN;
+    smpl_fail(-1, smpl, EINVAL,
+              "%s() expects string, integer, or double arguments", FN_CONCAT);
+
+ overflow:
+    rv->type = SMPL_VALUE_UNKNOWN;
+    smpl_fail(-1, smpl, ENOBUFS, "%s() run out of buffer space", FN_CONCAT);
+
+ nomem:
+    rv->type = SMPL_VALUE_UNKNOWN;
+    return -1;
+}
+
+
 static int fn_check(smpl_t *smpl, int argc, smpl_value_t *argv,
                     smpl_value_t *rv, void *user_data)
 {
@@ -218,6 +289,11 @@ int main(int argc, char *argv[])
 
     if (smpl_register_function("TESTFN", fn_test, NULL) < 0) {
         smpl_error("Failed to register test function as TESTFN.");
+        exit(1);
+    }
+
+    if (smpl_register_function(FN_CONCAT, fn_concat, NULL) < 0) {
+        smpl_error("Failed to register test function as %s.", FN_CONCAT);
         exit(1);
     }
 

@@ -227,6 +227,28 @@ static inline char *skip_whitespace(smpl_t *smpl)
 }
 
 
+static inline char *skip_newline(smpl_t *smpl)
+{
+    smpl_input_t *in = smpl->parser->in;
+
+    /* don't skip anything if we have pushed back tokens pending */
+    if (smpl_list_empty(&smpl->parser->tknq)) {
+        if (*in->p == '\n') {
+            in->p++;
+            in->line++;
+        }
+    }
+
+    return in->p;
+}
+
+
+void parser_skip_newline(smpl_t *smpl)
+{
+    skip_newline(smpl);
+}
+
+
 static char *store_token(smpl_t *smpl, char *value, int len)
 {
     char *s;

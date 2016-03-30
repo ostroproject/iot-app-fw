@@ -494,6 +494,7 @@ int parse_markers(smpl_t *smpl, char *buf, const char *path);
 int parse_block(smpl_t *smpl, int flags, smpl_list_t *block, smpl_token_t *end);
 int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t);
 int parser_push_token(smpl_t *smpl, smpl_token_t *tkn);
+void parser_skip_newline(smpl_t *smpl);
 const char *token_name(int type);
 
 int preproc_push_file(smpl_t *smpl, const char *file);
