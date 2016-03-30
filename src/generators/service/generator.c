@@ -50,6 +50,9 @@ int main(int argc, char *argv[], char *env[])
         exit(1);
     }
 
+    if (g.update)
+        log_info("Running in update mode...");
+
     application_mount(&g);
     application_discover(&g);
     application_umount(&g);

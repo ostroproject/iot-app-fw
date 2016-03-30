@@ -61,6 +61,7 @@ static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
             "  -c, --config <path>    configuration to load\n"
             "  -t, --template <path>  template service file to use\n"
             "  -n, --dry-run          just print, don't generate anything\n"
+            "  -u, --update           process only touched manifests\n"
             "  -l, --log <path>       where to log to (default: /dev/kmsg)\n"
             "  -v, --verbose          increase logging verbosity\n"
             "  -d, --debug <site>     enable deugging for <site>\n"
@@ -92,11 +93,12 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
 
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 {
-#   define OPTIONS "c:t:nl:vd:h"
+#   define OPTIONS "c:t:nul:vd:h"
     static struct option options[] = {
         { "config"  , required_argument, NULL, 'c' },
         { "template", required_argument, NULL, 't' },
         { "dry-run" , no_argument      , NULL, 'n' },
+        { "update"  , no_argument      , NULL, 'u' },
         { "log"     , required_argument, NULL, 'l' },
         { "verbose" , no_argument      , NULL, 'v' },
         { "debug"   , required_argument, NULL, 'd' },
@@ -120,6 +122,10 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 
         case 'n':
             g->dry_run = 1;
+            break;
+
+        case 'u':
+            g->update = 1;
             break;
 
         case 'l':

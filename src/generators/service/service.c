@@ -34,6 +34,8 @@
 #include <math.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <iot/common/mm.h>
 #include <iot/common/file-utils.h>
@@ -60,9 +62,10 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
     s->provider = iot_strdup(provider);
     s->app      = iot_strdup(app);
     s->appdir   = iot_strdup(dir);
+    s->src      = iot_strdup(src);
     s->data     = iot_json_create(IOT_JSON_OBJECT);
 
-    if (!s->provider || !s->app || !s->appdir || !s->data)
+    if (!s->provider || !s->app || !s->appdir || !s->src || !s->data)
         goto nomem;
 
     iot_json_add(s->data, "path", o = iot_json_create(IOT_JSON_OBJECT));
@@ -182,9 +185,22 @@ void service_abort(service_t *s)
 }
 
 
-static int service_process(service_t *s)
+static int service_uptodate(service_t *s)
 {
-    return template_eval(s);
+    generator_t *g = s->g;
+    char         path[PATH_MAX];
+    struct stat  manifest, service;
+
+    if (!g->update)
+        return 0;
+
+    if (!fs_service_path(s, path, sizeof(path)))
+        return 0;
+
+    if (stat(path, &service) < 0 || stat(s->src, &manifest) < 0)
+        return 0;
+
+    return service.st_mtime >= manifest.st_mtime;
 }
 
 
@@ -196,9 +212,15 @@ int service_generate(generator_t *g)
     iot_list_foreach(&g->services, p, n) {
         s = iot_list_entry(p, typeof(*s), hook);
 
-        log_info("Generating service file for %s/%s...", s->provider, s->app);
+        if (service_uptodate(s))
+            log_info("Skipping up-to-date service file for %s/%s...",
+                     s->provider, s->app);
+        else {
+            log_info("Generating service file for %s/%s...",
+                     s->provider, s->app);
 
-        service_process(s);
+            template_eval(s);
+        }
     }
 
     return g->status;

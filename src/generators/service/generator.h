@@ -31,6 +31,8 @@
 #define __SERVICE_GENERATOR_H__
 
 #include <syslog.h>
+#include <utime.h>
+#include <sys/types.h>
 
 #include <iot/common/macros.h>
 #include <iot/common/log.h>
@@ -101,6 +103,7 @@ struct generator_s {
     const char      *path_template;      /* template file path */
     const char      *log_path;           /* where to log to */
     int              dry_run : 1;        /* just a dry-run, don't generate */
+    int              update : 1;         /* whether to run in update mode */
     int              premounted : 1;     /* whether dir_apps was mounted */
     int              status;             /* service generation status */
     iot_json_t      *cfg;                /* optional configuration */
@@ -218,6 +221,7 @@ struct service_s {
     char            *provider;           /* application provider */
     char            *app;                /* application name */
     char            *appdir;             /* application directory */
+    char            *src;                /* mannifest source path */
     iot_json_t      *m;                  /* application manifest */
     iot_json_t      *data;               /* template configuration data */
     char            *output;             /* generated service file content */
