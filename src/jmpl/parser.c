@@ -1367,8 +1367,10 @@ jmpl_t *jmpl_parse(const char *str)
 
     iot_list_init(&jmpl->hook);
 
-    if (parser_init(&jp, str) < 0)
+    if (parser_init(&jp, str) < 0) {
+        iot_free(jmpl);
         return NULL;
+    }
 
     iot_debug("begin marker: '%s'", jp.mbeg);
     iot_debug("  end marker: '%s'", jp.mend);
