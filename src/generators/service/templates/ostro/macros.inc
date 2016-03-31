@@ -3,7 +3,7 @@
 {macro} A   {do}/apps/{data.provider}/{data.manifest.application}{end}
 {macro} CIF {do}
 .               {truncate}({concat}('ve-', {data.provider},
-.                                   '-', {data.manifest.application}), 15) \
+.                                   '-', {data.manifest.application}), 15)
 {end}
 {macro} IPT {do}/usr/sbin/iptables{end}
 
