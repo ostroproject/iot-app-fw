@@ -1180,7 +1180,7 @@ static jmpl_insn_t *parse_trailchk(jmpl_parser_t *jp, int type, char *val)
     switch (type) {
     case JMPL_TKN_ISTRAIL:  kind = "istrail";  op = JMPL_OP_ISTRAIL;  break;
     case JMPL_TKN_NOTTRAIL: kind = "nottrail"; op = JMPL_OP_NOTTRAIL; break;
-    default:                kind = "unknown";  break;
+    default:                iot_debug("invalid type %d", type); return NULL;
     }
 
     iot_debug("<%s>", kind);
