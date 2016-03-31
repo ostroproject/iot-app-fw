@@ -158,8 +158,9 @@ static jmpl_symval_t *push_value(int32_t id, int type, void *v)
 
     return val;
 
- invalid_id:
  invalid_value:
+    iot_free(val);
+ invalid_id:
     errno = EINVAL;
  nomem:
     return NULL;
