@@ -97,6 +97,7 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
         iot_free(s->provider);
         iot_free(s->app);
         iot_free(s->appdir);
+        iot_free(s);
     }
 
     iot_json_unref(manifest);

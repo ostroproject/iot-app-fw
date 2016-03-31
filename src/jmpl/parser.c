@@ -1112,7 +1112,7 @@ static jmpl_insn_t *parse_loopchk(jmpl_parser_t *jp, int type)
     case JMPL_TKN_NONFIRST: kind = "nonfirst"; op = JMPL_OP_NONFIRST; break;
     case JMPL_TKN_ISLAST:   kind = "islast";   op = JMPL_OP_ISLAST;   break;
     case JMPL_TKN_NONLAST:  kind = "nonlast";  op = JMPL_OP_NONLAST;  break;
-    default:                kind = "unknown";  break;
+    default:                iot_debug("invalid type %d", type); return NULL;
     }
 
     iot_debug("<%s>", kind);
@@ -1180,7 +1180,7 @@ static jmpl_insn_t *parse_trailchk(jmpl_parser_t *jp, int type, char *val)
     switch (type) {
     case JMPL_TKN_ISTRAIL:  kind = "istrail";  op = JMPL_OP_ISTRAIL;  break;
     case JMPL_TKN_NOTTRAIL: kind = "nottrail"; op = JMPL_OP_NOTTRAIL; break;
-    default:                kind = "unknown";  break;
+    default:                iot_debug("invalid type %d", type); return NULL;
     }
 
     iot_debug("<%s>", kind);
@@ -1367,8 +1367,10 @@ jmpl_t *jmpl_parse(const char *str)
 
     iot_list_init(&jmpl->hook);
 
-    if (parser_init(&jp, str) < 0)
+    if (parser_init(&jp, str) < 0) {
+        iot_free(jmpl);
         return NULL;
+    }
 
     iot_debug("begin marker: '%s'", jp.mbeg);
     iot_debug("  end marker: '%s'", jp.mend);

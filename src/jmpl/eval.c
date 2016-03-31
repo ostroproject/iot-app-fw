@@ -479,8 +479,8 @@ static int eval_loopchk(jmpl_t *jmpl, jmpl_loopchk_t *jlc)
 static int eval_trailchk(jmpl_t *jmpl, jmpl_trailchk_t *jtc)
 {
     iot_list_hook_t *branch;
-    int              match;
-    const char      *kind, *trail;
+    int              match = 0;
+    const char      *kind, *trail = NULL;
 
     switch (jtc->type) {
     case JMPL_OP_ISTRAIL:  kind = "istrail";  break;
