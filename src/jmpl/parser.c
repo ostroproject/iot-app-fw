@@ -1112,7 +1112,7 @@ static jmpl_insn_t *parse_loopchk(jmpl_parser_t *jp, int type)
     case JMPL_TKN_NONFIRST: kind = "nonfirst"; op = JMPL_OP_NONFIRST; break;
     case JMPL_TKN_ISLAST:   kind = "islast";   op = JMPL_OP_ISLAST;   break;
     case JMPL_TKN_NONLAST:  kind = "nonlast";  op = JMPL_OP_NONLAST;  break;
-    default:                kind = "unknown";  break;
+    default:                iot_debug("invalid type %d", type); return NULL;
     }
 
     iot_debug("<%s>", kind);
