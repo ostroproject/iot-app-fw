@@ -52,6 +52,7 @@ iot_regexp_t *iot_regexp_compile(const char *pattern, int flags)
     return NULL;
 
  invalid:
+    iot_free(re);
     errno = EINVAL;
     return NULL;
 }
