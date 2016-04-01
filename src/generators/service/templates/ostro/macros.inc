@@ -25,7 +25,10 @@
 
 {macro} NETWORK(container) {do}
 .   {if} ({container.network} == 'VirtualEthernet') {then}
-........--private-network --network-veth --auto-dhcp \
+........--private-network --network-veth \
+........{if} ({container.type} != 'nspawn-system') {then}
+............--auto-dhcp \
+........{end}
 .   {end}
     {foreach} e {in} {container.portmap} {do} -p {e.proto}:{e.host}:{e.container} {end}
 {end}
@@ -38,7 +41,7 @@
 {end}
 
 {macro} FW-CLOSE(container) {do}
-.    ExecStopPost={IPT} -t nat -D FORWARD -o {CIF} -j ACCEPT
+.    ExecStopPost={IPT} -t filter -D FORWARD -o {CIF} -j ACCEPT
 .    {foreach} e {in} {container.portmap} {do}
 ..........ExecStopPost={IPT} -t filter -D INPUT -p {e.proto} --dport {e.host} -j ACCEPT
 .    {end}
