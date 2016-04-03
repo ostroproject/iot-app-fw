@@ -15,11 +15,15 @@ SourcePath={data.path.manifest}
 Description={data.manifest.description}
 
 [Service]
-{ENVIRONMENT}
-{GROUPS}
+{ENVIRONMENT}({data.manifest})
+{GROUPS}({data.manifest})
 
 {switch} ({data.manifest.container.type}) {in}
 {case} 'nspawn'        {do}{include} 'nspawn-basic.inc'{end}
 {case} 'nspawn-shared' {do}{include} 'nspawn-basic.inc'{end}
 {case} 'nspawn-system' {do}{include} 'nspawn-system.inc'{end}
+{case} 'none'          {do}{include} 'no-container.inc'{end}
 {end}
+
+[Install]
+WantedBy=applications.target

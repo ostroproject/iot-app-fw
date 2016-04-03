@@ -6,8 +6,9 @@ ExecStart=/usr/bin/systemd-nspawn \
     --keep-unit \
 .   {if} ({data.manifest.container.type} == 'nspawn-shared') {then}
 ....    --share-system \
+....{else}
+....--as-pid2 \
 .   {end}
-    --as-pid2 \
     -M {U} \
     -D {C} \
     --user={U} \

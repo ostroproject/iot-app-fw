@@ -11,15 +11,19 @@
 {macro} OVERLAY-RO(path)  {do}--overlay-ro={path}:{A}{path}:{path}{end}
 {macro} TMPFS(path, mode) {do}--tmpfs={path}:mode={mode}{end}
 
-{macro} ENVIRONMENT {do}
-.   {foreach} name:value {in}{data.manifest.environment} {do}
+{macro} ENVIRONMENT(manifest) {do}
+.   {foreach} name:value {in}{manifest.environment} {do}
 .       Environment={name}={value}
+.   {end}
+.   {if} (!{manifest.container} || {manifest.container.type} == 'none') {then}
+.       Environment=LD_LIBRARY_PATH={A}/lib:/lib:/usr/lib
+.       Environment=PATH={A}/bin:{A}/sbin:/bin:/usr/bin:/sbin:/usr/sbin
 .   {end}
 {end}
 
-{macro} GROUPS {do}
-.   {if} ({data.manifest.groups}) {then}
-.       SupplementaryGroups={foreach}:g{in} {data.manifest.groups} {do}{g} {end}
+{macro} GROUPS(manifest) {do}
+.   {if} ({manifest.groups}) {then}
+.       SupplementaryGroups={foreach}:g{in} {manifest.groups} {do}{g} {end}
 .   {end}
 {end}
 
@@ -27,21 +31,25 @@
 .   {if} ({container.network} == 'VirtualEthernet') {then}
 ........--private-network --network-veth \
 ........{if} ({container.type} != 'nspawn-system') {then}
-............--auto-dhcp \
+........    --auto-dhcp \
 ........{end}
 .   {end}
     {foreach} e {in} {container.portmap} {do} -p {e.proto}:{e.host}:{e.container} {end}
 {end}
 
 {macro} FW-OPEN(container) {do}
-.    ExecStartPre={IPT} -t filter -I FORWARD -o {CIF} -j ACCEPT
+.    {if} ({container.type} != 'none') {then}
+.        ExecStartPre={IPT} -t filter -I FORWARD -o {CIF} -j ACCEPT
+.    {end}
 .    {foreach} e {in} {container.portmap} {do}
 ..........ExecStartPre={IPT} -t filter -I INPUT -p {e.proto} --dport {e.host} -j ACCEPT
 .    {end}
 {end}
 
 {macro} FW-CLOSE(container) {do}
-.    ExecStopPost={IPT} -t filter -D FORWARD -o {CIF} -j ACCEPT
+.    {if} ({container.type} != 'none') {then}
+.        ExecStopPost={IPT} -t filter -D FORWARD -o {CIF} -j ACCEPT
+.    {end}
 .    {foreach} e {in} {container.portmap} {do}
 ..........ExecStopPost={IPT} -t filter -D INPUT -p {e.proto} --dport {e.host} -j ACCEPT
 .    {end}
