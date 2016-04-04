@@ -36,6 +36,8 @@ smpl_t *smpl_create(char ***errbuf)
 {
     smpl_t *smpl;
 
+    builtin_register();
+
     if (errbuf != NULL)
         *errbuf = NULL;
 

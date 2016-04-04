@@ -41,6 +41,7 @@
 #define SMPL_CDECL_BEGIN IOT_CDECL_BEGIN
 #define SMPL_CDECL_END   IOT_CDECL_END
 #define SMPL_PRINTF_LIKE IOT_PRINTF_LIKE
+#define SMPL_INIT        IOT_INIT
 
 /* mm.h */
 #define smpl_clear         iot_clear

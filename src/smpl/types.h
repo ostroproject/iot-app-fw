@@ -536,6 +536,8 @@ int function_call(smpl_t *smpl, smpl_function_t *f, int narg, smpl_value_t *args
                   smpl_value_t *rv);
 int function_eval(smpl_t *smpl, smpl_insn_call_t *c);
 
+void builtin_register(void);
+
 int text_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block);
 void text_free(smpl_insn_t *insn);
 void text_dump(smpl_t *smpl, int fd, smpl_insn_text_t *text, int indent);

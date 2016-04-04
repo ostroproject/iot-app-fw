@@ -68,6 +68,7 @@ libsmpl_a_SOURCES =					\
 		smpl/template-branch.c			\
 		smpl/template-loop.c			\
 		smpl/template-switch.c			\
+		smpl/builtin-functions.c		\
 		smpl/buffer.c				\
 		smpl/varref.c				\
 		smpl/expr.c				\
