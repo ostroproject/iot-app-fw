@@ -214,14 +214,16 @@ int smpl_printf(smpl_t *smpl, const char *fmt, ...)
 }
 
 
-char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors)
+char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors,
+                    void *user_data)
 {
     char *result;
 
     if (errors != NULL)
         *errors = NULL;
 
-    smpl->errors = errors;
+    smpl->errors    = errors;
+    smpl->user_data = user_data;
 
     if (symtbl_push(smpl, smpl->data, SMPL_VALUE_OBJECT, data) < 0)
         goto data_fail;

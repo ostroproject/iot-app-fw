@@ -87,6 +87,7 @@ struct smpl_s {
     smpl_sym_t       data;               /* global data symbol id */
     smpl_list_t      macros;             /* template macros */
     smpl_list_t      functions;          /* template-specific functions */
+    void            *user_data;          /* function callback user data */
     smpl_list_t      body;               /* template body to evaluate */
     char          ***errors;             /* user error buffer */
     int              nerror;             /* number of errors */

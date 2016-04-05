@@ -94,9 +94,10 @@ smpl_data_t *smpl_load_data(const char *path, char ***errors);
  *
  * Evaluate the given template in the context of the given data.
  *
- * @param [in]  smpl    template to evaluete
- * @param [in]  data    data to use for evaluation
- * @param [out] errors  pointer used for returning errors, can be @NULL
+ * @param [in]  smpl       template to evaluete
+ * @param [in]  data       data to use for evaluation
+ * @param [out] errors     pointer for returning errors, can be @NULL
+ * @param [in]  user_data  opaque user_data for function callbacks
  *
  * @return Returns the string produced by template evaluation. In case
  *         of error, @NULL is returned and @errno is set to a value
@@ -104,7 +105,8 @@ smpl_data_t *smpl_load_data(const char *path, char ***errors);
  *         it is set to a NULL-terminated array of messages describing
  *         the reason for failure.
  */
-char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors);
+char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors,
+                    void *user_data);
 
 /**
  * @brief Free a template.

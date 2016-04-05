@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
 
     smpl_dump_template(t.smpl, fileno(stdout));
 
-    str = smpl_evaluate(t.smpl, t.data, &errors);
+    str = smpl_evaluate(t.smpl, t.data, &errors, NULL);
 
     if (str == NULL) {
         smpl_error("Failed to evaluate template file '%s' with data '%s'.",
