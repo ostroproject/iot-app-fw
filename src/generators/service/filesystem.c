@@ -186,3 +186,11 @@ char *fs_service_link(service_t *s, char *path, size_t size)
     return fs_mkpath(path, size, "%s/applications.target.wants/%s-%s.service",
                      s->g->dir_service, s->provider, s->app);
 }
+
+
+char *fs_firewall_path(service_t *s, char *path, size_t size)
+{
+    return fs_mkpath(path, size, "%s/%s-%s-firewall.service", s->g->dir_service,
+                     s->provider, s->app);
+}
+

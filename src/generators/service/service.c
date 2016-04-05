@@ -58,7 +58,8 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 
     s->g        = g;
     s->m        = manifest;
-    s->fd       = -1;
+    s->sfd      = -1;
+    s->ffd      = -1;
     s->provider = iot_strdup(provider);
     s->app      = iot_strdup(app);
     s->appdir   = iot_strdup(dir);
@@ -78,6 +79,8 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
     if (!iot_json_add_string(o, "generator", g->argv0))
         goto nomem;
     if (!iot_json_add_string(o, "template", g->path_template))
+        goto nomem;
+    if (!iot_json_add_string(o, "firewall", g->path_firewall))
         goto nomem;
     if (!iot_json_add_string(o, "manifest", src))
         goto nomem;
@@ -113,33 +116,48 @@ static int service_open(service_t *s)
 {
     char path[PATH_MAX];
 
-    if (s->g->dry_run)
-        s->fd = dup(fileno(stdout));
+    if (s->g->dry_run) {
+        s->sfd = dup(fileno(stdout));
+        s->ffd = dup(fileno(stdout));
+    }
     else {
         if (!fs_service_path(s, path, sizeof(path)))
             goto fail;
 
         log_info("Writing service file %s...", path);
 
-        s->fd = open(path, O_CREAT | O_WRONLY, 0644);
+        s->sfd = open(path, O_CREAT | O_WRONLY, 0644);
+
+        if (s->firewall != NULL) {
+            if (!fs_firewall_path(s, path, sizeof(path)))
+                goto fail;
+
+            log_info("Writing firewall file %s...", path);
+
+            s->ffd = open(path, O_CREAT | O_WRONLY, 0644);
+        }
     }
 
-    if (s->fd < 0)
+    if (s->sfd < 0 || (s->firewall != NULL && s->ffd < 0))
         goto fail;
 
     return 0;
 
  fail:
+    close(s->sfd);
+    close(s->ffd);
+    s->sfd = s->ffd = -1;
+
     return -1;
 }
 
 
 static void service_close(service_t *s)
 {
-    if (s->fd >= 0) {
-        close(s->fd);
-        s->fd = -1;
-    }
+    close(s->sfd);
+    close(s->ffd);
+    s->sfd = -1;
+    s->ffd = -1;
 }
 
 
@@ -176,12 +194,15 @@ void service_abort(service_t *s)
 {
     char path[PATH_MAX];
 
-    if (s->fd >= 0) {
-        close(s->fd);
-        s->fd = -1;
-    }
+    close(s->sfd);
+    close(s->ffd);
+    s->sfd = -1;
+    s->ffd = -1;
 
     if (fs_service_path(s, path, sizeof(path)))
+        unlink(path);
+
+    if (s->firewall != NULL && fs_firewall_path(s, path, sizeof(path)))
         unlink(path);
 }
 
@@ -253,18 +274,18 @@ static int service_dump(service_t *s)
     int l, n;
     char *p;
 
-    if (s->output == NULL)
+    if (s->service == NULL)
         return -1;
 
     if (service_open(s) < 0)
         return -1;
 
-    p = s->output;
+    p = s->service;
     l = strlen(p);
     n = 0;
 
     while (l > 0) {
-        n = write(s->fd, p, l);
+        n = write(s->sfd, p, l);
 
         if (n < 0) {
             if (errno == EAGAIN)
@@ -275,6 +296,26 @@ static int service_dump(service_t *s)
 
         p += n;
         l -= n;
+    }
+
+    if (s->firewall != NULL) {
+        p = s->firewall;
+        l = strlen(p);
+        n = 0;
+
+        while (l > 0) {
+            n = write(s->ffd, p, l);
+
+            if (n < 0) {
+                if (errno == EAGAIN)
+                    continue;
+                else
+                    goto fail;
+            }
+
+            p += n;
+            l -= n;
+        }
     }
 
     service_close(s);

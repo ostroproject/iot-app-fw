@@ -59,7 +59,8 @@ static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
             "\n"
             "The possible opions are:\n"
             "  -c, --config <path>    configuration to load\n"
-            "  -t, --template <path>  template service file to use\n"
+            "  -T, --template <path>  service template file to use\n"
+            "  -F, --firewall <path>  firewall template file to use\n"
             "  -n, --dry-run          just print, don't generate anything\n"
             "  -u, --update           process only touched manifests\n"
             "  -l, --log <path>       where to log to (default: /dev/kmsg)\n"
@@ -86,6 +87,7 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
     g->dir_apps      = PATH_APPS;
     g->path_config   = PATH_CONFIG;
     g->path_template = PATH_TEMPLATE;
+    g->path_firewall = PATH_FIREWALL;
 
     iot_log_set_mask(IOT_LOG_MASK_ERROR | IOT_LOG_MASK_WARNING);
 }
@@ -93,10 +95,11 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
 
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 {
-#   define OPTIONS "c:t:nul:vd:h"
+#   define OPTIONS "c:T:F:nul:vd:h"
     static struct option options[] = {
         { "config"  , required_argument, NULL, 'c' },
-        { "template", required_argument, NULL, 't' },
+        { "template", required_argument, NULL, 'T' },
+        { "firewall", required_argument, NULL, 'F' },
         { "dry-run" , no_argument      , NULL, 'n' },
         { "update"  , no_argument      , NULL, 'u' },
         { "log"     , required_argument, NULL, 'l' },
@@ -116,8 +119,12 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
             g->path_config = optarg;
             break;
 
-        case 't':
+        case 'T':
             g->path_template = optarg;
+            break;
+
+        case 'F':
+            g->path_firewall = optarg;
             break;
 
         case 'n':

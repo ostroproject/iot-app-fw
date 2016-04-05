@@ -63,6 +63,10 @@
 #    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.smpl"
 #endif
 
+#ifndef PATH_FIREWALL
+#    define PATH_FIREWALL LIBEXECDIR"/iot-app-fw/firewall.smpl"
+#endif
+
 /* Directory where applications are installed. */
 #define PATH_APPS "/apps"
 
@@ -101,6 +105,7 @@ struct generator_s {
     const char      *dir_service;        /* service (output) directory */
     const char      *path_config;        /* configuration path */
     const char      *path_template;      /* template file path */
+    const char      *path_firewall;      /* firewall template path */
     const char      *log_path;           /* where to log to */
     int              dry_run : 1;        /* just a dry-run, don't generate */
     int              update : 1;         /* whether to run in update mode */
@@ -108,6 +113,7 @@ struct generator_s {
     int              status;             /* service generation status */
     iot_json_t      *cfg;                /* optional configuration */
     smpl_t          *template;           /* service template */
+    smpl_t          *firewall;           /* firewall template */
     iot_list_hook_t  services;           /* generated service( file)s */
     iot_list_hook_t  preprocessors;      /* manifest preprocessors */
 };
@@ -143,6 +149,7 @@ int fs_umount(const char *path);
 int fs_symlink(const char *path, const char *dst);
 char *fs_service_path(service_t *s, char *path, size_t size);
 char *fs_service_link(service_t *s, char *path, size_t size);
+char *fs_firewall_path(service_t *s, char *path, size_t size);
 
 #define fs_accessible(_path, _mode) (access((_path), (_mode)) == 0)
 #define fs_readable(_path) fs_accessible(_path, R_OK)
@@ -224,13 +231,15 @@ struct service_s {
     char            *src;                /* mannifest source path */
     iot_json_t      *m;                  /* application manifest */
     iot_json_t      *data;               /* template configuration data */
-    char            *output;             /* generated service file content */
-    int              fd;                 /* service file */
+    char            *service;            /* generated basic service */
+    char            *firewall;           /*   and firewall service */
+    int              sfd;                /* basic service file */
+    int              ffd;                /* firewall service file */
     const char      *user;               /* user to run service as */
     const char      *group;              /* group to run service as */
     iot_json_t      *argv;               /* user command to execute */
     int              autostart : 1;      /* wants started on boot */
-    int              firewall : 1;       /* needs firewall manipulation */
+    int              needsfw : 1;        /* needs firewall manipulation */
 };
 
 

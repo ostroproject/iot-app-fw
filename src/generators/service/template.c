@@ -70,73 +70,83 @@ static void register_functions(void)
 
 int template_load(generator_t *g)
 {
-    char **errors;
+    char **errors, **e;
 
     register_functions();
 
     g->template = smpl_load_template(g->path_template, &errors);
 
-    if (g->template != NULL)
-        return 0;
-    else {
-        int i;
+    if (g->template == NULL)
+        goto service_error;
 
-        log_error("Failed to load template file '%s'.", g->path_template);
+    g->firewall = smpl_load_template(g->path_firewall, &errors);
 
-        if (errors != NULL) {
-            for (i = 0; errors[i] != NULL; i++)
-                log_error("error: %s", errors[i]);
-            smpl_errors_free(errors);
-        }
+    if (g->firewall == NULL)
+        goto firewall_error;
 
-        return -1;
+    return 0;
+
+ service_error:
+    log_error("Failed to load service template file '%s'.", g->path_template);
+    goto dump_errors;
+
+ firewall_error:
+    log_error("Failed to load firewall template file '%s'.", g->path_firewall);
+
+ dump_errors:
+    if (errors != NULL) {
+        for (e = errors; *e != NULL; e++)
+            log_error("error: %s", *e);
+        smpl_errors_free(errors);
     }
+
+    smpl_free_template(g->template);
+    g->template = NULL;
+
+    return -1;
 }
 
 
 void template_destroy(generator_t *g)
 {
     smpl_free_template(g->template);
+    smpl_free_template(g->firewall);
     g->template = NULL;
+    g->firewall = NULL;
 }
 
 
 int template_eval(service_t *s)
 {
-    char **errors;
+    char **errors, **e;
 
-    s->output = smpl_evaluate(s->g->template, s->data, &errors, s);
+    s->service = smpl_evaluate(s->g->template, s->data, &errors, s);
 
-    if (s->output != NULL) {
+    if (errors != NULL) {
+        log_error("Service template failed for %s / %s.", s->provider, s->app);
+        goto dump_errors;
+    }
+
+    if (s->needsfw) {
+        s->firewall = smpl_evaluate(s->g->firewall, s->data, &errors, s);
+
         if (errors != NULL) {
-            int i;
-
-            log_error("template for %s / %s evaluated with errors:",
+            log_error("Firewall template failed for %s / %s.",
                       s->provider, s->app);
-
-            if (errors != NULL) {
-                for (i = 0; errors[i] != NULL; i++)
-                    log_error("error: %s", errors[i]);
-                smpl_errors_free(errors);
-            }
+            goto dump_errors;
         }
-
-        return 0;
     }
-    else {
-        int i;
 
-        log_error("Failed to generate service file for %s / %s.",
-                  s->provider, s->app);
+    return 0;
 
-        if (errors != NULL) {
-            for (i = 0; errors[i] != NULL; i++)
-                log_error("error: %s", errors[i]);
-            smpl_errors_free(errors);
-        }
-
-        return -1;
+ dump_errors:
+    if (errors != NULL) {
+        for (e = errors; *e; e++)
+            log_error("error: %s", *e);
+        smpl_errors_free(errors);
     }
+
+    return -1;
 }
 
 
@@ -286,7 +296,7 @@ static int fn_dropin(smpl_t *smpl, int argc, smpl_value_t *argv,
         if (!strcmp(a->str, "autostart"))
             s->autostart = 1;
         else if (!strcmp(a->str, "firewall" ))
-            s->firewall  = 1;
+            s->needsfw = 1;
         else
             goto unknown_dropin;
     }
