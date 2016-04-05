@@ -27,3 +27,6 @@ Description={data.manifest.description}
 
 [Install]
 WantedBy=applications.target
+
+{FW-CHECK}({data.manifest.container})
+{AUTOSTART-CHECK}({data.manifest})

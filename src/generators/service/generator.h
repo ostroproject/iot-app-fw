@@ -229,7 +229,8 @@ struct service_s {
     const char      *user;               /* user to run service as */
     const char      *group;              /* group to run service as */
     iot_json_t      *argv;               /* user command to execute */
-    int              autostart : 1;      /* whether to start on boot */
+    int              autostart : 1;      /* wants started on boot */
+    int              firewall : 1;       /* needs firewall manipulation */
 };
 
 

@@ -2,7 +2,7 @@
 {macro} C   {do}{data.path.container}/{U}-root{end}
 {macro} A   {do}/apps/{data.provider}/{data.manifest.application}{end}
 {macro} CIF {do}
-.               {truncate}({concat}('ve-', {data.provider},
+.               {TRUNCATE}({CONCAT}('ve-', {data.provider},
 .                                   '-', {data.manifest.application}), 15)
 {end}
 {macro} IPT {do}/usr/sbin/iptables{end}
@@ -37,6 +37,12 @@
     {foreach} e {in} {container.portmap} {do} -p {e.proto}:{e.host}:{e.container} {end}
 {end}
 
+{macro} FW-CHECK(container) {do}
+.    {if} ({container.portmap} || {container.type} != 'none') {then}
+.        {REQUEST-DROPIN}('firewall')
+.    {end}
+{end}
+
 {macro} FW-OPEN(container) {do}
 .    {if} ({container.type} != 'none') {then}
 .        ExecStartPre={IPT} -t filter -I FORWARD -o {CIF} -j ACCEPT
@@ -57,4 +63,11 @@
 
 {macro} COMMAND(command) {do}
 .    {foreach} arg {in} {command} {do}{arg} {end}
+{end}
+
+{macro} AUTOSTART-CHECK(manifest) {do}
+.    {if} ({manifest.autostart} == 'true' ||
+           {manifest.autostart} == 'yes') {then}
+.        {REQUEST-DROPIN}('autostart')
+.    {end}
 {end}

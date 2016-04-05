@@ -29,13 +29,17 @@
 
 #include "generator.h"
 
-#define FN_TRUNCATE "truncate"
-#define FN_CONCAT   "concat"
+#define FN_TRUNCATE "TRUNCATE"
+#define FN_CONCAT   "CONCAT"
+#define FN_DROPIN   "REQUEST-DROPIN"
 
 static int fn_truncate(smpl_t *smpl, int argc, smpl_value_t *argv,
                        smpl_value_t *rv, void *user_data);
 
 static int fn_concat(smpl_t *smpl, int argc, smpl_value_t *argv,
+                     smpl_value_t *rv, void *user_data);
+
+static int fn_dropin(smpl_t *smpl, int argc, smpl_value_t *argv,
                      smpl_value_t *rv, void *user_data);
 
 static void register_functions(void)
@@ -52,6 +56,11 @@ static void register_functions(void)
 
     if (smpl_register_function(FN_CONCAT, fn_concat, NULL) < 0) {
         log_error("Failed to register template function '%s'", FN_CONCAT);
+        exit(1);
+    }
+
+    if (smpl_register_function(FN_DROPIN, fn_dropin, NULL) < 0) {
+        log_error("Failed to register template function '%s'", FN_DROPIN);
         exit(1);
     }
 
@@ -96,7 +105,7 @@ int template_eval(service_t *s)
 {
     char **errors;
 
-    s->output = smpl_evaluate(s->g->template, s->data, &errors);
+    s->output = smpl_evaluate(s->g->template, s->data, &errors, s);
 
     if (s->output != NULL) {
         if (errors != NULL) {
@@ -254,4 +263,39 @@ static int fn_concat(smpl_t *smpl, int argc, smpl_value_t *argv,
  nomem:
     rv->type = SMPL_VALUE_UNKNOWN;
     return -1;
+}
+
+
+static int fn_dropin(smpl_t *smpl, int argc, smpl_value_t *argv,
+                     smpl_value_t *rv, void *user_data)
+{
+    service_t    *s = (service_t *)smpl->user_data;
+    smpl_value_t *a;
+    int           i;
+    const char   *what;
+
+    SMPL_UNUSED(user_data);
+    SMPL_UNUSED(rv);
+
+    for (i = 0, a = argv; i < argc; i++, a++) {
+        if (a->type != SMPL_VALUE_STRING)
+            goto invalid_dropin;
+
+        what = a->str;
+
+        if (!strcmp(a->str, "autostart"))
+            s->autostart = 1;
+        else if (!strcmp(a->str, "firewall" ))
+            s->firewall  = 1;
+        else
+            goto unknown_dropin;
+    }
+
+    return 0;
+
+ unknown_dropin:
+    what = NULL;
+ invalid_dropin:
+    smpl_fail(-1, smpl, EINVAL, "invalid dropin %s%s%srequested",
+              what ? "'" : "", what ? what : "", what ? "' " : "");
 }

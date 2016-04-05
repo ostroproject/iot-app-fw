@@ -303,6 +303,10 @@ int service_write(generator_t *g)
 
         if (service_dump(s) < 0)
             g->status = -1;
+
+        iot_debug("* %s-%s:", s->provider, s->app);
+        iot_debug("    autostart: %s", s->autostart ? "yes" : "no");
+        iot_debug("    firewall:  %s", s->firewall  ? "yes" : "no");
     }
 
     return 0;

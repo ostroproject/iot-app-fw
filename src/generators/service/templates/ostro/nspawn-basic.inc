@@ -1,6 +1,7 @@
 Type=notify
 ExecStartPre=/bin/mkdir -p {C}/dev/../sys/../proc/../etc/../usr
 ExecStartPre=/bin/mkdir -p {C}/var/../run/../tmp/../home/../root
+{FW-CHECK}({data.manifest.container})
 {FW-OPEN}({data.manifest.container})
 ExecStart=/usr/bin/systemd-nspawn \
     --keep-unit \
