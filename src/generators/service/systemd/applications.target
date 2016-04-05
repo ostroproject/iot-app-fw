@@ -1,0 +1,17 @@
+#
+# Ostro target for autostarting applications.
+#
+# This target is used to collect services for applications that requested
+# to be automatically started up on boot.
+#
+
+[Unit]
+Description=Applications
+Documentation=man:systemd.special(7)
+Conflicts=rescue.service rescue.target
+After=network.target
+AllowIsolate=no
+RefuseManualStart=no
+
+[Install]
+WantedBy=multi-user.target

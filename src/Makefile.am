@@ -132,6 +132,9 @@ iot_service_generator_LDADD =		\
 SERVICE_TEMPLATES =       		\
 		generators/service/templates/ostro/*.{smpl,inc}
 
+SYSTEMD_UNITS = 	      		\
+		generators/service/systemd/*.target
+
 ###################################
 # iot-exec
 #
@@ -160,8 +163,14 @@ install-service-templates:
 	    cp $(top_srcdir)/src/$(SERVICE_TEMPLATES) \
 	        $(DESTDIR)${libexecdir}/iot-app-fw
 
+# Install units for systemd.
+install-systemd-units:
+	mkdir -p $(DESTDIR)/lib/systemd/system
+	    cp $(top_srcdir)/src/$(SYSTEMD_UNITS) \
+	        $(DESTDIR)/lib/systemd/system
+
 # Install various runtime data we need.
-install-data-hook: install-service-templates
+install-data-hook: install-service-templates install-systemd-units
 
 # cleanup
 clean-local:
