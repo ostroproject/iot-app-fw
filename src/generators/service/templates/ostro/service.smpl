@@ -13,6 +13,7 @@
 [Unit]
 SourcePath={data.path.manifest}
 Description={data.manifest.description}
+{FW-CHECK}({data.manifest.container})
 
 [Service]
 {ENVIRONMENT}({data.manifest})
@@ -27,6 +28,4 @@ Description={data.manifest.description}
 
 [Install]
 WantedBy=applications.target
-
-{FW-CHECK}({data.manifest.container})
 {AUTOSTART-CHECK}({data.manifest})

@@ -5,7 +5,7 @@
 .               {TRUNCATE}({CONCAT}('ve-', {data.provider},
 .                                   '-', {data.manifest.application}), 15)
 {end}
-{macro} IPT {do}/usr/sbin/iptables{end}
+{macro} IPT {do}/usr/sbin/iptables -w{end}
 
 {macro} OVERLAY-RW(path)  {do}--overlay={path}:{A}{path}:{path}{end}
 {macro} OVERLAY-RO(path)  {do}--overlay-ro={path}:{A}{path}:{path}{end}
@@ -39,6 +39,8 @@
 
 {macro} FW-CHECK(container) {do}
 .    {if} ({container.portmap} || {container.type} != 'none') {then}
+.        Requires={data.provider}-{data.manifest.application}-firewall.service
+.        After={data.provider}-{data.manifest.application}-firewall.service
 .        {REQUEST-DROPIN}('firewall')
 .    {end}
 {end}
