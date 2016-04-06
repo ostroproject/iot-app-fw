@@ -287,6 +287,7 @@ static int fn_dropin(smpl_t *smpl, int argc, smpl_value_t *argv,
     SMPL_UNUSED(user_data);
     SMPL_UNUSED(rv);
 
+    what = "<unknown>";
     for (i = 0, a = argv; i < argc; i++, a++) {
         if (a->type != SMPL_VALUE_STRING)
             goto invalid_dropin;
