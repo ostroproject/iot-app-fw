@@ -42,10 +42,19 @@
 static IOT_LIST_HOOK(preprocessors);
 
 
+static int pp_prio(iot_list_hook_t *p)
+{
+    preprocessor_t *pp = iot_list_entry(p, typeof(*pp), hook);
+
+    return pp->prio;
+}
+
+
 int preprocessor_register(generator_t *g, preprocessor_t *pp)
 {
-    iot_list_hook_t *l, *p, *n;
-    preprocessor_t  *lpp;
+    iot_list_hook_t *l;
+
+    log_info("Registering preprocessor '%s' (prio: %d)...", pp->name, pp->prio);
 
     if (pp->name == NULL || pp->prep == NULL)
         goto invalid;
@@ -54,20 +63,7 @@ int preprocessor_register(generator_t *g, preprocessor_t *pp)
 
     l = (g == NULL ? &preprocessors : &g->preprocessors);
 
-    iot_list_foreach(l, p, n) {
-        lpp = iot_list_entry(p, typeof(*lpp), hook);
-
-        if (pp->prio < lpp->prio) {
-            iot_list_insert_before(&lpp->hook, &pp->hook);
-            pp = NULL;
-            break;
-        }
-    }
-
-    if (pp)
-        iot_list_append(l, &pp->hook);
-
-    log_info("Registered preprocessor '%s'...", pp->name);
+    iot_list_insert_weight(l, &pp->hook, pp_prio);
 
     return 0;
 
@@ -77,43 +73,18 @@ int preprocessor_register(generator_t *g, preprocessor_t *pp)
 }
 
 
+static int pp_cmp(iot_list_hook_t *p1, iot_list_hook_t *p2)
+{
+    preprocessor_t *pp1 = iot_list_entry(p1, typeof(*pp1), hook);
+    preprocessor_t *pp2 = iot_list_entry(p2, typeof(*pp2), hook);
+
+    return pp1->prio - pp2->prio;
+}
+
+
 static void merge_preprocessors(generator_t *g)
 {
-    iot_list_hook_t *sl, *sp, *sn, *dl, *dp;
-    preprocessor_t *spp, *dpp;
-
-    if (iot_list_empty(&g->preprocessors)) {
-        iot_list_move(&g->preprocessors, &preprocessors);
-        return;
-    }
-
-    sl = &preprocessors;
-    dl = &g->preprocessors;
-
-    while (sp != sl || dp != dl) {
-        sn = sp->next;
-        iot_list_init(sp);
-
-        if (dp == dl) {
-            iot_list_append(sp, dl);
-            continue;
-        }
-
-        spp = iot_list_entry(sp, typeof(*spp), hook);
-        dpp = iot_list_entry(dp, typeof(*dpp), hook);
-
-        if (spp->prio <= dpp->prio) {
-            iot_debug("%d <= %d, inserting before", spp->prio, dpp->prio);
-            iot_list_insert_before(dp, sp);
-            sp = sn;
-        }
-        else {
-            iot_debug("%d > %d, scanning forward", spp->prio, dpp->prio);
-            dp = dp->next;
-        }
-    }
-
-    iot_list_init(&preprocessors);
+    iot_list_merge(&g->preprocessors, &preprocessors, pp_cmp);
 }
 
 
@@ -130,7 +101,7 @@ static iot_json_t *preprocess_manifest(generator_t *g, iot_json_t *m)
     iot_list_foreach(&g->preprocessors, p, n) {
         pp = iot_list_entry(p, typeof(*pp), hook);
 
-        iot_debug("Preprocessing manifest with '%s'...", pp->name);
+        iot_debug("Preprocessing manifest with %s@%d...", pp->name, pp->prio);
 
         out = pp->prep(g, in, pp->data);
 
