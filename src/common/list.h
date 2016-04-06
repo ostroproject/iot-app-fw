@@ -175,6 +175,50 @@ static inline void iot_list_join(iot_list_hook_t *head,
     iot_list_init(tail);
 }
 
+/** Insert a new item into a weighted (and already sorted) list. */
+static inline void iot_list_insert_weight(iot_list_hook_t *list,
+                                          iot_list_hook_t *item,
+                                          int (*weight)(iot_list_hook_t *item))
+{
+    iot_list_hook_t *p, *n;
+    int              w;
+
+    w = weight(item);
+
+    for (p = (list)->next, n = p->next; p != (list); p = n, n = n->next) {
+        if (w < weight(p)) {
+            iot_list_insert_before(p, item);
+            return;
+        }
+    }
+
+    iot_list_append(list, item);
+}
+
+/** Merge two (potentially weighted and already sorted) lists. */
+static inline void iot_list_merge(iot_list_hook_t *l, iot_list_hook_t *c,
+                                  int (*cmp)(iot_list_hook_t *l1,
+                                             iot_list_hook_t *l2))
+{
+    iot_list_hook_t *lp, *ln, *cp, *cn;
+
+    lp = l->next;
+    cp = c->next;
+
+    while (lp != l || cp != c) {
+        ln = lp != l ? lp->next : l;
+        cn = cp != c ? cp->next : c;
+
+        if (cp != c && (lp == l || (cmp && cmp(lp, cp) > 0))) {
+            iot_list_delete(cp);
+            iot_list_insert_before(lp, cp);
+            cp = cn;
+        }
+        else
+            lp = ln;
+    }
+}
+
 /** Update a list when the address of a hook has changed (eg. by realloc). */
 static inline void iot_list_update_address(iot_list_hook_t *new_addr,
                                            iot_list_hook_t *old_addr)
