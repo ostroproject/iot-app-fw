@@ -100,7 +100,7 @@ static inline int group_id(const char *name)
 }
 
 
-iot_json_t *whitelist_groups(generator_t *g, iot_json_t *m, void *data)
+static iot_json_t *whitelist_groups(generator_t *g, iot_json_t *m, void *data)
 {
     static int  loaded = 0;
     iot_json_t *requested, *filtered;
