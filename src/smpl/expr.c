@@ -496,6 +496,8 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
             goto parse_error;
 
         default:
+            if (nparen > 0)
+                goto invalid_argument;
             parser_push_token(smpl, tkn); /* push back terminating non-')' */
             goto check_tokenq;
         }
@@ -538,7 +540,15 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
 
     end->type = SMPL_TOKEN_ERROR;
     end->str  = "<parse error>";
-    smpl_fail(-1, smpl, EINVAL, "misplaced comman or parenthesis in arglist");
+    smpl_fail(-1, smpl, EINVAL, "misplaced comma or parenthesis in arglist");
+
+ invalid_argument:
+    token_purgeq(&tknq);
+    value_purgeq( valq);
+
+    end->type = SMPL_TOKEN_ERROR;
+    end->str  = "<parse error>";
+    smpl_fail(-1, smpl, EINVAL, "invalid argument in arglist");
 
  parse_error:
     token_purgeq(&tknq);
