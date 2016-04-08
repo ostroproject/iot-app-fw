@@ -348,8 +348,13 @@ static int collect_number(smpl_t *smpl, smpl_token_t *t)
         if (errno == ERANGE && d == HUGE_VAL)
             goto overflow;
 
+        if (e == in->p + 1)
+            goto invalid;
+
         t->dbl = d;
     }
+    else if (e == in->p)
+        goto invalid;
     else
         t->i32 = (int32_t)l;
 
