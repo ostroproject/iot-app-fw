@@ -196,6 +196,9 @@ int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
         c->expr = e;
     }
 
+    if (c->m->narg >= 0)
+        parser_skip_newline(smpl);
+
     smpl_list_append(block, &c->hook);
 
     return 0;
