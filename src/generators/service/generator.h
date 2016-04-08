@@ -60,11 +60,11 @@
 #endif
 
 #ifndef PATH_TEMPLATE
-#    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.smpl"
+#    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.template"
 #endif
 
 #ifndef PATH_FIREWALL
-#    define PATH_FIREWALL LIBEXECDIR"/iot-app-fw/firewall.smpl"
+#    define PATH_FIREWALL LIBEXECDIR"/iot-app-fw/firewall.template"
 #endif
 
 /* Directory where applications are installed. */

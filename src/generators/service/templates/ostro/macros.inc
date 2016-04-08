@@ -29,12 +29,12 @@
 
 {macro} NETWORK(container) {do}
 .   {if} ({container.network} == 'VirtualEthernet') {then}
-........--private-network --network-veth \
-........{if} ({container.type} != 'nspawn-system') {then}
+.       --private-network --network-veth \
+.       {if} ({container.type} != 'nspawn-system') {then}
 ........    --auto-dhcp \
-........{end}
+.       {end}
 .   {end}
-    {foreach} e {in} {container.portmap} {do} -p {e.proto}:{e.host}:{e.container} {end}
+    {foreach} e {in} {container.portmap} {do}-p {e.proto}:{e.host}:{e.container} {end}
 {end}
 
 {macro} FW-CHECK(container) {do}
@@ -50,7 +50,7 @@
 .        ExecStartPre={IPT} -t filter -I FORWARD -o {CIF} -j ACCEPT
 .    {end}
 .    {foreach} e {in} {container.portmap} {do}
-..........ExecStartPre={IPT} -t filter -I INPUT -p {e.proto} --dport {e.host} -j ACCEPT
+.        ExecStartPre={IPT} -t filter -I INPUT -p {e.proto} --dport {e.host} -j ACCEPT
 .    {end}
 {end}
 
@@ -59,12 +59,16 @@
 .        ExecStopPost={IPT} -t filter -D FORWARD -o {CIF} -j ACCEPT
 .    {end}
 .    {foreach} e {in} {container.portmap} {do}
-..........ExecStopPost={IPT} -t filter -D INPUT -p {e.proto} --dport {e.host} -j ACCEPT
+.        ExecStopPost={IPT} -t filter -D INPUT -p {e.proto} --dport {e.host} -j ACCEPT
 .    {end}
 {end}
 
-{macro} COMMAND(command) {do}
-.    {foreach} arg {in} {command} {do}{arg} {end}
+{macro} COMMAND(manifest) {do}
+.    {if} ({manifest.container.type} == 'nspawn-system') {then}
+.        --boot
+.    {else}
+.        {foreach} arg {in} {manifest.command} {do}{arg} {end}{\n}
+.    {end}
 {end}
 
 {macro} AUTOSTART-CHECK(manifest) {do}

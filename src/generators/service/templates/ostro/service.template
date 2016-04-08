@@ -20,10 +20,10 @@ Description={data.manifest.description}
 {GROUPS}({data.manifest})
 
 {switch} ({data.manifest.container.type}) {in}
-{case} 'nspawn'        {do}{include} 'nspawn-basic.inc'{end}
-{case} 'nspawn-shared' {do}{include} 'nspawn-basic.inc'{end}
-{case} 'nspawn-system' {do}{include} 'nspawn-system.inc'{end}
-{case} 'none'          {do}{include} 'no-container.inc'{end}
+{case} 'nspawn'        {do}{include} 'container-nspawn.inc'{end}
+{case} 'nspawn-shared' {do}{include} 'container-nspawn.inc'{end}
+{case} 'nspawn-system' {do}{include} 'container-nspawn.inc'{end}
+{case} 'none'          {do}{include} 'container-none.inc'{end}
 {end}
 
 [Install]

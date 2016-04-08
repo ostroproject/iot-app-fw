@@ -130,7 +130,7 @@ iot_service_generator_LDADD =		\
 		-lm
 
 SERVICE_TEMPLATES =       		\
-		generators/service/templates/ostro/*.{smpl,inc}
+		generators/service/templates/ostro/*.{template,inc}
 
 SYSTEMD_UNITS = 	      		\
 		generators/service/systemd/*.target
