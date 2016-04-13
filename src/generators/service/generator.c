@@ -45,6 +45,11 @@ int main(int argc, char *argv[], char *env[])
         exit(1);
     }
 
+    if (template_config(&g) < 0){
+        log_error("Failed to configure template search path.");
+        exit(1);
+    }
+
     if (template_load(&g) < 0) {
         log_error("Failed to load template file '%s'", g.path_template);
         exit(1);

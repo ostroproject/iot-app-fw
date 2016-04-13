@@ -44,6 +44,8 @@ SMPL_CDECL_BEGIN
 #endif
 
 typedef struct smpl_s             smpl_t;
+typedef struct smpl_result_s      smpl_result_t;
+
 #if 0
 typedef enum   smpl_format_e      smpl_format_t;
 typedef struct smpl_data_s        smpl_data_t;
@@ -77,10 +79,15 @@ typedef struct smpl_insn_switch_s smpl_insn_switch_t;
 typedef struct smpl_insn_case_s   smpl_insn_case_t;
 typedef struct smpl_insn_call_s   smpl_insn_call_t;
 typedef union  smpl_insn_u        smpl_insn_t;
+typedef struct smpl_addon_s       smpl_addon_t;
 
+/* Callback type for a template function. */
 typedef int (*smpl_fn_t)(smpl_t *smpl, int argc, smpl_value_t *argv,
                          smpl_value_t *rv, void *user_data);
 
+/* Callback type for addon notification callback. */
+typedef int (*smpl_addon_cb_t)(smpl_t *smpl, smpl_addon_t *addon,
+                               void *user_data);
 
 struct smpl_s {
     smpl_symtbl_t   *symtbl;             /* template symbol table */
@@ -94,7 +101,30 @@ struct smpl_s {
     smpl_parser_t   *parser;             /* associated template parser */
     smpl_buffer_t   *result;             /* template evaluation result */
     int              callbacks;          /* active function callbacks */
+    char           **search_paths;       /* template search path */
+    int              search_npath;       /* number of search paths */
+    smpl_list_t      addons;             /* extra files we need to generate */
+    smpl_addon_cb_t  addon_notify;
 };
+
+
+struct smpl_result_s {
+    char          *output;               /* result of template evaluation */
+    char          *destination;          /* where to write the result */
+    mode_t         mode;                 /* modes for destination */
+    char         **errors;               /* evaluation errors */
+    smpl_list_t    addons;               /* evaluated addons */
+};
+
+
+struct smpl_addon_s {
+    smpl_list_t      hook;               /* to list of addons */
+    char            *name;               /* addon name */
+    char            *template;           /* addon template to use */
+    smpl_result_t    result;             /* evaluation result */
+};
+
+
 
 
 #if 0
@@ -454,6 +484,8 @@ union smpl_insn_u {
 
 void smpl_errmsg(smpl_t *smpl, int error, const char *path, int line,
                  const char *fmt, ...) SMPL_PRINTF_LIKE(5, 6);
+void smpl_erradd(smpl_t *smpl, char *msg);
+void smpl_errors_append(smpl_t *smpl, char **errors);
 void smpl_errors_free(char **errors);
 
 int symtbl_create(smpl_t *smpl);
@@ -503,6 +535,9 @@ int preproc_push_file(smpl_t *smpl, const char *file);
 int preproc_pull(smpl_t *smpl);
 void preproc_trim(smpl_t *smpl);
 void preproc_purge(smpl_t *smpl);
+int preproc_add_path(smpl_t *smpl, const char *dirs);
+int preproc_set_path(smpl_t *smpl, const char *dirs);
+void preproc_free_paths(smpl_t *smpl);
 
 int template_parse(smpl_t *smpl);
 void template_free(smpl_list_t *body);
@@ -577,6 +612,22 @@ int buffer_printf(smpl_buffer_t *b, const char *fmt, ...);
 int buffer_vprintf(smpl_buffer_t *b, const char *fmt, va_list ap);
 char *buffer_steal(smpl_buffer_t *b);
 void buffer_purge(smpl_list_t *bufs);
+
+int addon_create(smpl_t *smpl, const char *name, const char *template,
+                 const char *destination);
+void addon_free(smpl_addon_t *a);
+int addon_evaluate(smpl_t *smpl, smpl_data_t *data, smpl_addon_t *addon);
+int addon_set_destination(smpl_addon_t *a, const char *destination);
+int addon_set_template(smpl_addon_t *a, const char *template);
+
+smpl_result_t *result_init(smpl_result_t *r, const char *destination);
+void result_free(smpl_result_t *r);
+int result_set_destination(smpl_result_t *r, const char *destination);
+char *result_steal_output(smpl_result_t *r);
+char **result_steal_errors(smpl_result_t *r);
+char **result_errors(smpl_result_t *r);
+int result_write(smpl_result_t *r, int flags);
+
 
 
 #define SMPL_INDENT_FMT        "%*.*s"

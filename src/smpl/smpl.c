@@ -52,6 +52,7 @@ smpl_t *smpl_create(char ***errbuf)
     smpl_list_init(&smpl->macros);
     smpl_list_init(&smpl->functions);
     smpl_list_init(&smpl->body);
+    smpl_list_init(&smpl->addons);
 
     smpl->data   = symtbl_add(smpl, "data", SMPL_SYMBOL_DATA);
     smpl->errors = errbuf;
@@ -86,13 +87,14 @@ void smpl_destroy(smpl_t *smpl)
     symtbl_destroy(smpl);
 
     if (smpl->errors != NULL)
-        smpl_errors_free(*smpl->errors);
+        smpl_free_errors(*smpl->errors);
 
     smpl_free(smpl);
 }
 
 
-smpl_t *smpl_load_template(const char *path, char ***errors)
+smpl_t *smpl_load_template(const char *path, smpl_addon_cb_t notify,
+                           char ***errors)
 {
     smpl_t *smpl;
 
@@ -120,6 +122,7 @@ smpl_t *smpl_load_template(const char *path, char ***errors)
     preproc_trim(smpl);
 
     smpl->errors = NULL;
+    smpl->addon_notify = notify;
 
     return smpl;
 
@@ -162,6 +165,18 @@ smpl_data_t *smpl_load_data(const char *path, char ***errors)
 void smpl_free_data(smpl_data_t *data)
 {
     smpl_json_free(data);
+}
+
+
+int smpl_set_search_path(smpl_t *smpl, const char *dirs)
+{
+    return preproc_set_path(smpl, dirs);
+}
+
+
+int smpl_add_search_path(smpl_t *smpl, const char *dirs)
+{
+    return preproc_add_path(smpl, dirs);
 }
 
 
@@ -214,16 +229,18 @@ int smpl_printf(smpl_t *smpl, const char *fmt, ...)
 }
 
 
-char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors,
-                    void *user_data)
+int smpl_evaluate(smpl_t *smpl, smpl_data_t *data, void *user_data,
+                  smpl_result_t *result)
 {
-    char *result;
+    smpl_addon_t *addon;
+    smpl_list_t  *p, *n;
 
-    if (errors != NULL)
-        *errors = NULL;
+    if (result == NULL)
+        goto invalid_result;
 
-    smpl->errors    = errors;
     smpl->user_data = user_data;
+    smpl->errors    = &result->errors;
+    smpl->nerror    = 0;
 
     if (symtbl_push(smpl, smpl->data, SMPL_VALUE_OBJECT, data) < 0)
         goto data_fail;
@@ -232,35 +249,39 @@ char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors,
         goto eval_fail;
 
     symtbl_flush(smpl);
+
+    result->output = buffer_steal(smpl->result);
+
+    smpl_list_foreach(&smpl->addons, p, n) {
+        addon = smpl_list_entry(p, typeof(*addon), hook);
+
+        if (addon_evaluate(smpl, data, addon) < 0)
+            goto addon_fail;
+
+        smpl_list_delete(&addon->hook);
+        smpl_list_append(&result->addons, &addon->hook);
+    }
+
     smpl->errors = NULL;
 
-    result = buffer_steal(smpl->result);
+    return 0;
 
-    return result;
+ invalid_result:
+    smpl_errmsg(smpl, EFAULT, NULL, 0, "Invalid result buffer.");
+    return -1;
 
  data_fail:
     smpl_errmsg(smpl, errno, NULL, 0, "Failed to set substitution data.");
     smpl->errors = NULL;
-    return NULL;
+    return -1;
 
  eval_fail:
     smpl_errmsg(smpl, errno, NULL, 0, "Failed to evaluate template.");
     smpl->errors = NULL;
-    return NULL;
-}
+    return -1;
 
-
-void smpl_free_errors(char **errors)
-{
-    char **e;
-
-    if (errors == NULL)
-        return;
-
-    for (e = errors; *e != NULL; e++)
-        smpl_free(*e);
-
-    smpl_free(errors);
+ addon_fail:
+    return -1;
 }
 
 
@@ -290,3 +311,61 @@ void smpl_dump_template(smpl_t *smpl, int fd)
 }
 
 
+smpl_result_t *smpl_init_result(smpl_result_t *r, const char *destination)
+{
+    return result_init(r, destination);
+}
+
+
+void smpl_free_result(smpl_result_t *r)
+{
+    result_free(r);
+}
+
+
+char *smpl_steal_result_output(smpl_result_t *r)
+{
+    return result_steal_output(r);
+}
+
+
+char **smpl_steal_result_errors(smpl_result_t *r)
+{
+    return result_steal_errors(r);
+}
+
+
+char **smpl_result_errors(smpl_result_t *r)
+{
+    return result_errors(r);
+}
+
+
+int smpl_write_result(smpl_result_t *r, int flags)
+{
+    return result_write(r, flags);
+}
+
+
+char *smpl_addon_name(smpl_addon_t *a)
+{
+    return a->name;
+}
+
+
+char *smpl_addon_template(smpl_addon_t *a)
+{
+    return a->template;
+}
+
+
+int smpl_addon_set_destination(smpl_addon_t *a, const char *destination)
+{
+    return addon_set_destination(a, destination);
+}
+
+
+int smpl_addon_set_template(smpl_addon_t *a, const char *template)
+{
+    return addon_set_template(a, template);
+}

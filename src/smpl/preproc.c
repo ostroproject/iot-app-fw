@@ -38,9 +38,152 @@
 #include <smpl/macros.h>
 #include <smpl/types.h>
 
-static int filter_tabulation(smpl_t *smpl, char *in, char *out);
-int preproc_pending_file(smpl_t *smpl, const char *path);
 
+static int filter_tabulation(smpl_t *smpl, char *in, char *out);
+static int preproc_pending_file(smpl_t *smpl, const char *path);
+
+
+static char **search_paths = NULL;
+static int    search_npath = 0;
+
+
+static int append_path(char ***pathsp, int *npathp, const char *dir, int len)
+{
+    char **paths = *pathsp;
+    int    npath = *npathp;
+
+    if (len < 0)
+        len = strlen(dir);
+
+    if (len == 0)
+        return 0;
+
+    if (smpl_reallocz(paths, npath, npath + 1) == NULL)
+        goto nomem;
+
+    paths[npath] = smpl_strndup(dir, len);
+
+    if (paths[npath] == NULL)
+        goto nomem;
+
+    npath++;
+
+    *pathsp = paths;
+    *npathp = npath;
+
+    return 0;
+
+ nomem:
+    return -1;
+}
+
+
+static void free_paths(char **paths)
+{
+    char **p;
+
+    if (paths == NULL)
+        return;
+
+    for (p = paths; *p != NULL; p++)
+        smpl_free(*p);
+
+    smpl_free(paths);
+}
+
+
+int preproc_add_path(smpl_t *smpl, const char *dirs)
+{
+    char       **paths;
+    int          npath;
+    const char  *b, *e;
+    int          n;
+
+    if (smpl != NULL) {
+        paths = smpl->search_paths;
+        npath = smpl->search_npath;
+    }
+    else {
+        paths = search_paths;
+        npath = search_npath;
+    }
+
+    b = dirs;
+
+    while (b != NULL) {
+        while (*b == ':')
+            b++;
+        if (!*b)
+            break;
+
+        e = strchr(b, ':');
+        n = e ? e - b : (int)strlen(b);
+
+        if (append_path(&paths, &npath, b, n) < 0)
+            goto nomem;
+
+        b = e && *e ? e + 1 : NULL;
+    }
+
+    if (smpl_reallocz(paths, npath, npath + 1) == NULL)
+        goto nomem;
+
+    if (smpl != NULL) {
+        smpl->search_paths = paths;
+        smpl->search_npath = npath;
+    }
+    else {
+        search_paths = paths;
+        search_npath = npath;
+    }
+
+    return 0;
+
+ nomem:
+    free_paths(paths);
+
+    if (smpl != NULL) {
+        smpl->search_paths = NULL;
+        smpl->search_npath = 0;
+    }
+    else {
+        search_paths = NULL;
+        search_npath = 0;
+    }
+
+    return -1;
+}
+
+
+int preproc_set_path(smpl_t *smpl, const char *dirs)
+{
+    if (smpl != NULL) {
+        free_paths(smpl->search_paths);
+        smpl->search_paths = NULL;
+        smpl->search_npath = 0;
+    }
+    else {
+        free_paths(search_paths);
+        search_paths = NULL;
+        search_npath = 0;
+    }
+
+    return preproc_add_path(smpl, dirs);
+}
+
+
+void preproc_free_paths(smpl_t *smpl)
+{
+    if (smpl == NULL)
+        return;
+
+    free_paths(smpl->search_paths);
+    smpl->search_paths = NULL;
+    smpl->search_npath = 0;
+}
+
+
+#if 0
 static char *absolute_path(const char *file, char *path, size_t size)
 {
     char cwd[PATH_MAX], dir[PATH_MAX], *p;
@@ -103,6 +246,87 @@ static char *absolute_path(const char *file, char *path, size_t size)
  failed:
     return NULL;
 }
+#endif
+
+static char *resolve_path(const char *parent, char **dirs, const char *file,
+                          char *path, size_t size)
+{
+    char **d;
+    int    n;
+    char  *wd, wdbuf[PATH_MAX];
+
+    smpl_debug("resolving path for file '%s', parent: '%s'", file,
+               parent ? parent : "");
+
+    if (file[0] == '/') {
+        n = snprintf(path, size, "%s", file);
+
+        if (n >= (int)size)
+            goto nametoolong;
+
+        if (n > 0)
+            return path;
+    }
+
+    wd = getcwd(wdbuf, sizeof(wdbuf));
+
+    if (parent != NULL) {
+        const char *b = parent;
+        const char *e = strrchr(b, '/');
+
+        smpl_debug("resolving file '%s' using parent '%s'...", file, parent);
+
+        n = e - b;
+
+        if (e != NULL) {
+            if (*b != '/')
+                n = snprintf(path, size, "%s/%*.*s/%s", wd, n, n, b, file);
+            else if (wd != NULL)
+                n = snprintf(path, size, "%*.*s/%s", n, n, b, file);
+            else
+                n = -1;
+
+            if (n > 0 && n < (int)size) {
+                smpl_debug("checking path '%s'...", path);
+                if (access(path, R_OK) == 0)
+                    return path;
+            }
+        }
+    }
+
+    if (dirs != NULL) {
+        for (d = dirs; *d != NULL; d++) {
+            smpl_debug("resolving file '%s' using path '%s'...", file, *d);
+
+            n = snprintf(path, size, "%s/%s", *d, file);
+
+            if (n > 0 && n < (int)size) {
+                smpl_debug("checking path '%s'...", path);
+                if (access(path, R_OK) == 0)
+                    return path;
+            }
+        }
+    }
+
+    if (wd != NULL) {
+        smpl_debug("resolving file '%s' using cwd '%s'...", file, wd);
+
+        n = snprintf(path, size, "%s/%s", wd, file);
+
+        if (n > 0 && n < (int)size) {
+            smpl_debug("checking path '%s'...", path);
+            if (access(path, R_OK) == 0)
+                return path;
+        }
+    }
+
+    errno = ENOENT;
+    return NULL;
+
+ nametoolong:
+    errno = ENAMETOOLONG;
+    return NULL;
+}
 
 
 char *preproc_resolve_path(smpl_t *smpl, const char *file, char *path,
@@ -110,55 +334,21 @@ char *preproc_resolve_path(smpl_t *smpl, const char *file, char *path,
 {
     smpl_parser_t *p  = smpl->parser;
     smpl_input_t  *in = p ? p->in : NULL;
-    char           dir[PATH_MAX], *tail;
-    int            n;
+    char          *parent;
 
-    if (*file == '/') {
-        while (*file == '/')
-            file++;
+    parent = (in != NULL && in->path != NULL ? in->path : NULL);
 
-        n = snprintf(path, size, "/%s", file);
-
-        if (n >= (int)size)
-            goto toolong;
-
+    if (resolve_path(parent, smpl->search_paths, file, path, size) != NULL)
         return path;
-    }
 
-    if (in == NULL || in->path == NULL) {
-        if (getcwd(dir, sizeof(dir)) == NULL)
-            goto failed;
+    if (resolve_path(NULL, search_paths, file, path, size) != NULL)
+        return path;
 
-        n = strlen(dir);
-
-        if (n >= (int)size)
-            goto toolong;
-    }
-    else {
-        n = snprintf(dir, sizeof(dir), "%s", in->path);
-
-        if (n >= (int)size)
-            goto toolong;
-
-        if ((tail = strrchr(dir, '/')) != NULL) {
-            *tail = '\0';
-            n = tail - dir;
-        }
-    }
-
-    if (snprintf(dir + n, size - n, "/%s", file) >= (int)(size - n))
-        goto toolong;
-
-    return absolute_path(dir, path, size);
-
- toolong:
-    errno = ENAMETOOLONG;
- failed:
     return NULL;
 }
 
 
-int preproc_pending_file(smpl_t *smpl, const char *path)
+static int preproc_pending_file(smpl_t *smpl, const char *path)
 {
     smpl_parser_t *parser = smpl->parser;
     smpl_input_t  *in;
@@ -317,13 +507,13 @@ int preproc_push_file(smpl_t *smpl, const char *file)
     return 0;
 
  notfound:
-    smpl_fail(-1, smpl, errno, "include file '%s' not found", file);
+    smpl_fail(-1, smpl, errno, "file '%s' not found", file);
 
  busy:
     smpl_fail(-1, smpl, errno, "circular inclusion of '%s'", file);
 
  failed:
-    smpl_fail(-1, smpl, errno, "failed to include '%s'", path);
+    smpl_fail(-1, smpl, errno, "failed to preprocess file '%s'", path);
 
 }
 

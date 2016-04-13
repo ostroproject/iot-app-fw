@@ -27,8 +27,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <smpl/macros.h>
-#include <smpl/types.h>
+#include <errno.h>
+
+#include <smpl/smpl.h>
+
+#define FN_ERROR   "ERROR"
+#define FN_WARNING "WARNING"
+#define FN_ADDON   "REQUEST-ADDON"
+
 
 static int fn_error(smpl_t *smpl, int argc, smpl_value_t *argv,
                     smpl_value_t *rv, void *user_data)
@@ -36,6 +42,7 @@ static int fn_error(smpl_t *smpl, int argc, smpl_value_t *argv,
     const char *msg;
     int         err;
 
+    SMPL_UNUSED(rv);
     SMPL_UNUSED(user_data);
 
     err = -1;
@@ -61,9 +68,6 @@ static int fn_error(smpl_t *smpl, int argc, smpl_value_t *argv,
         }
     }
 
-    if (rv != NULL)
-        rv->type = SMPL_VALUE_UNSET;
-
     smpl_fail(-1, smpl, err, "%s", msg);
 }
 
@@ -74,6 +78,7 @@ static int fn_warning(smpl_t *smpl, int argc, smpl_value_t *argv,
     int i;
 
     SMPL_UNUSED(smpl);
+    SMPL_UNUSED(rv);
     SMPL_UNUSED(user_data);
 
     for (i = 0; i < argc; i++) {
@@ -81,15 +86,93 @@ static int fn_warning(smpl_t *smpl, int argc, smpl_value_t *argv,
             smpl_warn("template evaluation warning: %s", argv[i].str);
     }
 
-    if (rv != NULL)
-        rv->type = SMPL_VALUE_UNSET;
+    return 0;
+}
+
+
+static int fn_addon(smpl_t *smpl, int argc, smpl_value_t *argv,
+                    smpl_value_t *rv, void *user_data)
+{
+    smpl_addon_t *addon;
+    smpl_value_t *arg;
+    const char   *tag, *val, *name, *template, *destination;
+    int           len, n, verdict, i;
+
+    SMPL_UNUSED(user_data);
+    SMPL_UNUSED(rv);
+
+    addon = smpl_alloct(typeof(*addon));
+
+    if (addon == NULL)
+        goto nomem;
+
+    smpl_list_init(&addon->hook);
+
+    name = template = destination = NULL;
+    for (i = 0, arg = argv; i < argc; i++, arg++) {
+        if (arg->type != SMPL_VALUE_STRING)
+            goto invalid_arg;
+
+        tag = arg->str;
+        val = strchr(arg->str, ':');
+
+        if (val == NULL)
+            goto invalid_val;
+
+        len = val - tag;
+        val++;
+
+        smpl_debug("addon tag:value: '%*.*s':'%s'", len, len, tag, val);
+
+#define TAGGED(_tag) ((n = sizeof(_tag) - 1) == len && !strncmp(tag, _tag, len))
+        if (TAGGED("name"))
+            name = val;
+        else if (TAGGED("template"))
+            template = val;
+        else if (TAGGED("destination"))
+            destination = val;
+        else
+            goto invalid_tag;
+    }
+#undef TAGGED
+
+    if (name == NULL)
+        goto missing_name;
+
+    verdict = addon_create(smpl, name, template, destination);
+
+    if (verdict < 0)
+        goto addon_error;
 
     return 0;
+
+ invalid_arg:
+    addon_free(addon);
+    smpl_fail(-1, smpl, EINVAL, "invalid argument type to %s", FN_ADDON);
+
+ invalid_val:
+    addon_free(addon);
+    smpl_fail(-1, smpl, EINVAL, "invalid argument value to %s", FN_ADDON);
+
+ invalid_tag:
+    addon_free(addon);
+    smpl_fail(-1, smpl, EINVAL, "unknown tag:value '%s' to %s", tag, FN_ADDON);
+
+ missing_name:
+    addon_free(addon);
+    smpl_fail(-1, smpl, EINVAL, "missing name to %s", FN_ADDON);
+
+ addon_error:
+    smpl_fail(-1, smpl, -verdict, "failed to create addon");
+
+ nomem:
+    return -1;
 }
 
 
 void builtin_register(void)
 {
-    function_register(NULL, "ERROR"  , fn_error  , NULL);
-    function_register(NULL, "WARNING", fn_warning, NULL);
+    function_register(NULL, FN_ERROR  , fn_error  , NULL);
+    function_register(NULL, FN_WARNING, fn_warning, NULL);
+    function_register(NULL, FN_ADDON  , fn_addon  , NULL);
 }

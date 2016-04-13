@@ -72,7 +72,9 @@ libsmpl_a_SOURCES =					\
 		smpl/buffer.c				\
 		smpl/varref.c				\
 		smpl/expr.c				\
-		smpl/json.c
+		smpl/json.c				\
+		smpl/addon.c				\
+		smpl/result.c
 
 libsmpl_a_CFLAGS =					\
 		$(libcommon_a_CFLAGS)

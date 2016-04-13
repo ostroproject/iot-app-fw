@@ -37,109 +37,19 @@
 #include <smpl/macros.h>
 #include <smpl/smpl.h>
 
-#define FN_CONCAT "CONCAT"
+#define FN_TEST   "TESTFN"
+#define FN_CONCAT "CONCATFN"
+#define FN_CHECK  "CHECKFN"
 
 
 typedef struct {
-    smpl_t      *smpl;
-    smpl_data_t *data;
-    int          dump;
     const char  *path_template;
     const char  *path_data;
+    smpl_t      *template;
+    smpl_data_t *data;
+    int          dump;
+    char        *output;
 } smpl_test_t;
-
-
-static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
-{
-    va_list ap;
-
-    if (fmt && *fmt) {
-        va_start(ap, fmt);
-        vfprintf(stderr, fmt, ap);
-        fprintf(stderr, "\n");
-        va_end(ap);
-    }
-
-    fprintf(stderr, "usage: %s [options] template-file JSON-file\n"
-            "\n"
-            "Instantiate <template-file> with <JSON-file> and print it.\n"
-            "\n"
-            "The possible options are:\n"
-            "  -v, --verbose       increase logging verbosity\n"
-            "  -d, --debug <site>  enable debugging for <site>\n"
-            "  -D, --dump          dump internal jmpl data for debugging\n"
-            "  -h, --help          print (this) help on usage\n", argv0);
-
-    if (exit_code < 0)
-        return;
-    else
-        exit(exit_code);
-}
-
-
-static void parse_cmdline(smpl_test_t *t, int argc, char *argv[])
-{
-#define OPTIONS "vd:Dh"
-    static struct option options[] = {
-        { "verbose" , no_argument      , NULL, 'v' },
-        { "debug"   , required_argument, NULL, 'd' },
-        { "debug"   , required_argument, NULL, 'd' },
-        { "dump"    , no_argument      , NULL, 'D' },
-        { "help"    , no_argument      , NULL, 'h' },
-        { NULL, 0, NULL, 0 },
-    };
-
-    int opt;
-
-    smpl_clear(t);
-
-    while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
-        switch (opt) {
-        case 'v': {
-            int m, d;
-
-            m = smpl_log_get_mask();
-            d = m & SMPL_LOG_MASK_DEBUG;
-
-            smpl_log_set_mask((m << 1) | 0x1);
-
-            if (!d && (smpl_log_get_mask()) & SMPL_LOG_MASK_DEBUG) {
-                smpl_debug_enable(true);
-                smpl_debug_set("*");
-            }
-
-            break;
-        }
-
-        case 'd':
-            smpl_debug_enable(true);
-            smpl_debug_set(optarg);
-            break;
-
-        case 'D':
-            t->dump = true;
-            break;
-
-        case 'h':
-            print_usage(argv[0], 0, "");
-            break;
-
-        case '?':
-            print_usage(argv[0], EINVAL, "invalid argument '%c'", optopt);
-            break;
-
-        default:
-            print_usage(argv[0], EINVAL, "invalid argument '%c'", opt);
-            break;
-        }
-    }
-
-    if (argc - optind != 2)
-        print_usage(argv[0], EINVAL, "");
-
-    t->path_template = argv[optind];
-    t->path_data     = argv[optind + 1];
-}
 
 
 static int fn_test(smpl_t *smpl, int argc, smpl_value_t *argv,
@@ -280,67 +190,228 @@ static int fn_check(smpl_t *smpl, int argc, smpl_value_t *argv,
 }
 
 
+static void register_functions(smpl_test_t *t)
+{
+    struct {
+        char      *name;
+        smpl_fn_t  handler;
+        void      *user_data;
+    } functions[] = {
+        { FN_TEST  , fn_test  , NULL },
+        { FN_CONCAT, fn_concat, NULL },
+        { FN_CHECK , fn_check , NULL },
+        { NULL     , NULL     , NULL },
+    }, *f;
+
+    SMPL_UNUSED(t);
+
+    for (f = functions; f->name != NULL; f++) {
+        if (smpl_register_function(f->name, f->handler, f->user_data) < 0) {
+            smpl_error("Failed to register function %s.", f->name);
+            exit(1);
+        }
+    }
+}
+
+
+static void load_template(smpl_test_t *t)
+{
+    char **errors, **e;
+
+    t->template = smpl_load_template(t->path_template, NULL, &errors);
+
+    if (t->template != NULL)
+        return;
+
+    smpl_error("Failed to load template '%s'.", t->path_template);
+
+    if (errors != NULL) {
+        for (e = errors; *e; e++)
+            smpl_error("%s", *e);
+        smpl_free_errors(errors);
+    }
+
+    exit(1);
+}
+
+
+static void load_userdata(smpl_test_t *t)
+{
+    char **errors, **e;
+
+    t->data = smpl_load_data(t->path_data, &errors);
+
+    if (t->data != NULL)
+        return;
+
+    smpl_error("Failed to load data from '%s'.", t->path_data);
+
+    if (errors != NULL) {
+        for (e = errors; *e; e++)
+            smpl_error("%s", *e);
+        smpl_free_errors(errors);
+    }
+
+    exit(1);
+}
+
+
+static void dump_template(smpl_test_t *t)
+{
+    if (t->dump)
+        smpl_dump_template(t->template, fileno(stdout));
+}
+
+
+static void eval_template(smpl_test_t *t)
+{
+    char          **e;
+    smpl_result_t   r;
+
+    if (smpl_evaluate(t->template, t->data, t, &r) == 0) {
+        t->output = r.output;
+        return;
+    }
+
+    smpl_error("Failed to evaluate template '%s' with data '%s'.",
+               t->path_template, t->path_data);
+
+    if (r.errors != NULL) {
+        for (e = r.errors; *e; e++)
+            smpl_error("%s", *e);
+        smpl_free_errors(r.errors);
+    }
+
+    exit(1);
+}
+
+
+static void write_result(smpl_test_t *t)
+{
+    printf("template '%s' evaluated with data '%s' produced:\n",
+           t->path_template, t->path_data);
+    printf("%s\n", t->output);
+}
+
+
+static void free_result(smpl_test_t *t)
+{
+    smpl_free_output(t->output);
+    smpl_free_template(t->template);
+    smpl_free_data(t->data);
+
+    t->template = NULL;
+    t->data = NULL;
+    t->output = NULL;
+}
+
+
+static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
+{
+    va_list ap;
+
+    if (fmt && *fmt) {
+        va_start(ap, fmt);
+        vfprintf(stderr, fmt, ap);
+        fprintf(stderr, "\n");
+        va_end(ap);
+    }
+
+    fprintf(stderr, "usage: %s [options] template-file JSON-file\n"
+            "\n"
+            "Instantiate <template-file> with <JSON-file> and print it.\n"
+            "\n"
+            "The possible options are:\n"
+            "  -v, --verbose       increase logging verbosity\n"
+            "  -d, --debug <site>  enable debugging for <site>\n"
+            "  -D, --dump          dump internal jmpl data for debugging\n"
+            "  -h, --help          print (this) help on usage\n", argv0);
+
+    if (exit_code < 0)
+        return;
+    else
+        exit(exit_code);
+}
+
+
+static void parse_cmdline(smpl_test_t *t, int argc, char *argv[])
+{
+#define OPTIONS "vd:Dh"
+    static struct option options[] = {
+        { "verbose" , no_argument      , NULL, 'v' },
+        { "debug"   , required_argument, NULL, 'd' },
+        { "dump"    , no_argument      , NULL, 'D' },
+        { "help"    , no_argument      , NULL, 'h' },
+        { NULL, 0, NULL, 0 },
+    };
+
+    int opt;
+
+    smpl_clear(t);
+
+    while ((opt = getopt_long(argc, argv, OPTIONS, options, NULL)) != -1) {
+        switch (opt) {
+        case 'v': {
+            int m, d;
+
+            m = smpl_log_get_mask();
+            d = m & SMPL_LOG_MASK_DEBUG;
+
+            smpl_log_set_mask((m << 1) | 0x1);
+
+            if (!d && (smpl_log_get_mask()) & SMPL_LOG_MASK_DEBUG) {
+                smpl_debug_enable(true);
+                smpl_debug_set("*");
+            }
+
+            break;
+        }
+
+        case 'd':
+            smpl_debug_enable(true);
+            smpl_debug_set(optarg);
+            break;
+
+        case 'D':
+            t->dump = true;
+            break;
+
+        case 'h':
+            print_usage(argv[0], 0, "");
+            break;
+
+        case '?':
+            print_usage(argv[0], EINVAL, "invalid argument '%c'", optopt);
+            break;
+
+        default:
+            print_usage(argv[0], EINVAL, "invalid argument '%c'", opt);
+            break;
+        }
+    }
+
+    if (argc - optind != 2)
+        print_usage(argv[0], EINVAL, "");
+
+    t->path_template = argv[optind];
+    t->path_data     = argv[optind + 1];
+}
+
+
 int main(int argc, char *argv[])
 {
-    char        *str, **errors;
-    smpl_test_t  t;
+    smpl_test_t t;
 
     parse_cmdline(&t, argc, argv);
 
-    if (smpl_register_function("TESTFN", fn_test, NULL) < 0) {
-        smpl_error("Failed to register test function as TESTFN.");
-        exit(1);
-    }
+    register_functions(&t);
+    load_template(&t);
+    dump_template(&t);
+    load_userdata(&t);
 
-    if (smpl_register_function(FN_CONCAT, fn_concat, NULL) < 0) {
-        smpl_error("Failed to register test function as %s.", FN_CONCAT);
-        exit(1);
-    }
-
-    if (smpl_register_function("CHECKFN", fn_check, NULL) < 0) {
-        smpl_error("Failed to register test function as TESTFN.");
-        exit(1);
-    }
-
-    t.data = smpl_load_data(t.path_data, &errors);
-
-    if (t.data == NULL) {
-        smpl_error("Failed to load data file '%s'.", t.path_data);
-        goto dump_errors;
-    }
-
-    t.smpl = smpl_load_template(t.path_template, &errors);
-
-    if (t.smpl == NULL) {
-        smpl_error("Failed to load template file '%s'.", t.path_template);
-        goto dump_errors;
-    }
-
-    smpl_dump_template(t.smpl, fileno(stdout));
-
-    str = smpl_evaluate(t.smpl, t.data, &errors, NULL);
-
-    if (str == NULL) {
-        smpl_error("Failed to evaluate template file '%s' with data '%s'.",
-                   t.path_template, t.path_data);
-        goto dump_errors;
-    }
-
-    printf("Template '%s' evaluated with data '%s' produced:\n%s\n",
-           t.path_template, t.path_data, str);
-
-    smpl_free_template(t.smpl);
+    eval_template(&t);
+    write_result(&t);
+    free_result(&t);
 
     return 0;
-
- dump_errors:
-    if (errors != NULL) {
-        int i;
-
-        for (i = 0; errors[i] != NULL; i++)
-            smpl_error("%s", errors[i]);
-
-        smpl_errors_free(errors);
-    }
-    exit(1);
 }

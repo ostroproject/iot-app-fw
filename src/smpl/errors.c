@@ -94,7 +94,31 @@ void smpl_errmsg(smpl_t *smpl, int error, const char *path, int line,
 }
 
 
-void smpl_errors_free(char **errors)
+void smpl_add_error(smpl_t *smpl, char *msg)
+{
+    if (smpl->errors == NULL)
+        return;
+
+    if (smpl_reallocz(*smpl->errors, smpl->nerror, smpl->nerror + 2) == NULL)
+        return;
+
+    (*smpl->errors)[smpl->nerror++] = smpl_strdup(msg);
+}
+
+
+void smpl_append_errors(smpl_t *smpl, char **errors)
+{
+    char **e;
+
+    if (errors == NULL)
+        return;
+
+    for (e = errors; *e != NULL; e++)
+        smpl_add_error(smpl, *e);
+}
+
+
+void smpl_free_errors(char **errors)
 {
     char **e;
 

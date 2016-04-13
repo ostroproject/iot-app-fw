@@ -27,6 +27,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <fcntl.h>
+#include <limits.h>
+#include <sys/stat.h>
+
 #include "generator.h"
 
 #define FN_TRUNCATE "TRUNCATE"
@@ -39,8 +43,6 @@ static int fn_truncate(smpl_t *smpl, int argc, smpl_value_t *argv,
 static int fn_concat(smpl_t *smpl, int argc, smpl_value_t *argv,
                      smpl_value_t *rv, void *user_data);
 
-static int fn_dropin(smpl_t *smpl, int argc, smpl_value_t *argv,
-                     smpl_value_t *rv, void *user_data);
 
 static void register_functions(void)
 {
@@ -59,12 +61,44 @@ static void register_functions(void)
         exit(1);
     }
 
-    if (smpl_register_function(FN_DROPIN, fn_dropin, NULL) < 0) {
-        log_error("Failed to register template function '%s'", FN_DROPIN);
-        exit(1);
+    registered = 1;
+}
+
+
+int template_config(generator_t *g)
+{
+    return smpl_set_search_path(NULL, g->path_template);
+}
+
+
+static int template_notify(smpl_t *smpl, smpl_addon_t *addon, void *user_data)
+{
+    service_t  *s    = (service_t *)user_data;
+    const char *name = smpl_addon_name(addon);
+    char        path[PATH_MAX];
+
+    SMPL_UNUSED(smpl);
+
+    iot_debug("template addon notification for '%s'...", name);
+
+    if (!strcmp(name, "firewall")) {
+        if (s->g->dry_run)
+            strcpy(path, "/proc/self/fd/1");
+        else
+            fs_firewall_path(s, path, sizeof(path));
+
+        smpl_addon_set_destination(addon, path);
+        s->firewall = 1;
+
+        return 1;
+    }
+    if (!strcmp(name, "autostart")) {
+        s->autostart = 1;
+
+        return 0;
     }
 
-    registered = 1;
+    return -1;
 }
 
 
@@ -74,30 +108,22 @@ int template_load(generator_t *g)
 
     register_functions();
 
-    g->template = smpl_load_template(g->path_template, &errors);
+    g->template = smpl_load_template("service.template", template_notify,
+                                     &errors);
 
     if (g->template == NULL)
         goto service_error;
 
-    g->firewall = smpl_load_template(g->path_firewall, &errors);
-
-    if (g->firewall == NULL)
-        goto firewall_error;
-
     return 0;
 
  service_error:
-    log_error("Failed to load service template file '%s'.", g->path_template);
-    goto dump_errors;
+    log_error("Failed to load service template file (search path: %s).",
+              g->path_template);
 
- firewall_error:
-    log_error("Failed to load firewall template file '%s'.", g->path_firewall);
-
- dump_errors:
     if (errors != NULL) {
         for (e = errors; *e != NULL; e++)
             log_error("error: %s", *e);
-        smpl_errors_free(errors);
+        smpl_free_errors(errors);
     }
 
     smpl_free_template(g->template);
@@ -110,43 +136,35 @@ int template_load(generator_t *g)
 void template_destroy(generator_t *g)
 {
     smpl_free_template(g->template);
-    smpl_free_template(g->firewall);
     g->template = NULL;
-    g->firewall = NULL;
 }
 
 
 int template_eval(service_t *s)
 {
-    char **errors, **e;
+    char **e;
 
-    s->service = smpl_evaluate(s->g->template, s->data, &errors, s);
-
-    if (errors != NULL) {
+    if (smpl_evaluate(s->g->template, s->data, s, &s->result) < 0) {
         log_error("Service template failed for %s / %s.", s->provider, s->app);
         goto dump_errors;
-    }
-
-    if (s->needsfw) {
-        s->firewall = smpl_evaluate(s->g->firewall, s->data, &errors, s);
-
-        if (errors != NULL) {
-            log_error("Firewall template failed for %s / %s.",
-                      s->provider, s->app);
-            goto dump_errors;
-        }
     }
 
     return 0;
 
  dump_errors:
-    if (errors != NULL) {
-        for (e = errors; *e; e++)
+    if (s->result.errors != NULL) {
+        for (e = s->result.errors; *e; e++)
             log_error("error: %s", *e);
-        smpl_errors_free(errors);
+        smpl_free_errors(s->result.errors);
     }
 
     return -1;
+}
+
+
+int template_write(service_t *s)
+{
+    return smpl_write_result(&s->result, O_CREAT);
 }
 
 
@@ -275,38 +293,3 @@ static int fn_concat(smpl_t *smpl, int argc, smpl_value_t *argv,
     return -1;
 }
 
-
-static int fn_dropin(smpl_t *smpl, int argc, smpl_value_t *argv,
-                     smpl_value_t *rv, void *user_data)
-{
-    service_t    *s = (service_t *)smpl->user_data;
-    smpl_value_t *a;
-    int           i;
-    const char   *what;
-
-    SMPL_UNUSED(user_data);
-    SMPL_UNUSED(rv);
-
-    what = "<unknown>";
-    for (i = 0, a = argv; i < argc; i++, a++) {
-        if (a->type != SMPL_VALUE_STRING)
-            goto invalid_dropin;
-
-        what = a->str;
-
-        if (!strcmp(a->str, "autostart"))
-            s->autostart = 1;
-        else if (!strcmp(a->str, "firewall" ))
-            s->needsfw = 1;
-        else
-            goto unknown_dropin;
-    }
-
-    return 0;
-
- unknown_dropin:
-    what = NULL;
- invalid_dropin:
-    smpl_fail(-1, smpl, EINVAL, "invalid dropin %s%s%srequested",
-              what ? "'" : "", what ? what : "", what ? "' " : "");
-}

@@ -63,6 +63,7 @@ SMPL_CDECL_BEGIN
  * Parse the given template file and load it for further evaluation.
  *
  * @param [in]  path    template file to load
+ * @param [in]  notify  evaluation-time addon notification callback
  * @param [out] errors  pointer used for returning errors, can be @NULL
  *
  * @return Returns the parsed template upon success. Upon error @errno
@@ -70,7 +71,8 @@ SMPL_CDECL_BEGIN
  *         @errors is not @NULL it is set to a NULL-terminated array
  *         of messages describing the reason for failure.
  */
-smpl_t *smpl_load_template(const char *path, char ***errors);
+smpl_t *smpl_load_template(const char *path, smpl_addon_cb_t notify,
+                           char ***errors);
 
 /**
  * @brief Load substitution/evaluation data from a file.
@@ -90,14 +92,42 @@ smpl_t *smpl_load_template(const char *path, char ***errors);
 smpl_data_t *smpl_load_data(const char *path, char ***errors);
 
 /**
+ * @brief Reset the template search path to the given list.
+ *
+ * Reset the template search path to the path which is a colon-
+ * separated list of directories. If @smpl is NULL, the global
+ * search path is reset.
+ *
+ * @param [in] smpl  template to set search path for or NULL
+ * @param [in] path  path to set search path to
+ *
+ * @return Return 0 upon succes, -1 upon error.
+ */
+int smpl_set_search_path(smpl_t *smpl, const char *paths);
+
+/**
+ * @brief Add the given list to the template search path.
+ *
+ * Append the given path list to the current template search path.
+ * @path is a colon-separated list of directories. If @smpl is NULL,
+ * the global search path is reset.
+ *
+ * @param [in] smpl  template to set search path for or NULL
+ * @param [in] path  path to set search path to
+ *
+ * @return Return 0 upon succes, -1 upon error.
+ */
+int smpl_add_search_path(smpl_t *smpl, const char *paths);
+
+/**
  * @brief Evaluate a template with data.
  *
  * Evaluate the given template in the context of the given data.
  *
  * @param [in]  smpl       template to evaluete
  * @param [in]  data       data to use for evaluation
- * @param [out] errors     pointer for returning errors, can be @NULL
- * @param [in]  user_data  opaque user_data for function callbacks
+ * @param [in]  user_data  opaque user_data for function and addon callbacks
+ * @param [out] result     evaluation result
  *
  * @return Returns the string produced by template evaluation. In case
  *         of error, @NULL is returned and @errno is set to a value
@@ -105,8 +135,8 @@ smpl_data_t *smpl_load_data(const char *path, char ***errors);
  *         it is set to a NULL-terminated array of messages describing
  *         the reason for failure.
  */
-char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors,
-                    void *user_data);
+int smpl_evaluate(smpl_t *smpl, smpl_data_t *data, void *user_data,
+                  smpl_result_t *result);
 
 /**
  * @brief Free a template.
@@ -118,14 +148,24 @@ char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors,
  */
 void smpl_free_template(smpl_t *smpl);
 
+
+smpl_result_t *smpl_init_result(smpl_result_t *r, const char *destination);
+void smpl_free_result(smpl_result_t *r);
+char *smpl_steal_result_output(smpl_result_t *r);
+char **smpl_steal_result_errors(smpl_result_t *r);
+char **smpl_result_errors(smpl_result_t *r);
+int smpl_write_result(smpl_result_t *r, int flags);
+
+
 /**
- * @brief Free the result of template evaluation.
+ * @brief Free the output from a template evaluation result.
  *
- * Free the result returned by @smpl_evaluate.
+ * Free the output returned in a template evaluation result
+ * by @smpl_evaluate.
  *
- * @param [in] result  template evaluation result
+ * @param [in] o  template evaluation result output
  */
-#define smpl_free_result(_r) smpl_free(_r)
+#define smpl_free_output(o) smpl_free(o)
 
 /**
  * @brief Free substitution/evaluation data.
@@ -144,6 +184,8 @@ void smpl_free_data(smpl_data_t *data);
  * @param [in] errors  array of error messages to free
  */
 void smpl_free_errors(char **errors);
+
+void smpl_append_errors(smpl_t *smpl, char **errors);
 
 /**
  * @brief Register a template processing function.
@@ -196,7 +238,9 @@ int smpl_print_template(smpl_t *smpl, int fd);
  */
 void smpl_dump_template(smpl_t *smpl, int fd);
 
-
+char *smpl_addon_name(smpl_addon_t *a);
+char *smpl_addon_template(smpl_addon_t *a);
+int smpl_addon_set_destination(smpl_addon_t *a, const char *destination);
 
 
 SMPL_CDECL_END

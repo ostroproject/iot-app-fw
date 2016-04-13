@@ -48,6 +48,7 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 {
     service_t  *s;
     iot_json_t *o;
+    char        path[PATH_MAX];
 
     s = iot_allocz(sizeof(*s));
 
@@ -58,8 +59,6 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 
     s->g        = g;
     s->m        = manifest;
-    s->sfd      = -1;
-    s->ffd      = -1;
     s->provider = iot_strdup(provider);
     s->app      = iot_strdup(app);
     s->appdir   = iot_strdup(dir);
@@ -76,11 +75,11 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 
     iot_json_add(s->data, "manifest", manifest);
 
+    snprintf(path, sizeof(path), "%s/%s", g->path_template, "/service.template");
+
     if (!iot_json_add_string(o, "generator", g->argv0))
         goto nomem;
-    if (!iot_json_add_string(o, "template", g->path_template))
-        goto nomem;
-    if (!iot_json_add_string(o, "firewall", g->path_firewall))
+    if (!iot_json_add_string(o, "template", path))
         goto nomem;
     if (!iot_json_add_string(o, "manifest", src))
         goto nomem;
@@ -95,6 +94,13 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
         goto nomem;
 
     iot_list_append(&g->services, &s->hook);
+
+    if (s->g->dry_run)
+        strcpy(path, "/proc/self/fd/1");
+    else
+        fs_service_path(s, path, sizeof(path));
+
+    smpl_init_result(&s->result, path);
 
     return s;
 
@@ -112,53 +118,35 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 }
 
 
+#if 0
 static int service_open(service_t *s)
 {
     char path[PATH_MAX];
 
-    if (s->g->dry_run) {
-        s->sfd = dup(fileno(stdout));
-        s->ffd = dup(fileno(stdout));
-    }
-    else {
+    if (s->g->dry_run)
+        strcpy(path, "/proc/self/fd/1");
+    else
         if (!fs_service_path(s, path, sizeof(path)))
             goto fail;
 
-        log_info("Writing service file %s...", path);
 
-        s->sfd = open(path, O_CREAT | O_WRONLY, 0644);
-
-        if (s->firewall != NULL) {
-            if (!fs_firewall_path(s, path, sizeof(path)))
-                goto fail;
-
-            log_info("Writing firewall file %s...", path);
-
-            s->ffd = open(path, O_CREAT | O_WRONLY, 0644);
-        }
-    }
-
-    if (s->sfd < 0 || (s->firewall != NULL && s->ffd < 0))
-        goto fail;
+    if (path == NULL)
+        goto nomem;
 
     return 0;
 
  fail:
-    close(s->sfd);
-    close(s->ffd);
-    s->sfd = s->ffd = -1;
-
+ nomem:
     return -1;
 }
 
 
 static void service_close(service_t *s)
 {
-    close(s->sfd);
-    close(s->ffd);
-    s->sfd = -1;
-    s->ffd = -1;
+    iot_free(s->destination);
+    s->destination = NULL;
 }
+#endif
 
 
 static int service_link(service_t *s)
@@ -194,16 +182,10 @@ void service_abort(service_t *s)
 {
     char path[PATH_MAX];
 
-    close(s->sfd);
-    close(s->ffd);
-    s->sfd = -1;
-    s->ffd = -1;
-
     if (fs_service_path(s, path, sizeof(path)))
         unlink(path);
 
-    if (s->firewall != NULL && fs_firewall_path(s, path, sizeof(path)))
-        unlink(path);
+    /* XXX TODO unlink also addons */
 }
 
 
@@ -269,6 +251,7 @@ static int service_mkdir(generator_t *g)
 }
 
 
+#if 0
 static int service_dump(service_t *s)
 {
     int l, n;
@@ -329,6 +312,7 @@ static int service_dump(service_t *s)
     service_abort(s);
     return -1;
 }
+#endif
 
 
 int service_write(generator_t *g)
@@ -342,7 +326,7 @@ int service_write(generator_t *g)
     iot_list_foreach(&g->services, p, n) {
         s = iot_list_entry(p, typeof(*s), hook);
 
-        if (service_dump(s) < 0)
+        if (smpl_write_result(&s->result, O_CREAT) < 0 || service_link(s) < 0)
             g->status = -1;
 
         iot_debug("* %s-%s:", s->provider, s->app);
