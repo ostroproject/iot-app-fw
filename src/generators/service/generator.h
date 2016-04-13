@@ -50,28 +50,44 @@
 #    define LIBEXECDIR LIBDIR"/libexec"
 #endif
 
+#ifndef SYSCONFDIR
+#    define SYSCONFDIR "/etc"
+#endif
+
 /* External helper we try to exec(3) for mounting PATH_APPS. */
 #ifndef MOUNT_HELPER
 #    define MOUNT_HELPER LIBEXECDIR"/iot-app-fw/mount-apps"
 #endif
 
+/* Optional generator configuration file. */
 #ifndef PATH_CONFIG
 #    define PATH_CONFIG SYSCONFDIR"/iot-app-fw/generator.cfg"
 #endif
 
-#ifndef PATH_TEMPLATE
-#    define PATH_TEMPLATE LIBEXECDIR"/iot-app-fw/service.template"
+/* Directory for templates. */
+#ifndef PATH_TEMPLATE_DIR
+#    define PATH_TEMPLATE_DIR LIBEXECDIR"/iot-app-fw"
 #endif
 
+/* Service template file. */
+#ifndef PATH_TEMPLATE
+#    define PATH_TEMPLATE PATH_TEMPLATE_DIR"/service.template"
+#endif
+
+/* Firewall template file. */
 #ifndef PATH_FIREWALL
-#    define PATH_FIREWALL LIBEXECDIR"/iot-app-fw/firewall.template"
+#    define PATH_FIREWALL PATH_TEMPLATE_DIR"/firewall.template"
 #endif
 
 /* Directory where applications are installed. */
-#define PATH_APPS "/apps"
+#ifndef PATH_APPS
+#    define PATH_APPS "/apps"
+#endif
 
 /* Top directory under which we stitch together container images. */
-#define PATH_CONTAINER "/run/systemd/machines"
+#ifndef PATH_CONTAINER
+#    define PATH_CONTAINER "/run/systemd/machines"
+#endif
 
 /* Directory to drop files into for systemd-sysusers. */
 #define PATH_SYSUSERS LIBDIR"/sysusers.d"
@@ -104,8 +120,7 @@ struct generator_s {
     const char      *dir_apps;           /* application top directory */
     const char      *dir_service;        /* service (output) directory */
     const char      *path_config;        /* configuration path */
-    const char      *path_template;      /* template file path */
-    const char      *path_firewall;      /* firewall template path */
+    const char      *path_template;      /* template directory path */
     const char      *log_path;           /* where to log to */
     int              dry_run : 1;        /* just a dry-run, don't generate */
     int              update : 1;         /* whether to run in update mode */
@@ -113,7 +128,6 @@ struct generator_s {
     int              status;             /* service generation status */
     iot_json_t      *cfg;                /* optional configuration */
     smpl_t          *template;           /* service template */
-    smpl_t          *firewall;           /* firewall template */
     iot_list_hook_t  services;           /* generated service( file)s */
     iot_list_hook_t  preprocessors;      /* manifest preprocessors */
 };
@@ -168,6 +182,7 @@ int application_discover(generator_t *g);
 /*
  * Template handling.
  */
+int template_config(generator_t *g);
 int template_load(generator_t *g);
 int template_eval(service_t *s);
 void template_destroy(generator_t *g);
@@ -231,15 +246,12 @@ struct service_s {
     char            *src;                /* mannifest source path */
     iot_json_t      *m;                  /* application manifest */
     iot_json_t      *data;               /* template configuration data */
-    char            *service;            /* generated basic service */
-    char            *firewall;           /*   and firewall service */
-    int              sfd;                /* basic service file */
-    int              ffd;                /* firewall service file */
+    smpl_result_t    result;             /* template generation result */
     const char      *user;               /* user to run service as */
     const char      *group;              /* group to run service as */
     iot_json_t      *argv;               /* user command to execute */
     int              autostart : 1;      /* wants started on boot */
-    int              needsfw : 1;        /* needs firewall manipulation */
+    int              firewall : 1;       /* needs firewall manipulation */
 };
 
 

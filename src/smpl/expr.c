@@ -1198,6 +1198,9 @@ smpl_value_t *value_setv(smpl_value_t *v, int type, va_list aq)
 {
     va_list ap;
 
+    if (v == NULL)
+        return NULL;
+
     v->type    = type & ~SMPL_VALUE_DYNAMIC;
     v->dynamic = type &  SMPL_VALUE_DYNAMIC;
 
@@ -1244,9 +1247,11 @@ smpl_value_t *value_set(smpl_value_t *v, int type, ...)
 {
     va_list ap;
 
-    va_start(ap, type);
-    v = value_setv(v, type, ap);
-    va_end(ap);
+    if (v != NULL) {
+        va_start(ap, type);
+        v = value_setv(v, type, ap);
+        va_end(ap);
+    }
 
     return v;
 }

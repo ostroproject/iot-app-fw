@@ -58,7 +58,7 @@
 .    {if} ({container.portmap} || {container.type} != 'none') {then}
 .        Requires={data.provider}-{data.manifest.application}-firewall.service
 .        After={data.provider}-{data.manifest.application}-firewall.service
-.        {REQUEST-DROPIN}('firewall')
+.        {REQUEST-ADDON}('name:firewall')
 .    {end}
 {end}
 
@@ -91,6 +91,6 @@
 {macro} AUTOSTART-CHECK(manifest) {do}
 .    {if} ({manifest.autostart} == 'true' ||
            {manifest.autostart} == 'yes') {then}
-.        {REQUEST-DROPIN}('autostart')
+.        {REQUEST-ADDON}('name:autostart')
 .    {end}
 {end}
