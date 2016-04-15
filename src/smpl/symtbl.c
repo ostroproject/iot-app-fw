@@ -273,7 +273,7 @@ int symtbl_push(smpl_t *smpl, smpl_sym_t sym, smpl_value_type_t type, void *val)
 
     switch (v->type) {
     case SMPL_VALUE_STRING:
-        v->str = val;
+        v->str = v->dynamic ? smpl_strdup(val) : val;
         break;
     case SMPL_VALUE_INTEGER:
         v->i32 = *(int32_t *)val;
@@ -283,7 +283,7 @@ int symtbl_push(smpl_t *smpl, smpl_sym_t sym, smpl_value_type_t type, void *val)
         break;
     case SMPL_VALUE_OBJECT:
     case SMPL_VALUE_ARRAY:
-        v->json = val;
+        v->json = v->dynamic ? smpl_json_ref(val) : val;
         break;
     case SMPL_VALUE_UNSET:
         v->str = NULL;

@@ -233,6 +233,7 @@ int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
     smpl_expr_t  *a;
     smpl_value_t  v;
     void         *vp;
+    int           type;
 
     m = c->m;
     a = c->expr ? c->expr->call.args : NULL;
@@ -252,7 +253,9 @@ int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
             goto invalid_arg;
         }
 
-        if (symtbl_push(smpl, m->args[i], v.type, vp) < 0)
+        type = v.type | (v.dynamic ? SMPL_VALUE_DYNAMIC : 0);
+
+        if (symtbl_push(smpl, m->args[i], type, vp) < 0)
             goto push_failed;
 
         value_reset(&v);
