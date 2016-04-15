@@ -5,7 +5,7 @@
 {end}
 TimeoutStopSec=5
 ExecStartPre=/bin/mkdir -p {C}/dev/../sys/../proc/../etc/../usr
-ExecStartPre=/bin/mkdir -p {C}/var/../run/../tmp/../home/../root
+ExecStartPre=/bin/mkdir -p {C}/var/../run/../tmp/../home/../root/self
 ExecStart=/usr/bin/systemd-nspawn \
     --keep-unit \
 .   {switch}({data.manifest.container.type}){in}
@@ -15,12 +15,15 @@ ExecStart=/usr/bin/systemd-nspawn \
     -M {U} \
     -D {C} \
     --user={U} \
+    {BIND-SELF}({data.manifest.container}) \
     {OVERLAY-RW}('/etc') \
     {OVERLAY-RW}('/var') \
     {OVERLAY-RO}('/lib') \
     {OVERLAY-RO}('/sbin') \
     {OVERLAY-RO}('/bin') \
     {OVERLAY-RO}('/usr') \
+    {BIND-RW}({CONCAT}('/home/',{data.provider},'-',{data.manifest.application}),
+              {CONCAT}('/home/',{data.provider},'-',{data.manifest.application})) \
     {TMPFS}('/tmp', '0755') \
     {NETWORK}({data.manifest.container}) \
     {COMMAND}({data.manifest})

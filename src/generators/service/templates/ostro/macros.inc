@@ -10,6 +10,15 @@
 {macro} OVERLAY-RW(path)  {do}--overlay={path}:{A}{path}:{path}{end}
 {macro} OVERLAY-RO(path)  {do}--overlay-ro={path}:{A}{path}:{path}{end}
 {macro} TMPFS(path, mode) {do}--tmpfs={path}:mode={mode}{end}
+{macro} BIND-RW(src, dst) {do}--bind={src}:{dst}{end}
+{macro} BIND-RO(src, dst) {do}--bind-ro={src}:{dst}{end}
+
+{macro} BIND-SELF(container) {do}
+.   {if} ({container.type} != 'none') {then}
+.       {BIND-RO}({CONCAT}('/apps/', {data.provider}, '/',
+.                          {data.manifest.application}), '/self')
+.   {end}
+{end}
 
 {macro} ENVIRONMENT(manifest) {do}
 .   {foreach} name:value {in}{manifest.environment} {do}
