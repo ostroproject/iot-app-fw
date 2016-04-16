@@ -268,8 +268,8 @@ int symtbl_push(smpl_t *smpl, smpl_sym_t sym, smpl_value_type_t type, void *val)
         goto nomem;
 
     smpl_list_init(&v->hook);
-    v->type    = type & ~SMPL_VALUE_DYNAMIC;
-    v->dynamic = type &  SMPL_VALUE_DYNAMIC;
+    v->type    =  type & ~SMPL_VALUE_DYNAMIC;
+    v->dynamic = (type &  SMPL_VALUE_DYNAMIC) ? 1 : 0;
 
     switch (v->type) {
     case SMPL_VALUE_STRING:
