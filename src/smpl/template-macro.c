@@ -238,7 +238,7 @@ int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
     m = c->m;
     a = c->expr ? c->expr->call.args : NULL;
 
-    for (i = 0; i < m->narg; i++) {
+    for (i = m->narg - 1; i >= 0; i--) {
         if (expr_eval(smpl, a, &v) < 0)
             goto invalid_arg;
 

@@ -291,15 +291,24 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
         v->expr.arg1 = a1;
         break;
 
+        case '(':
+            v->type = SMPL_VALUE_ARGLIST;
+            break;
+
     case SMPL_TOKEN_MACROREF:
         v->type   = SMPL_VALUE_MACROREF;
         v->call.m = t->m;
 
         narg = 0;
-        smpl_list_foreach(q, p, n) {
+        smpl_list_foreach_back(q, p, n) {
             arg = smpl_list_entry(p, typeof(*arg), hook);
 
             smpl_list_delete(&arg->hook);
+
+            if (arg->type == SMPL_VALUE_ARGLIST) {
+                smpl_free(arg);
+                break;
+            }
 
             if (v->call.args == NULL)
                 v->call.args = arg;
@@ -322,10 +331,15 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
         v->call.f = t->f;
 
         narg = 0;
-        smpl_list_foreach(q, p, n) {
+        smpl_list_foreach_back(q, p, n) {
             arg = smpl_list_entry(p, typeof(*arg), hook);
 
             smpl_list_delete(&arg->hook);
+
+            if (arg->type == SMPL_VALUE_ARGLIST) {
+                smpl_free(arg);
+                break;
+            }
 
             if (v->call.args == NULL)
                 v->call.args = arg;
@@ -390,6 +404,12 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
     smpl_list_t   tknq;
     smpl_token_t *tkn, *t;
     int           type, nparen;
+    smpl_token_t  paren = {
+        .type = SMPL_TOKEN_PAREN_OPEN,
+        .str  = "(",
+        .path = "<internal arglist terminator>",
+        .m    = NULL,
+    };
 
     smpl_list_init(&tknq);
     smpl_list_init( valq);
@@ -424,6 +444,8 @@ static int parse_rpn(smpl_t *smpl, smpl_list_t *valq, smpl_token_t *end)
         case SMPL_TOKEN_MACROREF:
         case SMPL_TOKEN_FUNCREF:
             if (!token_push(&tknq, token_copy(tkn)))
+                goto push_failed;
+            if (!value_push(smpl, valq, token_copy(&paren)))
                 goto push_failed;
             break;
 

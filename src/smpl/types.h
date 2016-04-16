@@ -167,6 +167,7 @@ enum smpl_value_type_e {
     SMPL_VALUE_TRAIL,                    /* expression, trail check */
     SMPL_VALUE_MACROREF,                 /* expression, macro call */
     SMPL_VALUE_FUNCREF,                  /* expression, function call */
+    SMPL_VALUE_ARGLIST,
     SMPL_VALUE_DYNAMIC = 0x1000,         /* actual valuye needs to be freed */
 };
 

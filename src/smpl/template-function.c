@@ -235,7 +235,7 @@ int function_call(smpl_t *smpl, smpl_function_t *f, int narg, smpl_value_t *args
     argv = narg ? alloca(narg * sizeof(*argv)) : NULL;
     a    = args;
 
-    for (i = 0; i < narg; i++) {
+    for (i = narg - 1; i >= 0; i--) {
         if (expr_eval(smpl, a, argv + i) < 0)
             goto invalid_expr;
         a = smpl_list_entry(a->hook.next, typeof(*a), hook);
