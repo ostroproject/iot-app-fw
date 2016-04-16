@@ -71,7 +71,7 @@ static int scan_app_cb(const char *dir, const char *e, iot_dirent_type_t type,
     if (dir_entry(appdir, sizeof(appdir), dir, e) == NULL)
         goto out;
 
-    if (dir_entry(manifest, sizeof(manifest), appdir, "manifest") == NULL)
+    if (dir_entry(manifest, sizeof(manifest), appdir, g->name_manifest) == NULL)
         goto out;
 
     log_debug("Found manifest '%s'...", manifest);

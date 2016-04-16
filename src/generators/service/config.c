@@ -59,7 +59,9 @@ static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
             "\n"
             "The possible opions are:\n"
             "  -c, --config <path>    configuration to load\n"
-            "  -t, --template <dir>   service template directory to use\n"
+            "  -T, --templates <dir>  template directory to use\n"
+            "  -t  --template <name>  template file to use\n"
+            "  -m  --manifest <name>  manifest name to look for\n"
             "  -n, --dry-run          just print, don't generate anything\n"
             "  -u, --update           process only touched manifests\n"
             "  -l, --log <path>       where to log to (default: /dev/kmsg)\n"
@@ -86,6 +88,8 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
     g->dir_apps      = PATH_APPS;
     g->path_config   = PATH_CONFIG;
     g->path_template = PATH_TEMPLATE_DIR;
+    g->name_template = NAME_TEMPLATE;
+    g->name_manifest = NAME_MANIFEST;
 
     iot_log_set_mask(IOT_LOG_MASK_ERROR | IOT_LOG_MASK_WARNING);
 }
@@ -93,16 +97,18 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
 
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 {
-#   define OPTIONS "c:t:nul:vd:h"
+#   define OPTIONS "c:T:t:m:nul:vd:h"
     static struct option options[] = {
-        { "config"  , required_argument, NULL, 'c' },
-        { "template", required_argument, NULL, 't' },
-        { "dry-run" , no_argument      , NULL, 'n' },
-        { "update"  , no_argument      , NULL, 'u' },
-        { "log"     , required_argument, NULL, 'l' },
-        { "verbose" , no_argument      , NULL, 'v' },
-        { "debug"   , required_argument, NULL, 'd' },
-        { "help"    , no_argument      , NULL, 'h' },
+        { "config"   , required_argument, NULL, 'c' },
+        { "templates", required_argument, NULL, 'T' },
+        { "template" , required_argument, NULL, 't' },
+        { "manifest" , required_argument, NULL, 'm' },
+        { "dry-run"  , no_argument      , NULL, 'n' },
+        { "update"   , no_argument      , NULL, 'u' },
+        { "log"      , required_argument, NULL, 'l' },
+        { "verbose"  , no_argument      , NULL, 'v' },
+        { "debug"    , required_argument, NULL, 'd' },
+        { "help"     , no_argument      , NULL, 'h' },
         { NULL, 0, NULL, 0 }
     };
 
@@ -116,8 +122,16 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
             g->path_config = optarg;
             break;
 
-        case 't':
+        case 'T':
             g->path_template = optarg;
+            break;
+
+        case 't':
+            g->name_template = optarg;
+            break;
+
+        case 'm':
+            g->name_manifest = optarg;
             break;
 
         case 'n':
