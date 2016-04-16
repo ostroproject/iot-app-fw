@@ -69,14 +69,14 @@
 #    define PATH_TEMPLATE_DIR LIBEXECDIR"/iot-app-fw"
 #endif
 
-/* Service template file. */
-#ifndef PATH_TEMPLATE
-#    define PATH_TEMPLATE PATH_TEMPLATE_DIR"/service.template"
+/* Service template name. */
+#ifndef NAME_TEMPLATE
+#    define NAME_TEMPLATE "service.template"
 #endif
 
-/* Firewall template file. */
-#ifndef PATH_FIREWALL
-#    define PATH_FIREWALL PATH_TEMPLATE_DIR"/firewall.template"
+/* Application manifest name. */
+#ifndef NAME_MANIFEST
+#    define NAME_MANIFEST "manifest"
 #endif
 
 /* Directory where applications are installed. */
@@ -121,6 +121,8 @@ struct generator_s {
     const char      *dir_service;        /* service (output) directory */
     const char      *path_config;        /* configuration path */
     const char      *path_template;      /* template directory path */
+    const char      *name_template;      /* service template name */
+    const char      *name_manifest;      /* application manifest name */
     const char      *log_path;           /* where to log to */
     int              dry_run : 1;        /* just a dry-run, don't generate */
     int              update : 1;         /* whether to run in update mode */

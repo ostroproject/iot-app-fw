@@ -108,7 +108,7 @@ int template_load(generator_t *g)
 
     register_functions();
 
-    g->template = smpl_load_template("service.template", template_notify,
+    g->template = smpl_load_template(g->name_template, template_notify,
                                      &errors);
 
     if (g->template == NULL)
