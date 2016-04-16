@@ -16,14 +16,13 @@ ExecStart=/usr/bin/systemd-nspawn \
     -D {C} \
     {USER}({data.manifest.container}) \
     {BIND-SELF}({data.manifest.container}) \
+    {BIND-RW}({CONCAT}('/home/', {U}), {CONCAT}('/home/', {U})) \
     {OVERLAY-RW}('/etc') \
     {OVERLAY-RW}('/var') \
     {OVERLAY-RO}('/lib') \
     {OVERLAY-RO}('/sbin') \
     {OVERLAY-RO}('/bin') \
     {OVERLAY-RO}('/usr') \
-    {BIND-RW}({CONCAT}('/home/',{data.provider},'-',{data.manifest.application}),
-              {CONCAT}('/home/',{data.provider},'-',{data.manifest.application})) \
     {TMPFS}('/tmp', '0755') \
     {NETWORK}({data.manifest.container}) \
     {COMMAND}({data.manifest})

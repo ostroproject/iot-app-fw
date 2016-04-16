@@ -1,10 +1,7 @@
 {macro} U   {do}{data.provider}-{data.manifest.application}{end}
 {macro} C   {do}{data.path.container}/{U}-root{end}
 {macro} A   {do}/apps/{data.provider}/{data.manifest.application}{end}
-{macro} CIF {do}
-.               {TRUNCATE}({CONCAT}('ve-', {data.provider},
-.                                   '-', {data.manifest.application}), 15)
-{end}
+{macro} CIF {do}{TRUNCATE}({CONCAT}('ve-', {U}), 15){end}
 {macro} IPT {do}/usr/sbin/iptables -w{end}
 
 {macro} OVERLAY-RW(path)  {do}--overlay={path}:{A}{path}:{path}{end}
@@ -15,8 +12,13 @@
 
 {macro} BIND-SELF(container) {do}
 .   {if} ({container.type} != 'none') {then}
-.       {BIND-RO}({CONCAT}('/apps/', {data.provider}, '/',
-.                          {data.manifest.application}), '/self')
+.       {BIND-RO}({A}, '/self')
+.   {end}
+{end}
+
+{macro} BIND-HOME(container) {do}
+.   {if} ({container.type} != 'none') {then}
+.       {BIND-RW}({CONCAT}('/home/', {U}), {CONCAT}('/home/', {U}))
 .   {end}
 {end}
 
