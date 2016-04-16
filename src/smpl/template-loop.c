@@ -227,7 +227,7 @@ static int loop_pop(smpl_t *smpl, smpl_sym_t sym)
 }
 
 
-int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop)
+int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop, smpl_buffer_t *obuf)
 {
     smpl_value_t      value;
     smpl_json_iter_t  it;
@@ -235,6 +235,9 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop)
     char             *k;
     void             *vptr;
     int               fl, i, n;
+
+    if (obuf == NULL)
+        obuf = smpl->result;
 
     if (symtbl_resolve(smpl, loop->ref, &value) < 0)
         goto invalid_reference;
@@ -248,7 +251,7 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop)
             loop_push(smpl, loop->key, SMPL_VALUE_STRING, k, &fl);
             loop_push(smpl, loop->val, SMPL_VALUE_OBJECT, v, &fl);
 
-            if (block_eval(smpl, &loop->body) < 0)
+            if (block_eval(smpl, &loop->body, obuf) < 0)
                 goto fail;
 
             loop_pop(smpl, loop->key);
@@ -269,7 +272,7 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop)
             loop_push(smpl, loop->key, SMPL_VALUE_INTEGER, &i, &fl);
             loop_push(smpl, loop->val, SMPL_VALUE_OBJECT ,  v, &fl);
 
-            if (block_eval(smpl, &loop->body) < 0)
+            if (block_eval(smpl, &loop->body, obuf) < 0)
                 goto fail;
 
             loop_pop(smpl, loop->key);
@@ -288,7 +291,7 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop)
         loop_push(smpl, loop->key, SMPL_SYMBOL_STRING, ""  , &fl);
         loop_push(smpl, loop->val, value.type        , vptr, &fl);
 
-        if (block_eval(smpl, &loop->body) < 0)
+        if (block_eval(smpl, &loop->body, obuf) < 0)
             goto fail;
 
         loop_pop(smpl, loop->key);

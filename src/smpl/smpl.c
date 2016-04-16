@@ -228,7 +228,7 @@ char *smpl_evaluate(smpl_t *smpl, smpl_data_t *data, char ***errors,
     if (symtbl_push(smpl, smpl->data, SMPL_VALUE_OBJECT, data) < 0)
         goto data_fail;
 
-    if (block_eval(smpl, &smpl->body) < 0)
+    if (block_eval(smpl, &smpl->body, NULL) < 0)
         goto eval_fail;
 
     symtbl_flush(smpl);

@@ -484,7 +484,7 @@ int expr_print(smpl_t *smpl, smpl_expr_t *expr, char *buf, size_t size);
 int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v);
 int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v);
 int expr_compare_values(smpl_value_t *v1, smpl_value_t *v2);
-int value_eval(smpl_t *smpl, smpl_expr_t *e);
+int value_eval(smpl_t *smpl, smpl_expr_t *e, smpl_buffer_t *obuf);
 smpl_value_t *value_set(smpl_value_t *v, int type, ...);
 smpl_value_t *value_setv(smpl_value_t *v, int type, va_list ap);
 smpl_value_t *value_copy(smpl_value_t *dst, smpl_value_t *src);
@@ -513,14 +513,16 @@ int template_print(smpl_t *smpl, int fd);
 #define block_parse parse_block
 void block_free(smpl_list_t *block);
 void block_dump(smpl_t *smpl, int fd, smpl_list_t *block, int indent);
-int block_eval(smpl_t *smpl, smpl_list_t *block);
+int block_eval(smpl_t *smpl, smpl_list_t *block, smpl_buffer_t *obuf);
 
 int macro_parse(smpl_t *smpl);
 void macro_free(smpl_macro_t *m);
 int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block);
 void macro_dump_ref(smpl_t *smpl, int fd, smpl_insn_call_t *c, int indent);
 void macro_free_ref(smpl_insn_t *insn);
-int macro_eval(smpl_t *smpl, smpl_insn_call_t *c);
+int macro_eval(smpl_t *smpl, smpl_insn_call_t *c, smpl_buffer_t *obuf);
+int macro_call(smpl_t *smpl, smpl_macro_t *m, smpl_value_t *args,
+               smpl_buffer_t *obuf);
 void macro_purge(smpl_list_t *macros);
 void macro_dump(smpl_t *smpl, int fd, smpl_macro_t *m);
 smpl_macro_t *macro_find(smpl_t *smpl, smpl_sym_t sym);
@@ -536,34 +538,34 @@ void function_dump_ref(smpl_t *smpl, int fd, smpl_insn_call_t *c, int indent);
 void function_free_ref(smpl_insn_t *insn);
 int function_call(smpl_t *smpl, smpl_function_t *f, int narg, smpl_value_t *args,
                   smpl_value_t *rv);
-int function_eval(smpl_t *smpl, smpl_insn_call_t *c);
+int function_eval(smpl_t *smpl, smpl_insn_call_t *c, smpl_buffer_t *obuf);
 
 void builtin_register(void);
 
 int text_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block);
 void text_free(smpl_insn_t *insn);
 void text_dump(smpl_t *smpl, int fd, smpl_insn_text_t *text, int indent);
-int text_eval(smpl_t *smpl, smpl_insn_text_t *text);
+int text_eval(smpl_t *smpl, smpl_insn_text_t *text, smpl_buffer_t *obuf);
 
 int vref_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block);
 void vref_free(smpl_insn_t *insn);
 void vref_dump(smpl_t *smpl, int fd, smpl_insn_vref_t *ref, int indent);
-int vref_eval(smpl_t *smpl, smpl_insn_vref_t *ref);
+int vref_eval(smpl_t *smpl, smpl_insn_vref_t *ref, smpl_buffer_t *obuf);
 
 int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block);
 void branch_free(smpl_insn_t *insn);
 void branch_dump(smpl_t *smpl, int fd, smpl_insn_branch_t *branch, int indent);
-int branch_eval(smpl_t *smpl, smpl_insn_branch_t *branch);
+int branch_eval(smpl_t *smpl, smpl_insn_branch_t *branch, smpl_buffer_t *obuf);
 
 int loop_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block);
 void loop_free(smpl_insn_t *insn);
 void loop_dump(smpl_t *smpl, int fd, smpl_insn_for_t *loop, int indent);
-int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop);
+int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop, smpl_buffer_t *obuf);
 
 int switch_parse(smpl_t *smpl, smpl_list_t *block);
 void switch_free(smpl_insn_t *insn);
 void switch_dump(smpl_t *smpl, int fd, smpl_insn_switch_t *sw, int indent);
-int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw);
+int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw, smpl_buffer_t *obuf);
 
 smpl_json_t *smpl_json_load(const char *path, char ***errors);
 void smpl_json_free(smpl_json_t *json);

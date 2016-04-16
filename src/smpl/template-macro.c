@@ -226,14 +226,80 @@ void macro_free_ref(smpl_insn_t *insn)
 }
 
 
-int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
+int macro_call(smpl_t *smpl, smpl_macro_t *m, smpl_value_t *args,
+               smpl_buffer_t *obuf)
 {
+    smpl_expr_t  *a;
+    smpl_value_t  v;
+    int           i, r;
+    void         *vp;
+    int           type;
+
+    if (obuf == NULL)
+        obuf = smpl->result;
+
+    a = args;
+
+    for (i = m->narg - 1; i >= 0; i--) {
+        if (expr_eval(smpl, a, &v) < 0)
+            goto invalid_arg;
+
+        switch (v.type) {
+        case SMPL_VALUE_STRING:  vp = v.str;  break;
+        case SMPL_VALUE_INTEGER: vp = &v.i32; break;
+        case SMPL_VALUE_DOUBLE:  vp = &v.dbl; break;
+        case SMPL_VALUE_OBJECT:
+        case SMPL_VALUE_ARRAY:   vp = v.json; break;
+        case SMPL_VALUE_UNSET:   vp = NULL;   break;
+        default:
+            goto invalid_arg;
+        }
+
+        type = v.type | (v.dynamic ? SMPL_VALUE_DYNAMIC : 0);
+
+        if (symtbl_push(smpl, m->args[i], type, vp) < 0)
+            goto push_failed;
+
+        value_reset(&v);
+
+        a = smpl_list_entry(a->hook.next, typeof(*a), hook);
+    }
+
+    r = block_eval(smpl, &m->body, obuf);
+
+    for (i = 0; i < m->narg; i++) {
+        symtbl_pop(smpl, m->args[i]);
+    }
+
+    if (r < 0)
+        goto failed;
+
+    return 0;
+
+ invalid_arg:
+    smpl_fail(-1, smpl, EINVAL, "failed to evaluate macro argument #%d", i + 1);
+
+ push_failed:
+    smpl_fail(-1, smpl, EINVAL, "failed to push macro argument #%d", i + 1);
+
+ failed:
+    return -1;
+}
+
+
+int macro_eval(smpl_t *smpl, smpl_insn_call_t *c, smpl_buffer_t *obuf)
+{
+    return macro_call(smpl, c->m, c->expr ? c->expr->call.args : NULL, obuf);
+#if 0
     smpl_macro_t *m;
     int           i, r;
     smpl_expr_t  *a;
     smpl_value_t  v;
     void         *vp;
     int           type;
+
+    if (obuf == NULL)
+        obuf = smpl->result;
 
     m = c->m;
     a = c->expr ? c->expr->call.args : NULL;
@@ -263,7 +329,7 @@ int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
         a = smpl_list_entry(a->hook.next, typeof(*a), hook);
     }
 
-    r = block_eval(smpl, &m->body);
+    r = block_eval(smpl, &m->body, obuf);
 
     for (i = 0; i < m->narg; i++) {
         symtbl_pop(smpl, m->args[i]);
@@ -282,6 +348,7 @@ int macro_eval(smpl_t *smpl, smpl_insn_call_t *c)
 
  failed:
     return -1;
+#endif
 }
 
 

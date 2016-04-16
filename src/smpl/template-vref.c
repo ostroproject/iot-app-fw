@@ -87,11 +87,14 @@ void vref_dump(smpl_t *smpl, int fd, smpl_insn_vref_t *vref, int indent)
 }
 
 
-int vref_eval(smpl_t *smpl, smpl_insn_vref_t *vref)
+int vref_eval(smpl_t *smpl, smpl_insn_vref_t *vref, smpl_buffer_t *obuf)
 {
     char buf[1024];
 
-    return buffer_printf(smpl->result, "%s",
+    if (obuf == NULL)
+        obuf = smpl->result;
+
+    return buffer_printf(obuf, "%s",
                          varref_string(smpl, vref->ref, buf, sizeof(buf)));
 }
 
