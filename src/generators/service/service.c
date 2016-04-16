@@ -118,37 +118,6 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 }
 
 
-#if 0
-static int service_open(service_t *s)
-{
-    char path[PATH_MAX];
-
-    if (s->g->dry_run)
-        strcpy(path, "/proc/self/fd/1");
-    else
-        if (!fs_service_path(s, path, sizeof(path)))
-            goto fail;
-
-
-    if (path == NULL)
-        goto nomem;
-
-    return 0;
-
- fail:
- nomem:
-    return -1;
-}
-
-
-static void service_close(service_t *s)
-{
-    iot_free(s->destination);
-    s->destination = NULL;
-}
-#endif
-
-
 static int service_link(service_t *s)
 {
     char srv[PATH_MAX], lnk[PATH_MAX];
@@ -249,70 +218,6 @@ static int service_mkdir(generator_t *g)
 
     return fs_mkdirp(0755, "%s/applications.target.wants", g->dir_service);
 }
-
-
-#if 0
-static int service_dump(service_t *s)
-{
-    int l, n;
-    char *p;
-
-    if (s->service == NULL)
-        return -1;
-
-    if (service_open(s) < 0)
-        return -1;
-
-    p = s->service;
-    l = strlen(p);
-    n = 0;
-
-    while (l > 0) {
-        n = write(s->sfd, p, l);
-
-        if (n < 0) {
-            if (errno == EAGAIN)
-                continue;
-            else
-                goto fail;
-        }
-
-        p += n;
-        l -= n;
-    }
-
-    if (s->firewall != NULL) {
-        p = s->firewall;
-        l = strlen(p);
-        n = 0;
-
-        while (l > 0) {
-            n = write(s->ffd, p, l);
-
-            if (n < 0) {
-                if (errno == EAGAIN)
-                    continue;
-                else
-                    goto fail;
-            }
-
-            p += n;
-            l -= n;
-        }
-    }
-
-    service_close(s);
-
-    if (service_link(s) < 0)
-        goto fail;
-
-    return 0;
-
- fail:
-    service_abort(s);
-    return -1;
-}
-#endif
 
 
 int service_write(generator_t *g)
