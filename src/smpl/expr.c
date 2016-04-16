@@ -938,8 +938,9 @@ static inline int negative_value(smpl_value_t *v)
 
 int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
 {
-    smpl_value_t arg1, arg2;
-    int32_t      lv;
+    smpl_value_t   arg1, arg2;
+    smpl_buffer_t *obuf;
+    int32_t        lv;
 
     switch (e->type) {
     case SMPL_VALUE_UNSET:
@@ -1002,6 +1003,19 @@ int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
             goto fail;
         return v->type;
 
+    case SMPL_VALUE_MACROREF:
+        obuf = buffer_create(4096);
+        if (obuf == NULL)
+            goto nomem;
+        if (macro_call(smpl, e->call.m, e->call.args, obuf) < 0)
+            goto macro_fail;
+
+        v->type    = SMPL_VALUE_STRING;
+        v->str     = buffer_steal(obuf);
+        v->dynamic = 1;
+
+        return v->type;
+
     default:
         goto invalid_expr;
     }
@@ -1016,6 +1030,11 @@ int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
     v->str  = "<invalid value in expression>";
     smpl_fail(-1, smpl, EINVAL, "invalid value (0x%x) in expression", e->type);
 
+ macro_fail:
+    buffer_destroy(obuf);
+    smpl_fail(-1, smpl, EINVAL, "macro call failed");
+
+ nomem:
  fail:
     return -1;
 }
@@ -1128,10 +1147,13 @@ int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
 }
 
 
-int value_eval(smpl_t *smpl, smpl_expr_t *e)
+int value_eval(smpl_t *smpl, smpl_expr_t *e, smpl_buffer_t *obuf)
 {
     smpl_value_t v;
     int          r;
+
+    if (obuf == NULL)
+        obuf = smpl->result;
 
     if (expr_eval(smpl, e, &v) < 0)
         goto invalid_value;
@@ -1144,13 +1166,13 @@ int value_eval(smpl_t *smpl, smpl_expr_t *e)
         r = 0;
         break;
     case SMPL_VALUE_STRING:
-        r = buffer_printf(smpl->result, "%s", v.str);
+        r = buffer_printf(obuf, "%s", v.str);
         break;
     case SMPL_VALUE_INTEGER:
-        r = buffer_printf(smpl->result, "%d", v.i32);
+        r = buffer_printf(obuf, "%d", v.i32);
         break;
     case SMPL_VALUE_DOUBLE:
-        r = buffer_printf(smpl->result, "%d", v.dbl);
+        r = buffer_printf(obuf, "%d", v.dbl);
         break;
 
     default:

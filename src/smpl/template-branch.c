@@ -146,17 +146,20 @@ void branch_dump(smpl_t *smpl, int fd, smpl_insn_branch_t *branch, int indent)
 }
 
 
-int branch_eval(smpl_t *smpl, smpl_insn_branch_t *br)
+int branch_eval(smpl_t *smpl, smpl_insn_branch_t *br, smpl_buffer_t *obuf)
 {
     smpl_value_t v;
+
+    if (obuf == NULL)
+        obuf = smpl->result;
 
     if (expr_test(smpl, br->test, &v) < 0 || v.type != SMPL_VALUE_INTEGER)
         goto invalid_test;
 
     if (v.i32)
-        return block_eval(smpl, &br->posbr);
+        return block_eval(smpl, &br->posbr, obuf);
     else
-        return block_eval(smpl, &br->negbr);
+        return block_eval(smpl, &br->negbr, obuf);
 
  invalid_test:
     smpl_fail(-1, smpl, EINVAL, "failed to evaluate branch test expression");

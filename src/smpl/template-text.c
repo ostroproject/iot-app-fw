@@ -78,9 +78,12 @@ void text_dump(smpl_t *smpl, int fd, smpl_insn_text_t *text, int indent)
 }
 
 
-int text_eval(smpl_t *smpl, smpl_insn_text_t *text)
+int text_eval(smpl_t *smpl, smpl_insn_text_t *text, smpl_buffer_t *obuf)
 {
-    return buffer_printf(smpl->result, "%s", text->text);
+    if (obuf == NULL)
+        obuf = smpl->result;
+
+    return buffer_printf(obuf, "%s", text->text);
 }
 
 

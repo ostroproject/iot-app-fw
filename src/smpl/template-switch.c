@@ -148,12 +148,15 @@ void switch_dump(smpl_t *smpl, int fd, smpl_insn_switch_t *sw, int indent)
 }
 
 
-int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw)
+int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw, smpl_buffer_t *obuf)
 {
     smpl_insn_case_t *c;
     smpl_list_t      *p, *n;
     smpl_value_t      test, expr;
     int               r;
+
+    if (obuf == NULL)
+        obuf = smpl->result;
 
     if (expr_eval(smpl, sw->test, &test) < 0)
         goto invalid_test;
@@ -167,14 +170,14 @@ int switch_eval(smpl_t *smpl, smpl_insn_switch_t *sw)
         value_reset(&expr);
 
         if (r) {
-            if (block_eval(smpl, &c->body) < 0)
+            if (block_eval(smpl, &c->body, obuf) < 0)
                 goto case_failed;
             else
                 goto out;
         }
     }
 
-    if (block_eval(smpl, &sw->defbr) < 0)
+    if (block_eval(smpl, &sw->defbr, obuf) < 0)
         goto default_failed;
 
  out:

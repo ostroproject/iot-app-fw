@@ -267,7 +267,7 @@ int function_call(smpl_t *smpl, smpl_function_t *f, int narg, smpl_value_t *args
 }
 
 
-int function_eval(smpl_t *smpl, smpl_insn_call_t *c)
+int function_eval(smpl_t *smpl, smpl_insn_call_t *c, smpl_buffer_t *obuf)
 {
     smpl_function_t *f    = c->f;
     smpl_value_t    *args = c->expr->call.args;
@@ -275,10 +275,13 @@ int function_eval(smpl_t *smpl, smpl_insn_call_t *c)
     smpl_value_t     rv;
     int              r;
 
+    if (obuf == NULL)
+        obuf = smpl->result;
+
     if (function_call(smpl, f, narg, args, &rv) < 0)
         return -1;
 
-    r = value_eval(smpl, &rv);
+    r = value_eval(smpl, &rv, obuf);
     value_reset(&rv);
 
     return r;

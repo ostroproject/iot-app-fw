@@ -93,37 +93,40 @@ void block_dump(smpl_t *smpl, int fd, smpl_list_t *block, int indent)
 }
 
 
-int block_eval(smpl_t *smpl, smpl_list_t *block)
+int block_eval(smpl_t *smpl, smpl_list_t *block, smpl_buffer_t *obuf)
 {
     smpl_list_t *p, *n;
     smpl_insn_t *insn;
     int          r;
+
+    if (obuf == NULL)
+        obuf = smpl->result;
 
     smpl_list_foreach(block, p, n) {
         insn = smpl_list_entry(p, typeof(*insn), any.hook);
 
         switch (insn->type) {
         case SMPL_INSN_TEXT:
-            r = text_eval(smpl, &insn->text);
+            r = text_eval(smpl, &insn->text, obuf);
             break;
         case SMPL_INSN_VARREF:
-            r = vref_eval(smpl, &insn->vref);
+            r = vref_eval(smpl, &insn->vref, obuf);
             break;
         case SMPL_INSN_BRANCH:
-            r = branch_eval(smpl, &insn->branch);
+            r = branch_eval(smpl, &insn->branch, obuf);
             break;
         case SMPL_INSN_FOR:
-            r = loop_eval(smpl, &insn->loop);
+            r = loop_eval(smpl, &insn->loop, obuf);
             break;
         case SMPL_INSN_SWITCH:
-            r = switch_eval(smpl, &insn->swtch);
+            r = switch_eval(smpl, &insn->swtch, obuf);
             break;
 
         case SMPL_INSN_MACROREF:
-            r = macro_eval(smpl, &insn->call);
+            r = macro_eval(smpl, &insn->call, obuf);
             break;
         case SMPL_INSN_FUNCREF:
-            r = function_eval(smpl, &insn->call);
+            r = function_eval(smpl, &insn->call, obuf);
             break;
 
         default:
