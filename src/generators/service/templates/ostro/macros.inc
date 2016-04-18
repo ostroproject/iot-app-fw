@@ -20,6 +20,12 @@
 .   {end}
 {end}
 
+{macro} USER(container) {do}
+.   {if} ({container.type} != 'nspawn-system') {then}
+.       --user {U} \
+.   {end}
+{end}
+
 {macro} ENVIRONMENT(manifest) {do}
 .   {foreach} name:value {in}{manifest.environment} {do}
 .       Environment={name}={value}

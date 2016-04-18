@@ -14,7 +14,7 @@ ExecStart=/usr/bin/systemd-nspawn \
 .   {end}
     -M {U} \
     -D {C} \
-    --user={U} \
+    {USER}({data.manifest.container}) \
     {BIND-SELF}({data.manifest.container}) \
     {OVERLAY-RW}('/etc') \
     {OVERLAY-RW}('/var') \
