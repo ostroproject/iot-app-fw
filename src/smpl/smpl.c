@@ -50,6 +50,7 @@ smpl_t *smpl_create(char ***errbuf)
         goto nomem;
 
     smpl_list_init(&smpl->macros);
+    smpl_list_init(&smpl->aliasen);
     smpl_list_init(&smpl->functions);
     smpl_list_init(&smpl->body);
     smpl_list_init(&smpl->addons);
@@ -79,6 +80,7 @@ void smpl_destroy(smpl_t *smpl)
         return;
 
     macro_purge(&smpl->macros);
+    varref_purge_aliasen(smpl);
     function_purge(&smpl->functions);
     block_free(&smpl->body);
 

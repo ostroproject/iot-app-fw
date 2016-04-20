@@ -83,15 +83,38 @@ static char *find_end(char *p)
 smpl_varref_t *varref_parse(smpl_t *smpl, char *str, const char *path, int line)
 {
     smpl_varref_t *vref;
+    smpl_alias_t  *a;
     smpl_sym_t    *syms, sym;
     int            nsym;
-    char          *p, *n, *b, *e, name[256];
-    int            l;
+    char          *p, *n, *b, *e, name[256], unaliased[4096];
+    int            l, len;
 
     SMPL_UNUSED(path);
     SMPL_UNUSED(line);
 
     smpl_debug("varref '%s'", str);
+
+    e = strchr(str, '.');
+    if (e != NULL)
+        len = e - str;
+    else
+        len = -1;
+
+    a = varref_find_alias(smpl, str, len);
+
+    if (a != NULL) {
+        if (e != NULL)
+            l = snprintf(unaliased, sizeof(unaliased), "%s%s", a->value, e);
+        else
+            l = snprintf(unaliased, sizeof(unaliased), "%s", a->value);
+
+        if (l >= (int)sizeof(unaliased))
+            goto unaliasedtoolong;
+
+        smpl_debug("unaliased varref: '%s' = '%s'", str, unaliased);
+
+        return varref_parse(smpl, unaliased, path, line);
+    }
 
     syms = NULL;
     nsym = 0;
@@ -187,6 +210,9 @@ smpl_varref_t *varref_parse(smpl_t *smpl, char *str, const char *path, int line)
 
  nametoolong:
     smpl_fail(NULL, smpl, ENAMETOOLONG, "name overflow ('%*.*s')", l, l, b);
+
+ unaliasedtoolong:
+    smpl_fail(NULL, smpl, ENAMETOOLONG, "unaliased varref too long");
 }
 
 
@@ -267,4 +293,74 @@ char *varref_string(smpl_t *smpl, smpl_varref_t *vref, char *buf, size_t size)
 
  overflow:
     smpl_fail(NULL, smpl, EOVERFLOW, "no buffer space for varref value");
+}
+
+
+smpl_alias_t *varref_find_alias(smpl_t *smpl, const char *name, int len)
+{
+    smpl_list_t  *p, *n;
+    smpl_alias_t *a;
+
+    smpl_list_foreach(&smpl->aliasen, p, n) {
+        a = smpl_list_entry(p, typeof(*a), hook);
+
+        if ((len < 0 && !strcmp(name, a->name)) ||
+            (len > 0 && !strncmp(name, a->name, len) && name[len] == '.'))
+            return a;
+    }
+
+    return NULL;
+}
+
+
+int varref_add_alias(smpl_t *smpl, const char *name, const char *value)
+{
+    smpl_alias_t *a;
+
+    if (varref_find_alias(smpl, name, -1) != NULL)
+        goto already_defined;
+
+    a = smpl_alloct(typeof(*a));
+    if (a == NULL)
+        goto nomem;
+
+    smpl_list_init(&a->hook);
+    a->name  = smpl_strdup(name);
+    a->value = smpl_strdup(value);
+
+    if (a->name == NULL || a->value == NULL)
+        goto nomem;
+
+    smpl_list_append(&smpl->aliasen, &a->hook);
+
+    smpl_debug("added varref alias '%s' ('%s')", name, value);
+
+    return 0;
+
+ already_defined:
+    smpl_fail(-1, smpl, EBUSY, "macro (alias) '%s' already defined", name);
+
+ nomem:
+    if (a != NULL) {
+        smpl_free(a->name);
+        smpl_free(a->value);
+        smpl_free(a);
+    }
+    return -1;
+}
+
+
+void varref_purge_aliasen(smpl_t *smpl)
+{
+    smpl_list_t  *p, *n;
+    smpl_alias_t *a;
+
+    smpl_list_foreach(&smpl->aliasen, p, n) {
+        a = smpl_list_entry(p, typeof(*a), hook);
+
+        smpl_list_delete(&a->hook);
+        smpl_free(a->name);
+        smpl_free(a->value);
+        smpl_free(a);
+    }
 }

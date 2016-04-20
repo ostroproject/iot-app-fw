@@ -91,7 +91,7 @@ static int arglist_parse(smpl_t *smpl, smpl_macro_t *m, smpl_token_t *end)
 int macro_parse(smpl_t *smpl)
 {
     smpl_macro_t *m;
-    smpl_token_t  name, end;
+    smpl_token_t  name, vref, end;
     int           flags;
 
     m = smpl_alloct(typeof(*m));
@@ -105,15 +105,26 @@ int macro_parse(smpl_t *smpl)
     if (parser_pull_token(smpl, SMPL_PARSE_NAME, &name) < 0)
         goto name_failed;
 
-    m->name = symtbl_add(smpl, name.str, SMPL_SYMBOL_MACRO);
-
-    if (m->name < 0)
-        goto name_failed;
-
     smpl_debug("parsing macro definition of '%s'", name.str);
 
     if (arglist_parse(smpl, m, &end) < 0)
         goto failed;
+
+    if (m->narg == -1 && end.type == SMPL_TOKEN_VARREF) {
+        /* no arglist, so last token was pushed back... need to pull it */
+        if (parser_pull_token(smpl, SMPL_PARSE_ARGS, &vref) < 0 ||
+            vref.type != SMPL_TOKEN_VARREF)
+            goto failed;
+        if (varref_add_alias(smpl, name.str, vref.str) < 0)
+            goto failed;
+        else
+            return 0;
+    }
+
+    m->name = symtbl_add(smpl, name.str, SMPL_SYMBOL_MACRO);
+
+    if (m->name < 0)
+        goto name_failed;
 
     flags = SMPL_SKIP_WHITESPACE|SMPL_BLOCK_DOEND;
     if (block_parse(smpl, flags, &m->body, NULL) != SMPL_TOKEN_END)

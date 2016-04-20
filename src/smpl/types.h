@@ -67,6 +67,7 @@ typedef enum   smpl_token_type_e  smpl_token_type_t;
 typedef struct smpl_token_s       smpl_token_t;
 typedef struct smpl_macro_s       smpl_macro_t;
 typedef struct smpl_function_s    smpl_function_t;
+typedef struct smpl_alias_s       smpl_alias_t;
 typedef struct smpl_varref_s      smpl_varref_t;
 typedef struct smpl_expr_type_e   smpl_expr_type_t;
 typedef        smpl_value_t       smpl_expr_t;
@@ -89,10 +90,13 @@ typedef int (*smpl_fn_t)(smpl_t *smpl, int argc, smpl_value_t *argv,
 typedef int (*smpl_addon_cb_t)(smpl_t *smpl, smpl_addon_t *addon,
                                void *user_data);
 
+
+
 struct smpl_s {
     smpl_symtbl_t   *symtbl;             /* template symbol table */
     smpl_sym_t       data;               /* global data symbol id */
     smpl_list_t      macros;             /* template macros */
+    smpl_list_t      aliasen;            /* varref macro aliasen */
     smpl_list_t      functions;          /* template-specific functions */
     void            *user_data;          /* function callback user data */
     smpl_list_t      body;               /* template body to evaluate */
@@ -389,6 +393,13 @@ struct smpl_varref_s {
 };
 
 
+struct smpl_alias_s {
+    smpl_list_t    hook;                 /* to list of aliasen */
+    char          *name;                 /* alias name */
+    char          *value;                /* aliased varref */
+};
+
+
 #define SMPL_INSN_COMMON                                                \
     smpl_insn_type_t  type;              /* instruction type */        \
     const char       *path;              /* path of occurence */       \
@@ -507,6 +518,9 @@ smpl_varref_t *varref_parse(smpl_t *smpl, char *str, const char *path, int line)
 void varref_free(smpl_varref_t *vref);
 char *varref_print(smpl_t *smpl, smpl_varref_t *vref, char *buf, size_t size);
 char *varref_string(smpl_t *smpl, smpl_varref_t *vref, char *buf, size_t size);
+int varref_add_alias(smpl_t *smpl, const char *name, const char *value);
+smpl_alias_t *varref_find_alias(smpl_t *smpl, const char *name, int len);
+void varref_purge_aliasen(smpl_t *smpl);
 
 smpl_expr_t *expr_parse(smpl_t *smpl, smpl_token_t *end);
 smpl_expr_t *expr_first_parse(smpl_t *smpl, smpl_token_t *t, smpl_token_t *name);
