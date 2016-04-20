@@ -125,6 +125,7 @@ int smpl_add_search_path(smpl_t *smpl, const char *paths);
  * Evaluate the given template in the context of the given data.
  *
  * @param [in]  smpl       template to evaluete
+ * @parma [in]  data_name  name used to refer to data in templates
  * @param [in]  data       data to use for evaluation
  * @param [in]  user_data  opaque user_data for function and addon callbacks
  * @param [out] result     evaluation result
@@ -135,8 +136,8 @@ int smpl_add_search_path(smpl_t *smpl, const char *paths);
  *         it is set to a NULL-terminated array of messages describing
  *         the reason for failure.
  */
-int smpl_evaluate(smpl_t *smpl, smpl_data_t *data, void *user_data,
-                  smpl_result_t *result);
+int smpl_evaluate(smpl_t *smpl, const char *data_symbol, smpl_data_t *data,
+                  void *user_data, smpl_result_t *result);
 
 /**
  * @brief Free a template.

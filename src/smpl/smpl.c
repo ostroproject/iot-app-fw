@@ -55,7 +55,6 @@ smpl_t *smpl_create(char ***errbuf)
     smpl_list_init(&smpl->body);
     smpl_list_init(&smpl->addons);
 
-    smpl->data   = symtbl_add(smpl, "data", SMPL_SYMBOL_DATA);
     smpl->errors = errbuf;
 
     if (smpl->data < 0)
@@ -231,11 +230,14 @@ int smpl_printf(smpl_t *smpl, const char *fmt, ...)
 }
 
 
-int smpl_evaluate(smpl_t *smpl, smpl_data_t *data, void *user_data,
-                  smpl_result_t *result)
+int smpl_evaluate(smpl_t *smpl, const char *data_name, smpl_data_t *data,
+                  void *user_data, smpl_result_t *result)
 {
     smpl_addon_t *addon;
     smpl_list_t  *p, *n;
+
+    if (data_name == NULL || data == NULL)
+        goto invalid_data;
 
     if (result == NULL)
         goto invalid_result;
@@ -243,6 +245,11 @@ int smpl_evaluate(smpl_t *smpl, smpl_data_t *data, void *user_data,
     smpl->user_data = user_data;
     smpl->errors    = &result->errors;
     smpl->nerror    = 0;
+
+    smpl->data = symtbl_add(smpl, data_name, SMPL_SYMBOL_DATA);
+
+    if (smpl->data < 0)
+        goto data_fail;
 
     if (symtbl_push(smpl, smpl->data, SMPL_VALUE_OBJECT, data) < 0)
         goto data_fail;
@@ -257,7 +264,7 @@ int smpl_evaluate(smpl_t *smpl, smpl_data_t *data, void *user_data,
     smpl_list_foreach(&smpl->addons, p, n) {
         addon = smpl_list_entry(p, typeof(*addon), hook);
 
-        if (addon_evaluate(smpl, data, addon) < 0)
+        if (addon_evaluate(smpl, addon, data_name, data) < 0)
             goto addon_fail;
 
         smpl_list_delete(&addon->hook);
@@ -267,6 +274,10 @@ int smpl_evaluate(smpl_t *smpl, smpl_data_t *data, void *user_data,
     smpl->errors = NULL;
 
     return 0;
+
+ invalid_data:
+    smpl_errmsg(smpl, EFAULT, NULL, 0, "Invalid global data name or value.");
+    return -1;
 
  invalid_result:
     smpl_errmsg(smpl, EFAULT, NULL, 0, "Invalid result buffer.");

@@ -158,7 +158,8 @@ smpl_t *addon_load(smpl_t *smpl, smpl_addon_t *a)
 }
 
 
-int addon_evaluate(smpl_t *smpl, smpl_data_t *data, smpl_addon_t *a)
+int addon_evaluate(smpl_t *smpl, smpl_addon_t *a, const char *data_name,
+                   smpl_data_t *data)
 {
     smpl_t *ampl;
     int     r;
@@ -170,7 +171,7 @@ int addon_evaluate(smpl_t *smpl, smpl_data_t *data, smpl_addon_t *a)
 
     smpl_debug("evaluating addon template '%s'...", a->name);
 
-    r = smpl_evaluate(ampl, data, smpl->user_data, &a->result);
+    r = smpl_evaluate(ampl, data_name, data, smpl->user_data, &a->result);
 
     smpl_free_template(ampl);
 

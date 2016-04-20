@@ -268,7 +268,7 @@ static void eval_template(smpl_test_t *t)
     char          **e;
     smpl_result_t   r;
 
-    if (smpl_evaluate(t->template, t->data, t, &r) == 0) {
+    if (smpl_evaluate(t->template, "data", t->data, t, &r) == 0) {
         t->output = r.output;
         return;
     }

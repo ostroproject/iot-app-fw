@@ -93,8 +93,8 @@ typedef int (*smpl_addon_cb_t)(smpl_t *smpl, smpl_addon_t *addon,
 
 
 struct smpl_s {
-    smpl_symtbl_t   *symtbl;             /* template symbol table */
     smpl_sym_t       data;               /* global data symbol id */
+    smpl_symtbl_t   *symtbl;             /* template symbol table */
     smpl_list_t      macros;             /* template macros */
     smpl_list_t      aliasen;            /* varref macro aliasen */
     smpl_list_t      functions;          /* template-specific functions */
@@ -630,7 +630,8 @@ void buffer_purge(smpl_list_t *bufs);
 int addon_create(smpl_t *smpl, const char *name, const char *template,
                  const char *destination);
 void addon_free(smpl_addon_t *a);
-int addon_evaluate(smpl_t *smpl, smpl_data_t *data, smpl_addon_t *addon);
+int addon_evaluate(smpl_t *smpl, smpl_addon_t *addon, const char *data_name,
+                   smpl_data_t *data);
 int addon_set_destination(smpl_addon_t *a, const char *destination);
 int addon_set_template(smpl_addon_t *a, const char *template);
 
