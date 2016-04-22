@@ -39,36 +39,69 @@
 static int fn_error(smpl_t *smpl, int argc, smpl_value_t *argv,
                     smpl_value_t *rv, void *user_data)
 {
-    const char *msg;
-    int         err;
+    char buf[4096], *p, *msg;
+    int  l, n, err, i, idx;
 
     SMPL_UNUSED(rv);
     SMPL_UNUSED(user_data);
 
     err = -1;
+    idx = 0;
     msg = "template evaluation failure";
 
-    if (argc == 1) {
+    if (argc > 0) {
         switch (argv[0].type) {
         case SMPL_VALUE_INTEGER:
             err = argv[0].i32;
+            idx = 1;
             break;
         case SMPL_VALUE_STRING:
-            msg = argv[0].str;
+            idx = 0;
             break;
         default:
+            idx = 0;
             break;
-        }
-    }
-    else if (argc == 2) {
-        if (argv[0].type == SMPL_VALUE_INTEGER &&
-            argv[1].type == SMPL_VALUE_STRING) {
-            err = argv[0].i32;
-            msg = argv[1].str;
         }
     }
 
-    smpl_fail(-1, smpl, err, "%s", msg);
+    if (!err)
+        err = -1;
+    else if (err > 0)
+        err = -err;
+
+    p    = buf;
+    l    = (int)sizeof(buf) - 1;
+    p[l] = '\0';
+
+    for (i = idx; i < argc; i++) {
+        switch (argv[i].type) {
+        case SMPL_VALUE_STRING:
+            n = snprintf(p, l, "%s", argv[i].str);
+            break;
+        case SMPL_VALUE_INTEGER:
+            n = snprintf(p, l, "%d", argv[i].i32);
+            break;
+        case SMPL_VALUE_DOUBLE:
+            n = snprintf(p, l, "%f", argv[i].dbl);
+            break;
+        default:
+            n = snprintf(p, l, "<invalid argument to %s>", FN_ERROR);
+            break;
+        }
+
+        if (n >= l)
+            break;
+
+        p += n;
+        l -= n;
+    }
+
+    if (l > 0) {
+        *p = '\0';
+        msg = buf;
+    }
+
+    smpl_fail(-1, smpl, err, "ERROR: %s", msg);
 }
 
 
