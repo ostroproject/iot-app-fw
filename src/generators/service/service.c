@@ -42,13 +42,123 @@
 
 #include "generator.h"
 
+#if 0
+
+iot_json_t *prepare_manifest(service_t *s)
+{
+    iot_json_t *data, *o;
+    char        path[PATH_MAX];
+
+    data = iot_json_create(IOT_JSON_OBJECT);
+
+    if (data == NULL)
+        goto nomem;
+
+    iot_json_add(data, "manifest", s->m);
+
+    if (!iot_json_add_string(data, "provider", s->provider))
+        goto nomem;
+
+    if (!iot_json_add_string(data, "application", s->app))
+        goto nomem;
+
+    iot_json_add(data, "path", o = iot_json_create(IOT_JSON_OBJECT));
+
+    if (o == NULL)
+        goto nomem;
+
+    if (!iot_json_add_string(o, "generator", g->argv0))
+        goto nomem;
+    if (!iot_json_add_string(o, "manifest", s->src))
+        goto nomem;
+
+    snprintf(path, sizeof(path), "%s/%s", g->path_template, g->name_template);
+
+    if (!iot_json_add_string(o, "template", path))
+        goto nomem;
+
+    if (!iot_json_add_string(o, "application", s->app))
+        goto nomem;
+
+    if (!iot_json_add_string(o, "containers", g->path_container))
+        goto nomem;
+
+    if (!iot_json_add_string(o, "services", g->dir_service))
+        goto nomem;
+
+    return (s->data = data);
+
+    return data;
+
+ nomem:
+    return NULL;
+}
+
+#else
+
+int prepare_manifest(service_t *s)
+{
+    generator_t *g = s->g;
+    iot_json_t  *app, *tmpl, *cfg, *path;
+    char         buf[PATH_MAX];
+
+    app = iot_json_create(IOT_JSON_OBJECT);
+    if (app == NULL)
+        goto nomem;
+
+    iot_json_add(app, "manifest", iot_json_ref(s->m));
+
+    tmpl = iot_json_create(IOT_JSON_OBJECT);
+    if (tmpl == NULL)
+        goto nomem;
+
+    iot_json_add(app, "template", tmpl);
+
+    snprintf(buf, sizeof(buf), "%s/%s", g->path_template, "/service.template");
+
+    if (!iot_json_add_string(tmpl, "generator", g->argv0) ||
+        !iot_json_add_string(tmpl, "main"     , buf)      ||
+        !iot_json_add_string(tmpl, "template" , buf)      ||
+        !iot_json_add_string(tmpl, "manifest" , s->src))
+        goto nomem;
+
+    cfg = iot_json_create(IOT_JSON_OBJECT);
+    if (cfg == NULL)
+        goto nomem;
+
+    iot_json_add(app, "config", cfg);
+
+    path = iot_json_create(IOT_JSON_OBJECT);
+    if (path == NULL)
+        goto nomem;
+
+    iot_json_add(cfg, "path", path);
+
+    if (!iot_json_add_string(path, "application", s->appdir) ||
+        !iot_json_add_string(path, "container"  , g->path_containers))
+        goto nomem;
+
+    if (!iot_json_add_string(app, "provider"   , s->provider) ||
+        !iot_json_add_string(app, "application", s->app))
+        goto nomem;
+
+    s->data = app;
+
+    return 0;
+
+ nomem:
+    iot_json_unref(app);
+    return -1;
+}
+
+#endif
+
 
 service_t *service_create(generator_t *g, const char *provider, const char *app,
                           const char *dir, const char *src, iot_json_t *manifest)
 {
-    service_t  *s;
-    iot_json_t *o;
-    char        path[PATH_MAX];
+    service_t *s;
+    char       path[PATH_MAX];
 
     s = iot_allocz(sizeof(*s));
 
@@ -63,35 +173,12 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
     s->app      = iot_strdup(app);
     s->appdir   = iot_strdup(dir);
     s->src      = iot_strdup(src);
-    s->data     = iot_json_create(IOT_JSON_OBJECT);
 
-    if (!s->provider || !s->app || !s->appdir || !s->src || !s->data)
-        goto nomem;
-
-    iot_json_add(s->data, "path", o = iot_json_create(IOT_JSON_OBJECT));
-
-    if (o == NULL)
+    if (!s->provider || !s->app || !s->appdir || !s->src)
         goto nomem;
 
-    iot_json_add(s->data, "manifest", manifest);
-
-    snprintf(path, sizeof(path), "%s/%s", g->path_template, "/service.template");
-
-    if (!iot_json_add_string(o, "generator", g->argv0))
-        goto nomem;
-    if (!iot_json_add_string(o, "template", path))
-        goto nomem;
-    if (!iot_json_add_string(o, "manifest", src))
-        goto nomem;
-    if (!iot_json_add_string(o, "application", s->appdir))
-        goto nomem;
-    if (!iot_json_add_string(o, "container", PATH_CONTAINER))
-        goto nomem;
-
-    if (!iot_json_add_string(s->data, "provider", s->provider))
-        goto nomem;
-    if (!iot_json_add_string(s->data, "application", s->app))
-        goto nomem;
+    if (prepare_manifest(s) < 0)
+        goto fail;
 
     iot_list_append(&g->services, &s->hook);
 
@@ -105,14 +192,14 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
     return s;
 
  nomem:
+ fail:
     if (s) {
         iot_free(s->provider);
         iot_free(s->app);
         iot_free(s->appdir);
+        iot_free(s->src);
         iot_free(s);
     }
-
-    iot_json_unref(manifest);
 
     return NULL;
 }

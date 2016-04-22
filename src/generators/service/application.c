@@ -143,9 +143,9 @@ static int scan_users(generator_t *g)
     name = "[a-zA-Z0-9_][a-zA-Z0-9_-].*$";
     mask = IOT_DIRENT_DIR | IOT_DIRENT_IGNORE_LNK;
 
-    log_debug("Scanning '%s' for application providers...", g->dir_apps);
+    log_debug("Scanning '%s' for application providers...", g->path_apps);
 
-    return iot_scan_dir(g->dir_apps, name, mask, scan_user_cb, g);
+    return iot_scan_dir(g->path_apps, name, mask, scan_user_cb, g);
 }
 
 
@@ -157,10 +157,10 @@ int application_discover(generator_t *g)
 
 int application_mount(generator_t *g)
 {
-    g->premounted = (fs_same_device("/", g->dir_apps) == 0);
+    g->premounted = (fs_same_device("/", g->path_apps) == 0);
 
     if (!g->premounted)
-        return fs_mount(g->dir_apps);
+        return fs_mount(g->path_apps);
     else
         return 0;
 }
@@ -169,7 +169,7 @@ int application_mount(generator_t *g)
 int application_umount(generator_t *g)
 {
     if (!g->premounted)
-        return fs_umount(g->dir_apps);
+        return fs_umount(g->path_apps);
     else
         return 0;
 }

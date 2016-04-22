@@ -120,6 +120,8 @@ struct generator_s {
     const char      *dir_apps;           /* application top directory */
     const char      *dir_service;        /* service (output) directory */
     const char      *path_config;        /* configuration path */
+    const char      *path_apps;          /* application top dir */
+    const char      *path_containers;    /* container root path */
     const char      *path_template;      /* template directory path */
     const char      *name_template;      /* service template name */
     const char      *name_manifest;      /* application manifest name */

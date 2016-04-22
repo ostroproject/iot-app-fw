@@ -83,13 +83,14 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
     iot_list_init(&g->services);
     iot_list_init(&g->preprocessors);
 
-    g->env           = (const char **)env;
-    g->argv0         = argv[0];
-    g->dir_apps      = PATH_APPS;
-    g->path_config   = PATH_CONFIG;
-    g->path_template = PATH_TEMPLATE_DIR;
-    g->name_template = NAME_TEMPLATE;
-    g->name_manifest = NAME_MANIFEST;
+    g->env             = (const char **)env;
+    g->argv0           = argv[0];
+    g->path_apps       = PATH_APPS;
+    g->path_config     = PATH_CONFIG;
+    g->path_template   = PATH_TEMPLATE_DIR;
+    g->path_containers = PATH_CONTAINER;
+    g->name_template   = NAME_TEMPLATE;
+    g->name_manifest   = NAME_MANIFEST;
 
     iot_log_set_mask(IOT_LOG_MASK_ERROR | IOT_LOG_MASK_WARNING);
 }
@@ -97,18 +98,20 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
 
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 {
-#   define OPTIONS "c:T:t:m:nul:vd:h"
+#   define OPTIONS "c:T:A:C:t:m:nul:vd:h"
     static struct option options[] = {
-        { "config"   , required_argument, NULL, 'c' },
-        { "templates", required_argument, NULL, 'T' },
-        { "template" , required_argument, NULL, 't' },
-        { "manifest" , required_argument, NULL, 'm' },
-        { "dry-run"  , no_argument      , NULL, 'n' },
-        { "update"   , no_argument      , NULL, 'u' },
-        { "log"      , required_argument, NULL, 'l' },
-        { "verbose"  , no_argument      , NULL, 'v' },
-        { "debug"    , required_argument, NULL, 'd' },
-        { "help"     , no_argument      , NULL, 'h' },
+        { "config"      , required_argument, NULL, 'c' },
+        { "templates"   , required_argument, NULL, 'T' },
+        { "applications", required_argument, NULL, 'A' },
+        { "containers  ", required_argument, NULL, 'C' },
+        { "template"    , required_argument, NULL, 't' },
+        { "manifest"    , required_argument, NULL, 'm' },
+        { "dry-run"     , no_argument      , NULL, 'n' },
+        { "update"      , no_argument      , NULL, 'u' },
+        { "log"         , required_argument, NULL, 'l' },
+        { "verbose"     , no_argument      , NULL, 'v' },
+        { "debug"       , required_argument, NULL, 'd' },
+        { "help"        , no_argument      , NULL, 'h' },
         { NULL, 0, NULL, 0 }
     };
 
@@ -124,6 +127,14 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 
         case 'T':
             g->path_template = optarg;
+            break;
+
+        case 'A':
+            g->path_apps = optarg;
+            break;
+
+        case 'C':
+            g->path_containers = optarg;
             break;
 
         case 't':
@@ -187,11 +198,9 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
     if (optind + 4 < argc)
         print_usage(argv[0], EINVAL, "Too many arguments.");
 
-    g->dir_normal = argv[optind];
-    g->dir_early  = argv[optind + 1];
-    g->dir_late   = argv[optind + 2];
-    g->dir_apps   = optind + 3 < argc ? argv[optind + 3] : PATH_APPS;
-
+    g->dir_normal  = argv[optind];
+    g->dir_early   = argv[optind + 1];
+    g->dir_late    = argv[optind + 2];
     g->dir_service = g->dir_normal;
 
     if (g->log_path == NULL)

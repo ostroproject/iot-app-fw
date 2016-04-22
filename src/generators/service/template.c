@@ -144,7 +144,7 @@ int template_eval(service_t *s)
 {
     char **e;
 
-    if (smpl_evaluate(s->g->template, s->data, s, &s->result) < 0) {
+    if (smpl_evaluate(s->g->template, "app", s->data, s, &s->result) < 0) {
         log_error("Service template failed for %s / %s.", s->provider, s->app);
         goto dump_errors;
     }
