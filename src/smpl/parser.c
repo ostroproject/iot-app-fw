@@ -437,12 +437,16 @@ static int collect_escape(smpl_t *smpl, char *b, int len, smpl_token_t *t)
     p = buf;
     while (len > 0) {
         if (*b == '\\') {
+            if (len == 1) {
+                t->type = SMPL_TOKEN_TEXT;
+                t->str  = "";
+                goto out;
+            }
             switch (b[1]) {
             case 'n':  *p++ = '\n'; break;
             case 't':  *p++ = '\t'; break;
             case 'r':  *p++ = '\r'; break;
-            case '\0':
-                goto invalid_sequence;
+            case '\0': *p++ = '\\'; break;
             default:
                 if (p != b)
                     goto invalid_sequence;
@@ -464,6 +468,7 @@ static int collect_escape(smpl_t *smpl, char *b, int len, smpl_token_t *t)
     t->type = SMPL_TOKEN_TEXT;
     t->str  = store_token(smpl, buf, p - buf);
 
+ out:
     return t->type;
 
  invalid_sequence:
@@ -508,6 +513,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
         KEYHEAD("?trail:", TRAIL  ),
         KEYHEAD("!trail:", TRAIL  ),
         KEYHEAD("\\"     , ESCAPE ),
+        KEYWORD("\\"     , ESCAPE ),
         KEYHEAD(""       , VARREF ),
         { NULL, 0, 0, false }
     }, *dir;
@@ -648,6 +654,12 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
         in->p = n;
 
         if (e >= b + 2 && e[-2] == '\\' && e[-1] == 'n') {
+                if (*in->p == '\n') {
+                    in->p++;
+                    in->line++;
+                }
+        }
+        else if (e >= b + 1 && e[-1] == '\\') {
             if (*in->p == '\n') {
                 in->p++;
                 in->line++;
