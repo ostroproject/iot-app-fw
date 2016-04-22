@@ -235,6 +235,7 @@ int smpl_evaluate(smpl_t *smpl, const char *data_name, smpl_data_t *data,
 {
     smpl_addon_t *addon;
     smpl_list_t  *p, *n;
+    int           r;
 
     if (data_name == NULL || data == NULL)
         goto invalid_data;
@@ -253,11 +254,11 @@ int smpl_evaluate(smpl_t *smpl, const char *data_name, smpl_data_t *data,
 
     if (symtbl_push(smpl, smpl->data, SMPL_VALUE_OBJECT, data) < 0)
         goto data_fail;
-
-    if (block_eval(smpl, &smpl->body, NULL) < 0)
-        goto eval_fail;
-
+    r = block_eval(smpl, &smpl->body, NULL);
     symtbl_flush(smpl);
+
+    if (r < 0)
+        goto eval_fail;
 
     result->output = buffer_steal(smpl->result);
 
