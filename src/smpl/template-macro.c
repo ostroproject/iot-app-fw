@@ -37,7 +37,9 @@
 static int arglist_parse(smpl_t *smpl, smpl_macro_t *m, smpl_token_t *end)
 {
     smpl_token_t *arg  = end;
-    int           narg = 0;
+    int           narg =  0;
+    int           varg = -1;
+    char         *dot;
 
     if (parser_pull_token(smpl, SMPL_PARSE_ARGS, end) != '(')
         goto nolist;
@@ -48,10 +50,25 @@ static int arglist_parse(smpl_t *smpl, smpl_macro_t *m, smpl_token_t *end)
         if (smpl_reallocz(m->args, m->narg, m->narg + 1) == NULL)
             goto nomem;
 
+        if ((dot = strchr(arg->str, '.')) != NULL) {
+            if (strcmp(dot, "...") != 0)
+                goto invalid_vararg;
+
+            if (varg >= 0)
+                goto multiple_varargs;
+
+            varg = m->narg;
+            *dot = '\0';
+        }
+        else
+            if (varg >= 0)
+                goto nonlast_vararg;
+
         m->args[m->narg] = symtbl_add(smpl, arg->str, SMPL_SYMBOL_ARG);
 
         if (m->args[m->narg] < 0)
             goto arg_failed;
+
 
         m->narg++;
 
@@ -70,6 +87,8 @@ static int arglist_parse(smpl_t *smpl, smpl_macro_t *m, smpl_token_t *end)
     if (end->type != ')')
         goto invalid_arglist;
 
+    m->varg = varg >= 0 ? 1 : 0;
+
     return 0;
 
  nolist:
@@ -85,6 +104,17 @@ static int arglist_parse(smpl_t *smpl, smpl_macro_t *m, smpl_token_t *end)
 
  invalid_arglist:
     smpl_fail(-1, smpl, EINVAL, "invalid argument list");
+
+ invalid_vararg:
+    smpl_fail(-1, smpl, EINVAL, "invalid varargish macro argument '%s'",
+              arg->str);
+
+ multiple_varargs:
+    smpl_fail(-1, smpl, EINVAL, "multiple varargs in argument list:(#%d, #%d)",
+              m->varg, narg);
+
+ nonlast_vararg:
+    smpl_fail(-1, smpl, EINVAL, "macro vararg must be last in argument list");
 }
 
 
@@ -237,7 +267,7 @@ void macro_free_ref(smpl_insn_t *insn)
 }
 
 
-int macro_call(smpl_t *smpl, smpl_macro_t *m, smpl_value_t *args,
+int macro_call(smpl_t *smpl, smpl_macro_t *m, int narg, smpl_value_t *args,
                smpl_buffer_t *obuf)
 {
     smpl_expr_t  *a;
@@ -249,31 +279,41 @@ int macro_call(smpl_t *smpl, smpl_macro_t *m, smpl_value_t *args,
     if (obuf == NULL)
         obuf = smpl->result;
 
-    a = args;
+    a = narg > 0 ? smpl_list_entry(args->hook.prev, typeof(*args), hook) : NULL;
 
-    for (i = m->narg - 1; i >= 0; i--) {
-        if (expr_eval(smpl, a, &v) < 0)
-            goto invalid_arg;
-
-        switch (v.type) {
-        case SMPL_VALUE_STRING:  vp = v.str;  break;
-        case SMPL_VALUE_INTEGER: vp = &v.i32; break;
-        case SMPL_VALUE_DOUBLE:  vp = &v.dbl; break;
-        case SMPL_VALUE_OBJECT:
-        case SMPL_VALUE_ARRAY:   vp = v.json; break;
-        case SMPL_VALUE_UNSET:   vp = NULL;   break;
-        default:
-            goto invalid_arg;
+    for (i = 0; i <= m->narg - 1; i++) {
+        if (i == m->narg - 1 && m->varg) {
+            type = v.type = SMPL_VALUE_ARGLIST;
+            v.call.m    = m;
+            v.call.narg = narg - (m->narg - 1);
+            v.call.args = a;
+            vp = &v;
         }
+        else {
+            if (expr_eval(smpl, a, &v) < 0)
+                goto invalid_arg;
 
-        type = v.type | (v.dynamic ? SMPL_VALUE_DYNAMIC : 0);
+            switch (v.type) {
+            case SMPL_VALUE_STRING:  vp = v.str;  break;
+            case SMPL_VALUE_INTEGER: vp = &v.i32; break;
+            case SMPL_VALUE_DOUBLE:  vp = &v.dbl; break;
+            case SMPL_VALUE_OBJECT:
+            case SMPL_VALUE_ARRAY:   vp = v.json; break;
+            case SMPL_VALUE_UNSET:   vp = NULL;   break;
+            default:
+                goto invalid_arg;
+            }
+
+            type = v.type | (v.dynamic ? SMPL_VALUE_DYNAMIC : 0);
+        }
 
         if (symtbl_push(smpl, m->args[i], type, vp) < 0)
             goto push_failed;
 
-        value_reset(&v);
+        if (!(i == m->narg - 1 && m->varg))
+            value_reset(&v);
 
-        a = smpl_list_entry(a->hook.next, typeof(*a), hook);
+        a = smpl_list_entry(a->hook.prev, typeof(*a), hook);
     }
 
     r = block_eval(smpl, &m->body, obuf);
@@ -300,7 +340,20 @@ int macro_call(smpl_t *smpl, smpl_macro_t *m, smpl_value_t *args,
 
 int macro_eval(smpl_t *smpl, smpl_insn_call_t *c, smpl_buffer_t *obuf)
 {
-    return macro_call(smpl, c->m, c->expr ? c->expr->call.args : NULL, obuf);
+    smpl_value_t *args;
+    int           narg;
+
+    if (c->expr) {
+        narg = c->expr->call.narg;
+        args = c->expr->call.args;
+    }
+    else {
+        narg = 0;
+        args = NULL;
+    }
+
+    return macro_call(smpl, c->m, narg, args, obuf);
+
 #if 0
     smpl_macro_t *m;
     int           i, r;

@@ -232,9 +232,11 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop, smpl_buffer_t *obuf)
     smpl_value_t      value;
     smpl_json_iter_t  it;
     smpl_json_t      *v;
+    smpl_macro_t     *m;
+    smpl_value_t     *args, *a;
     char             *k;
     void             *vptr;
-    int               fl, i, n;
+    int               fl, i, n, narg;
 
     if (obuf == NULL)
         obuf = smpl->result;
@@ -298,6 +300,48 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop, smpl_buffer_t *obuf)
         loop_pop(smpl, loop->val);
         break;
 
+    case SMPL_VALUE_ARGLIST:
+        m    = value.call.m;
+        narg = value.call.narg;
+        args = value.call.args;
+
+        a    = args;
+        fl   = SMPL_LOOP_FIRST;
+
+        for (i = 0; i < narg; i++) {
+            if (expr_eval(smpl, a, &value) < 0)
+                goto invalid_vararg;
+
+            switch (value.type) {
+            case SMPL_VALUE_STRING:  vptr =  value.str;  goto arg_loop;
+            case SMPL_VALUE_INTEGER: vptr = &value.i32;  goto arg_loop;
+            case SMPL_VALUE_DOUBLE:  vptr = &value.dbl;  goto arg_loop;
+            case SMPL_VALUE_ARRAY:   vptr =  value.json; goto arg_loop;
+            case SMPL_VALUE_OBJECT:  vptr =  value.json; goto arg_loop;
+            default:
+                goto invalid_value;
+            }
+
+        arg_loop:
+            if (i == narg - 1)
+                fl |= SMPL_LOOP_LAST;
+            n = m->narg + i;
+            loop_push(smpl, loop->key, SMPL_VALUE_INTEGER, &n  , &fl);
+            loop_push(smpl, loop->val, value.type        , vptr, &fl);
+
+            if (block_eval(smpl, &loop->body, obuf) < 0)
+                goto fail;
+
+            loop_pop(smpl, loop->key);
+            loop_pop(smpl, loop->val);
+
+            fl &= ~SMPL_LOOP_FIRST;
+
+            value_reset(&value);
+            a = smpl_list_entry(a->hook.prev, typeof(*a), hook);
+        }
+        break;
+
     default:
         goto invalid_value;
     }
@@ -310,6 +354,9 @@ int loop_eval(smpl_t *smpl, smpl_insn_for_t *loop, smpl_buffer_t *obuf)
 
  invalid_value:
     smpl_fail(-1, smpl, EINVAL, "invalid variable value in loop");
+
+ invalid_vararg:
+    smpl_fail(-1, smpl, EINVAL, "failed to evaluate macro vararg #%d", i + 1);
 
  fail:
     smpl_fail(-1, smpl, EINVAL, "failed to evaluate loop");

@@ -709,7 +709,7 @@ static int collect_directive(smpl_t *smpl, smpl_token_t *t)
 }
 
 
-static int collect_name(smpl_t *smpl, smpl_token_t *t)
+static int collect_name(smpl_t *smpl, smpl_token_t *t, int arg)
 {
     smpl_input_t *in = smpl->parser->in;
     char         *b, *e;
@@ -726,6 +726,11 @@ static int collect_name(smpl_t *smpl, smpl_token_t *t)
 
     if (e == b)
         goto invalid_name;
+
+    if (arg) {
+        while (*e == '.')
+            e++;
+    }
 
     l      = e - b;
     t->str = buffer_alloc(&smpl->parser->bufq, l + 1);
@@ -775,7 +780,7 @@ static int collect_expr(smpl_t *smpl, smpl_token_t *t)
     case 'a'...'z':
     case 'A'...'Z':
     case '_':
-        return collect_name(smpl, t);
+        return collect_name(smpl, t, false);
 
     case '(':
     case ')':
@@ -905,7 +910,7 @@ static int collect_arg(smpl_t *smpl, smpl_token_t *t)
         p++;
         break;
     default:
-        return collect_name(smpl, t);
+        return collect_name(smpl, t, true);
     }
 
     in->p = p;
@@ -955,7 +960,7 @@ int parser_pull_token(smpl_t *smpl, int flags, smpl_token_t *t)
         goto out;
 
     case SMPL_PARSE_NAME:
-        collect_name(smpl, t);
+        collect_name(smpl, t, false);
         skip_whitespace(smpl);
         goto out;
 

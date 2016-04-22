@@ -201,7 +201,7 @@ enum smpl_value_type_e {
     SMPL_VALUE_TRAIL,                    /* expression, trail check */
     SMPL_VALUE_MACROREF,                 /* expression, macro call */
     SMPL_VALUE_FUNCREF,                  /* expression, function call */
-    SMPL_VALUE_ARGLIST,
+    SMPL_VALUE_ARGLIST,                  /* argument list */
     SMPL_VALUE_DYNAMIC = 0x1000,         /* actual valuye needs to be freed */
 };
 
@@ -362,6 +362,7 @@ struct smpl_macro_s {
     smpl_sym_t  name;                    /* macro name symbol */
     smpl_sym_t *args;                    /* arguments */
     int         narg;                    /* number of arguments */
+    int         varg;                    /* whether a vararg macro */
     smpl_list_t body;                    /* macro body to evaluate */
     smpl_list_t hook;                    /* to list of macros */
 };
@@ -570,7 +571,7 @@ int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block);
 void macro_dump_ref(smpl_t *smpl, int fd, smpl_insn_call_t *c, int indent);
 void macro_free_ref(smpl_insn_t *insn);
 int macro_eval(smpl_t *smpl, smpl_insn_call_t *c, smpl_buffer_t *obuf);
-int macro_call(smpl_t *smpl, smpl_macro_t *m, smpl_value_t *args,
+int macro_call(smpl_t *smpl, smpl_macro_t *m, int narg, smpl_value_t *args,
                smpl_buffer_t *obuf);
 void macro_purge(smpl_list_t *macros);
 void macro_dump(smpl_t *smpl, int fd, smpl_macro_t *m);

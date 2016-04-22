@@ -318,10 +318,14 @@ static smpl_value_t *value_push(smpl_t *smpl, smpl_list_t *q, smpl_token_t *t)
             narg++;
         }
 
-        if (v->call.m->narg >= 0 && narg != v->call.m->narg) {
-            smpl_error("macro '%s' called with %d args, declared with %d.",
-                      t->str, narg, v->call.m->narg);
-            goto narg_mismatch;
+        if (v->call.m->narg >= 0) {
+            if (narg != v->call.m->narg) {
+                if (narg < v->call.m->narg || !v->call.m->varg) {
+                    smpl_error("macro '%s' passed %d args, declared with %d.",
+                               t->str, narg, v->call.m->narg);
+                    goto narg_mismatch;
+                }
+            }
         }
         v->call.narg = narg;
         break;
@@ -1009,7 +1013,7 @@ int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
         obuf = buffer_create(4096);
         if (obuf == NULL)
             goto nomem;
-        if (macro_call(smpl, e->call.m, e->call.args, obuf) < 0)
+        if (macro_call(smpl, e->call.m, e->call.narg, e->call.args, obuf) < 0)
             goto macro_fail;
 
         v->type    = SMPL_VALUE_STRING;
@@ -1277,6 +1281,9 @@ smpl_value_t *value_copy(smpl_value_t *dst, smpl_value_t *src)
         smpl_json_ref(dst->json);
         break;
 
+    case SMPL_VALUE_ARGLIST:
+        break;
+
     default:
         dst->type = SMPL_VALUE_UNKNOWN;
         break;
@@ -1306,5 +1313,6 @@ void value_reset(smpl_value_t *v)
         }
     }
 
-    v->type = SMPL_VALUE_UNSET;
+    v->type    = SMPL_VALUE_UNSET;
+    v->dynamic = 0;
 }

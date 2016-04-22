@@ -257,7 +257,7 @@ static smpl_symbol_t *push_value(smpl_t *smpl, smpl_sym_t sym, smpl_value_t *v)
 
 int symtbl_push(smpl_t *smpl, smpl_sym_t sym, smpl_value_type_t type, void *val)
 {
-    smpl_value_t *v;
+    smpl_value_t *v, *args;
 
     if (sym == 0)
         return 0;
@@ -287,6 +287,12 @@ int symtbl_push(smpl_t *smpl, smpl_sym_t sym, smpl_value_type_t type, void *val)
         break;
     case SMPL_VALUE_UNSET:
         v->str = NULL;
+        break;
+    case SMPL_VALUE_ARGLIST:
+        args = val;
+        v->call.m    = args->call.m;
+        v->call.narg = args->call.narg;
+        v->call.args = args->call.args;
         break;
     default:
         goto invalid_value;
@@ -485,7 +491,7 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
     smpl_symtbl_t *tbl = smpl->symtbl;
     smpl_sym_t    *sym;
     smpl_symbol_t *s;
-    smpl_value_t  *v;
+    smpl_value_t  *v, *a;
     int            i, idx, tag;
 
     sym = vref->symbols;
@@ -525,6 +531,11 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
     case SMPL_VALUE_ARRAY:
         val->json = v->json;
         break;
+    case SMPL_VALUE_ARGLIST:
+        val->call.m    = v->call.m;
+        val->call.narg = v->call.narg;
+        val->call.args = v->call.args;
+        break;
     default:
         goto invalid_value;
     }
@@ -547,13 +558,29 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
             break;
 
         case SMPL_SYMBOL_INDEX:
-            if (val->type != SMPL_VALUE_ARRAY)
-                goto invalid_value;
+            if (val->type == SMPL_VALUE_ARGLIST) {
+                if (idx >= val->call.narg)
+                    goto no_values;
 
-            val->json = smpl_json_array_get(val->json, idx);
+                for (a = val->call.args; idx > 0; idx--)
+                    a = smpl_list_entry(a->hook.prev, typeof(*a), hook);
 
-            if (val->json == NULL)
-                goto no_values;
+                /*
+                 * XXX TODO: this will leak if at this point we get a
+                 *           dynamic value into val.
+                 */
+
+                if (expr_eval(smpl, a, val) < 0)
+                    goto invalid_value;
+
+                goto fetch_next;
+            }
+            if (val->type == SMPL_VALUE_ARRAY) {
+                val->json = smpl_json_array_get(val->json, idx);
+
+                if (val->json == NULL)
+                    goto no_values;
+            }
             break;
 
         default:
@@ -586,9 +613,11 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
         default:
             goto invalid_value;
         }
+    fetch_next:
+        ;
     }
 
-    return value_copy(val, val)->type;
+    return value_copy(val, val)->type; /* XXX what if val is dynamic, leak ? */
 
  no_symbol:
     return value_set(val, SMPL_VALUE_UNSET)->type;
