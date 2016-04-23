@@ -1,58 +1,65 @@
 /*
- * Application manifest keys:
+ * Application manifest sections and keys:
  *
- *   - application: string
- *         Application identifier, mostly used for generating a few
- *         filesystem paths and file names.
+ * - application section: metadata about the application
  *
- *   - description: string
- *         A verbose description of the application.
+ *   o origin: provider of the application
+ *   o name: name of the application
+ *   o install: extra commands to execute for installing the application
+ *   o remove: extra commands to execute for removing the application
  *
- *   - user: string
- *         Unix user the application is executed as.
+ * - service section: data for running the application processes
  *
- *   - group: string
- *         If given, the Unix group the application is executed as.
+ *   o groups: supplementary groups to set for the application
+ *   o environment: extra environment variables to set for the application
+ *   o start: commands to run for starting the application
+ *   o stop: command to stop the applciation if signals are insufficient
+ *   o autostart: whether to automatically start the application on boot
  *
- *   - environment: dictionary (strings keys with string values)
- *         Extra environment variables to set for the application.
+ * - container section: data for isolating the application into a container
  *
- *   - command: array (of strings)
- *         The command line to start the application.
+ *   o type: type of the container, one of none, nspawn-shared, nspawn-app,
+ *            and nspawn-system
+ *   o network: data about the container network setup
  *
- *   - autostart: boolean
- *         Whether to automatically attempt to start the application
- *         upon system boot.
+ *     - type: currently must be VirtualEthernet
+ *     - ports: array of ports to open on the firewall and potentially redirect
  *
- *   - container: dictionary
- *         If the application is to be run inside a container, specifies
- *         the configuration for the container. Note that currently only
- *         systemd-nspawned containers are supported.
- *
- *         o type: string
- *             Container type to use, currently must be 'nspawn'.
- *         o network: string
- *             Container network configuration. Currently 'VirtualEthernet'.
- *         o sharedsystem: boolean
- *             Whether to run the container in a shared PID, UTS, and IPC
- *             namespaces.
+ *        o proto: protocol, tcp, udp, tcp6, udp6
+ *        o port:  port the application listens/serves on (in the container)
+ *        o map: optional port to redirect on the host side
  *
  */
 
+
 {
-    "application": "sample-app",
-    "description": "An application for frobnicating foobar and xyzzy.",
-    "user": "provider-1",
-    "group": "provider-1-group",
-    "environment": {
-        "FROB": "nicate",
-        "FOOBAR": "xyzzy",
+    'application': {
+        'origin':      'app-provider',
+        'name':        'sample-app',
+        'description': 'sample-app - A sample application.',
+        'install':     'echo "Installing sample-app..."',
+        'remove':      'echo "Removing sample-app..."',
     },
-    "command": [ "/usr/bin/test-1.sh" ],
-    "autostart": "true",
-     "container": {
-        "type": "nspawn",
-        "network": "VirtualEthernet",
-        "sharedsystem": false,
+
+    'service': {
+        'groups': [ 'audio', 'cdrom', 'video' ],
+        'environment': {
+            'SAMPLE_APP_FOO': 'foo',
+            'SAMPLE_APP_BAR': 'bar',
+        },
+
+        'start': [
+            '/usr/bin/sample-app arg1 arg2 arg3' ],
+        'stop': '',
+
+        'autostart': true,
+    },
+
+    'container': {
+        'type': 'nspawn',
+        'network': {
+            'type': 'VirtualEthernet',
+            'ports': [ { 'proto': 'tcp', 'port': 12345, 'map': 2003 } ],
+        },
     },
 }
