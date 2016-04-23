@@ -922,7 +922,7 @@ int expr_compare_values(smpl_value_t *v1, smpl_value_t *v2)
 }
 
 
-static inline int negative_value(smpl_value_t *v)
+static inline int negated_value(smpl_value_t *v)
 {
     int neg;
 
@@ -990,7 +990,7 @@ int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        lv = negative_value(&arg1) ? 1 : 0;
+        lv = negated_value(&arg1) ? 1 : 0;
         value_reset(&arg1);
 
         return value_set(v, SMPL_VALUE_INTEGER, lv)->type;
@@ -999,7 +999,7 @@ int expr_eval(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        lv = !negative_value(&arg1) ? 1 : 0;
+        lv = !negated_value(&arg1) ? 1 : 0;
         value_reset(&arg1);
 
         return value_set(v, SMPL_VALUE_INTEGER, lv)->type;
@@ -1058,7 +1058,7 @@ int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
     case SMPL_VALUE_VARREF:
         if (symtbl_resolve(smpl, e->ref, &arg1) < 0)
             goto invalid_ref;
-        lv = !negative_value(&arg1);
+        lv = !negated_value(&arg1);
         break;
 
     case SMPL_VALUE_STRING:
@@ -1066,7 +1066,7 @@ int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
     case SMPL_VALUE_DOUBLE:
     case SMPL_VALUE_OBJECT:
     case SMPL_VALUE_ARRAY:
-        lv = !negative_value(e);
+        lv = !negated_value(e);
         break;
 
     case SMPL_VALUE_AND:
@@ -1091,7 +1091,7 @@ int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        lv = negative_value(&arg1);
+        lv = negated_value(&arg1);
         value_reset(&arg1);
         break;
 
@@ -1099,7 +1099,7 @@ int expr_test(smpl_t *smpl, smpl_expr_t *e, smpl_value_t *v)
         if (expr_test(smpl, e->expr.arg1, &arg1) < 0)
             goto fail;
 
-        lv = !negative_value(&arg1);
+        lv = !negated_value(&arg1);
         value_reset(&arg1);
         break;
 
