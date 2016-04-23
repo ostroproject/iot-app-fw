@@ -1,0 +1,560 @@
+0. Introduction
+
+SMPL is a template library for generating text files in arbitrary formats.
+It takes as input a template file or a set of template files, and auxilary
+data in JSON format. Evaluating special constructs in the input templates
+against the given JSON data it then produces the output.
+
+
+1. Special Directives
+
+Strictly speaking, there are 3 kinds of directives in SMPL: file inclusion,
+keywords, and variable/name substitution. Since some of the names represent
+macros and functions, technically SMPL provides also macro substitution and
+function calls as well. In addition to these directives, SMPL input can have
+ignored tabulation: specially marked tabulation which is only there with the
+sole purpose of enhanced readability and is filtered from the output.
+
+Some of the keywords, actually most of them, are used to build nestable
+block- and control-flow constructs which probably sound familiar from
+other programming languages. These constructs are if-then-else blocks,
+foreach blocks, and switch-case blocks.
+
+
+2. Directive Markers, Marked Tabulation
+
+Because is supposed to be able to generate arbitrary text files, the
+directive markers are not pre-selected or fixed. This allows one to
+easily avoid the clash of directives with tags naturally occuring in
+the generated text files and thus also in the input templates.
+
+Every template file starts with the declaration of the used directive
+markers and the ignored/filtered tabulation marker. Directive markers
+are used to delimit all keywords, variable-, macro- and function-
+references. Tabulation markers immediately following a newline will
+cause any sequence of character immediately following the marker to
+be filtered from the output.
+
+For instance a template starting with the line
+
+  { } .
+
+declares '{' and '}' to be the beginning and ending directive marker and
+'.' to be the tabulation marker. With these declarations, the following
+would be a valid template construct:
+
+  {if} ({a} == 'foo') {then}
+  .    value of a: 'foo'
+  {else}
+  .    value of a: different than 'foo'
+  {end}
+
+Note that the declaration markers are strings while the tabulation marker
+must be a single character. Hence, another valid declaration could be
+
+  <( )> :
+
+declaring '<(' and ')>' to be the directive delimiters and ':' to be the
+tabulation marker.
+
+With these in effect the above teplate fragment would be
+
+  <(if)> (<(a)> == 'foo') <(then)>
+  :    value of a: 'foo'
+  <(else)>
+  :    value of a: different than 'foo'
+  <(end)>
+
+Also note that any tabulation marker not occuring right after a newline
+is treated as any other part of the input without any special meaning
+(usually copied verbatim to the output).
+
+
+2. List of Keywords, Reserved Tags
+
+The following keywords are reserved words in SMPL and cannot be used
+for naming variables, macros or functions. In the examples assume the
+marker declarations to be '{ } .'
+
+single-line comments: #, //
+
+Ignore and filter the input till the end of the current line.
+
+Example:
+
+{#} This is a single line comment.
+{//} And this is another using a different tag.
+
+block comments: *
+
+Ignore and filter everything till the next block-comment tag.
+
+Example:
+
+{*}
+ * This is a block comment. Everything up till and including the
+ * closing block comment marker will be ignored and filtered from
+ * the produced output.
+{*}
+
+Escape Sequences: \
+
+Escape sequences escape the next character or replace it with a
+special one.
+
+Examples:
+
+  {\n} gets replaced with \n
+  {\t} gets replaced with \t
+  {\r} gets replaced with \r
+  otherwise the character following \ is copied to the output.
+
+  {\} immediately followed by a newline removes the newline from the
+       output. This can be used to break long lines for readability.
+
+include: file inclusion
+
+Process the content of the included file as if its content was verbatim
+copied in place of the inclusion line. After the end of the included
+file, continue processing the content of the file where the inclusion
+occured.
+
+Example:
+
+{include} 'macros.inc'
+
+macro: macro declaration
+
+Declares a named macro. Every reference of the macro will be replaced
+by the value of the evaluated body of the macro. Macros come in 3 flavors:
+variable alias macros, non-parametrizable macros, and function-like macros.
+
+if-then-else branch: branch according to evaluating a test expression
+
+Evaluates either the primary or the else branch depending on whether
+the test expression evaluates to true or false. The primary branch is
+enclosed within a {then}-{else} block if there is an else-branch or a
+{then}-{end} block if there is no else branch. The else branch is enclosed
+within an {else}-{end} block.
+
+Example:
+
+{if} (!({a} == 'foo' && {b} == 'bar') || {c} == 'foobar') {then}
+.   okely-dokely-do
+{else}
+.   duh
+{end}
+
+foreach loop: evaluate a block with all values of a variable reference
+
+Evaluate the body of the for loop assigning successivele the values from
+the given variable reference to the loop variables.
+
+Example:
+
+{foreach} name:value {in} {app.service.environment} {do}
+.   Environment={name}={value}
+{end}
+
+switch-case-else: choose a template block based on the value of an expression
+
+Evaluate an expression and choose a template block with a matching case 
+expression value.
+
+Example:
+
+{switch} ({CONTAINER.type}) {in}
+{case} 'nspawn-shared' {do}{include} 'nspawn-shared.inc' {end}
+{case} 'nspawn'        {do}{include} 'nspawn-app.inc'    {end}
+{case} 'nspawn-system' {do}{include} 'nspawn-system'     {end}
+{else}                 {do}{include} 'no-container'      {end}
+{end}
+
+in:
+
+Reserved keyword used in foreach and switch constructs.
+
+do:
+
+Reserved keyword used to start block constructs.
+
+then:
+
+Alias for do and the preferred one to use in if-else-end constructs.
+
+else:
+
+Reserved keyword, used in if-else-end constructs, can be used instead of
+default in switch constructs.
+
+end:
+
+Reserved keyword user to end block constructs.
+
+case:
+
+Reserved keyword, used to declare a choice in switch-case-default constructs.
+
+default:
+
+Alias for else, usually used in switch-case-default constructs.
+
+first, ?first, !first: check the 'phase' of a given loop variable
+
+Test if the given loop variable is in the beginning (first, ?first) or
+not at the beginning (!first) of its iteration. Otherwise used as an
+if-else-end construct.
+
+last, ?last, !last: check the 'phase' of a given loop variable
+
+Test if the given loop variable is at the end (last, ?last) or not
+at the end (!last) of its iteration. Otherwise used as an if-else-end
+construct.
+
+?trail, !trail: check the trailing portion of the produced output
+
+Test the trailing portion of the output produced so far and see if it
+matches (?trail) or mismatches (!trail) the given string. Otherwise
+used as an if-else-end construct.
+
+
+2. Template Processing
+
+All plain text is verbatim copied to the template output. Variable
+references are replaced with the value of the referenced variable in
+the given context. Block constructs are processed and only the chosen
+blocks are evaluated and their value copied to the output. The first
+newline character immediately following a directive is filtered from
+the output. If you want to force a newline immediately following a
+directive, use an escaped one ({\n}). The first newline immediately
+following a function-like macro or a function call is filtered from
+the output. You can use an escaped newline ({\n} to force a newline
+immediately after a macro or function call.
+
+
+3. File Inclusion
+
+When a file is included its content is processed as if it was verbatim
+copied in place of the inclusion directive. Once the end of the included
+file is reached, processing is resumed at the point in the origin file
+following the inclusion directive.
+
+
+4. Macros
+
+Variable alias macros declare shorthand names for variable references.
+If the provided name occurs in the beginning of a variable reference it
+is replaced during evaluation with the aliased value provided in the macro.
+
+Examples:
+
+{macro} MANIFEST  {app.manifest}
+{macro} TEMPLATE  {app.template}
+{macro} CONFIG    {app.config}
+{macro} CONTAINER {MANIFEST.container}
+{macro} SERVICE   {MANIFEST.service}
+{macro} PATH      {CONFIG.path}
+
+Non-parametrizable macros simply provide a shorthand name for a block
+of template input. Each reference to the name of the macro is replaced
+during evaluation by the result of the evaluation of the body of the
+macro. The body of the macro is enclosed within a {do}-{end} block.
+
+Examples:
+
+{macro} MACHINE {do}{app.provider}-{app.application}{end}
+{macro} CR      {do}{PATH.container}/{app.provider}-{app.application}-root{end}
+{macro} MKDIR   {do}/bin/mkdir -p{end}
+{macro} IPT     {do}/usr/sbin/iptables -w{end}
+
+Parametrizable or function-like macros are macros that are declared with a
+set of macro-specific variables. These are assigned values in each reference
+to the macro, hence macro references look like function calls. If the last
+variable in the macro argument list ends with '...' it denotes a vararg or
+python *args-like final argument. This will take the value of all the rest
+of the argument list after the preceding positional parameters.
+
+Examples:
+
+{macro} SET-ENVIRONMENT(c, s) {do}
+.   {foreach} name:value {in} {s.environment} {do}
+.      Environment={name}={value}
+.   {end}
+.   {if} ({c.type} == 'none') {then}
+.       Environment=LD_LIBRARY_PATH={AR}/lib:/lib:/usr/lib
+.       Environment=PATH={AR}/bin:{AR}/sbin:/bin:/sbin:/usr/bin:/usr/sbin
+.   {end}
+{end}
+
+It can be referenced/called as
+
+{SET-ENVIRONMENT}({CONTAINER}, {SERVICE})
+
+A vararg macro declaration looks like this
+
+{macro} VARARG(a, b, c, d, e...) {do}
+     {a}:{b}:{c}:{d}
+.    {foreach} arg {in} {e} {do}
+....     vararg {arg}
+.    {end}
+     {e[0]}-{e[1]}-{e[2]}-{e[3]}-{e[100]}
+{end}
+
+It can be referenced like
+
+{VARARG}(1, 2, 3, 4, 'five', 'six', 'seven', 'eight')
+
+which then would produce
+
+     1:2:3:4
+     vararg five
+     vararg six
+     vararg seven
+     vararg eight
+     five-six-seven-eight-
+
+5. Plain Text Processing
+
+Plain text is verbatim copied to the output as such. The biggest exception
+to this rule is that newlines immediately following a directive, a macro
+call or a function call are filtered. The whole repetitive sequence of the
+first character following a newline and a tabulation marker is removed from
+the input before processing.
+
+
+6. Variable Substitution
+
+Variable references are replaced with the effective value of the variable
+in the closest enclosing context. For instance, if a function-like macro
+has a positional parameter 'v' and a loop inside the body of the macro also
+has a loop variable 'v', then references to 'v' inside the loop will be
+replaced with the loop value, but references outside the loop within the
+macro body will be replaced with the value passed in for 'v' in the macro
+reference. The loop variable 'v' is said to shadow the macro variable.
+
+Variable references can include field references for objects, and index
+references for objects and arrays. Here are a few examples:
+
+Simple variable references:
+
+  {v}
+  {a}
+  {foo}
+
+Field references:
+
+  {app.manifest.service}
+  {app.template.manifest}
+
+These could be expressed also in index notation as
+
+  {app['manifest']['service']}
+  {app['template']['manifest']}
+
+A few more complex references:
+
+  {app.manifest.service.start[0]}
+  {app.manifest.container.network.ports[0].proto}
+
+Unset variables are replaced with the empty string. If this is undesirable
+and the template needs to produce instead something else, you should test
+and branch according to if the avriable is set. For instance:
+
+  {if} ({app.manifest.container.network.ports}) {then}
+  .    {app.manifest.container.network.ports[0].proto
+  {else}
+  .    # No ports were defined for {app.application}.{\n}
+  {end}
+
+
+7. If-Then-Else Blocks
+
+If-then-else blocks evaluate the test expression first. If it evaluates
+to true the primary branch is evaluated and its value is copied to the
+output. Otherwise the else branch, if there is one, is evaluated and
+its value is copied to the output.
+
+
+8. Expressions
+
+Expressions can use the following binrary perators '==', '!=', the
+unary negation operator '!', and the following boolean operators
+'&&' and '||'. Their behavior and precedences are similar to C.
+
+Expression evaluation is short-circuit evaluation: boolean expressions
+are evaluated until their value is known but not further. For instance
+with the following values
+
+  a = 1, b = 0, c = [], d = 3, f = 0
+
+the evaluation of expression
+
+  (({a} && {b}) || (({f} && c[5]) || ({a} && ({d} || {b}))))
+
+will evaluate a and b, then f, then a and d. The whole expression will
+evaluate to true. Function calls evaluate to their return value. Macro
+calls/references evaluate to the value of the evaluation of their body
+as a string.
+
+
+9. Foreach Blocks
+
+A foreach block loops through the variable reference assigning key-
+value pairs to the loop variables. If the key or value loop variable
+is omitted its corresponding value is ignored without assigning it
+to anything. Looping through an object will assign the field name as
+a string loop key and the field value as the loop value. Looping
+through an array will assign the array index as an integer loop key
+and the array element at the index as the loop value. Looping through
+a string, integer, or double will assign '' as a string loop key and
+the value as the loop value. Looping through an unset value will skip
+the loop altogether. One can also loop through a vararg macro argument
+which behaves similar to an array apart from the fact that successive
+values are not necessarily homogenous (of the same type).
+
+
+10. Switch-Case Blocks
+
+A switch-case-default/else block evaluates the switch expression then
+goes through all the case expressions to find a matching value. If
+one is found the first such is chosen and the corresponding case block
+is evaluated. If no match was found but a default/else branch exists
+it is chosen and evaluated. If no match was found and no default/else
+branch was given the switch evaluates to the empty string.
+
+
+11. Function Calls
+
+Function calls look like references to function-like macros. However
+functions have return values and they evaluate to their return value.
+Functions cannot be declared in the template itself. Instead they are
+registered from C with a name and a callback which is invoked for each
+evaluated reference to the function. All functions are vararg functions
+and from the template processor point of view any number of arguments
+passed to a function are valid invocations. However, the callback can
+check the number and types of arguments passed to the functions and
+throw an error if desired. Here is an example of the implementation of
+a simple concatenation function in C:
+
+
+#define FN_CONCAT "CONCAT"
+
+static int fn_concat(smpl_t *smpl, int argc, smpl_value_t *argv,
+                     smpl_value_t *rv, void *user_data)
+{
+    smpl_value_t *arg;
+    char         *p, buf[4096];
+    int           l, n, i;
+
+    SMPL_UNUSED(user_data);
+
+    if (rv == NULL)
+        goto invalid_retval;
+
+    p = buf;
+    l = sizeof(buf) - 1;
+
+    for (i = 0, arg = argv; i < argc; i++, arg++) {
+        switch (arg->type) {
+        case SMPL_VALUE_STRING:
+            n = snprintf(p, l, "%s", arg->str);
+            break;
+        case SMPL_VALUE_INTEGER:
+            n = snprintf(p, l, "%d", arg->i32);
+            break;
+        case SMPL_VALUE_DOUBLE:
+            n = snprintf(p, l, "%f", arg->dbl);
+            break;
+        case SMPL_VALUE_UNSET:
+            n = 0;
+            break;
+        default:
+            goto invalid_arg;
+        }
+
+        if (n >= l)
+            goto overflow;
+
+        p += n;
+        l -= n;
+    }
+
+    *p = '\0';
+    rv->type    = SMPL_VALUE_STRING;
+    rv->str     = smpl_strdup(buf);
+    rv->dynamic = 1;
+
+    if (rv->str == NULL)
+        goto nomem;
+
+    return 0;
+
+ invalid_retval:
+    smpl_fail(-1, smpl, EINVAL,
+              "%s() called without a return value", FN_CONCAT);
+
+ invalid_arg:
+    rv->type = SMPL_VALUE_UNKNOWN;
+    smpl_fail(-1, smpl, EINVAL,
+              "%s() expects string, integer, or double arguments", FN_CONCAT);
+
+ overflow:
+    rv->type = SMPL_VALUE_UNKNOWN;
+    smpl_fail(-1, smpl, ENOBUFS, "%s() run out of buffer space", FN_CONCAT);
+
+ nomem:
+    rv->type = SMPL_VALUE_UNKNOWN;
+    return -1;
+}
+
+
+And this is how you register it with SMPL:
+
+if (smpl_register_function(FN_CONCAT, fn_concat, NULL) < 0) {
+    log_error("Failed to register template function '%s'", FN_CONCAT);
+    exit(1);
+}
+
+
+This function takes an arbitrary number of arguments and produces a
+concatenated string value as the result in its return value. It throws
+an error if a passed in argument is not of string, integer, double type
+or an unset value. It also throws errors for a few other conditions, such
+as an internal buffer overflow.
+
+
+12. Builtin Functions
+
+There are a few functions provided by the SMPL library itself. Hence these
+are always available for the templates. These functions are:
+
+ERROR:
+
+Throw an error and abort evaluating the current template.
+
+WARNING:
+
+Produce a warning message but continue template evaluation.
+
+REQUEST-ADDON:
+
+Request evaluation of an addon template related to the current template.
+An addon request can result in a callback to the entity that initiated
+template evaluation and this can accept the addon, reject it silently
+or reject it with an error, in which case template evaluation is aborted.
+
+Requesting an addon happens by name, and additionally one can provide a
+template name and a destination path for the addon. If the template name
+is omitted it is assumed to be the same as the addon name. Here is how
+an addon template requests might look like.
+
+  {REQUEST-ADDON}('name:firewall')
+  {REQUEST-ADDON}('name:firewall', 'template:firewall-addon.template')
+  {REQUEST-ADDON}('name:firewall',
+                  'destination:/run/systemd/generator/firewall.service')
+
+The callback, if given, can fill in any missing template or destination for
+the addon if it is not rejected. At least the destination if missing, should
+be filled in. The library can take a guess at the template to use for the
+addon (assumed to be <name>.template) but it does not try to deduct the output
+path.
