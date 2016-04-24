@@ -128,15 +128,17 @@ static int fn_addon(smpl_t *smpl, int argc, smpl_value_t *argv,
 {
     smpl_addon_t *addon;
     smpl_value_t *arg;
+    smpl_json_t  *data;
     const char   *tag, *val, *name, *template, *destination;
     int           len, n, verdict, i;
 
     SMPL_UNUSED(user_data);
     SMPL_UNUSED(rv);
 
+    data  = smpl_json_create(SMPL_JSON_OBJECT);
     addon = smpl_alloct(typeof(*addon));
 
-    if (addon == NULL)
+    if (data == NULL || addon == NULL)
         goto nomem;
 
     smpl_list_init(&addon->hook);
@@ -158,12 +160,41 @@ static int fn_addon(smpl_t *smpl, int argc, smpl_value_t *argv,
         smpl_debug("addon tag:value: '%*.*s':'%s'", len, len, tag, val);
 
 #define TAGGED(_tag) ((n = sizeof(_tag) - 1) == len && !strncmp(tag, _tag, len))
-        if (TAGGED("name"))
+        if (TAGGED("name")) {
+            smpl_json_add_string(data, "name", val);
             name = val;
+        }
         else if (TAGGED("template"))
             template = val;
         else if (TAGGED("destination"))
             destination = val;
+        else if (TAGGED("data")) {
+            if (i >= argc - 1)
+                goto missing_data;
+
+            i++;
+            arg++;
+
+            switch (arg->type) {
+            case SMPL_VALUE_STRING:
+                smpl_json_add_string(data, val, arg->str);
+                break;
+            case SMPL_VALUE_INTEGER:
+                smpl_json_add_integer(data, val, arg->i32);
+                break;
+            case SMPL_VALUE_DOUBLE:
+                smpl_json_add_double(data, val, arg->dbl);
+                break;
+            case SMPL_VALUE_OBJECT:
+            case SMPL_VALUE_ARRAY:
+                smpl_json_add_object(data, val, arg->json);
+                break;
+            case SMPL_VALUE_UNSET:
+                break;
+            default:
+                goto invalid_val;
+            }
+        }
         else
             goto invalid_tag;
     }
@@ -172,7 +203,7 @@ static int fn_addon(smpl_t *smpl, int argc, smpl_value_t *argv,
     if (name == NULL)
         goto missing_name;
 
-    verdict = addon_create(smpl, name, template, destination);
+    verdict = addon_create(smpl, name, template, destination, data);
 
     if (verdict < 0)
         goto addon_error;
@@ -181,21 +212,32 @@ static int fn_addon(smpl_t *smpl, int argc, smpl_value_t *argv,
 
  invalid_arg:
     addon_free(addon);
+    smpl_json_unref(data);
     smpl_fail(-1, smpl, EINVAL, "invalid argument type to %s", FN_ADDON);
 
  invalid_val:
     addon_free(addon);
+    smpl_json_unref(data);
     smpl_fail(-1, smpl, EINVAL, "invalid argument value to %s", FN_ADDON);
 
  invalid_tag:
     addon_free(addon);
+    smpl_json_unref(data);
     smpl_fail(-1, smpl, EINVAL, "unknown tag:value '%s' to %s", tag, FN_ADDON);
 
  missing_name:
+    smpl_json_unref(data);
     addon_free(addon);
     smpl_fail(-1, smpl, EINVAL, "missing name to %s", FN_ADDON);
 
+ missing_data:
+    smpl_json_unref(data);
+    addon_free(addon);
+    smpl_fail(-1, smpl, EINVAL, "missing data for %s argument '%s'", FN_ADDON,
+              val);
+
  addon_error:
+    smpl_json_unref(data);
     smpl_fail(-1, smpl, -verdict, "failed to create addon");
 
  nomem:

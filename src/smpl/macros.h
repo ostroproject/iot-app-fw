@@ -35,6 +35,7 @@
 #include <iot/common/log.h>
 #include <iot/common/debug.h>
 #include <iot/common/list.h>
+#include <iot/common/json.h>
 
 /* macros.h */
 #define SMPL_UNUSED      IOT_UNUSED
@@ -91,12 +92,15 @@
 #define smpl_list_foreach_back iot_list_foreach_back
 
 /* json.h */
+#define smpl_json_t             iot_json_t
+#define smpl_json_iter_t        iot_json_iter_t
 #define SMPL_JSON_STRING        IOT_JSON_STRING
 #define SMPL_JSON_INTEGER       IOT_JSON_INTEGER
 #define SMPL_JSON_DOUBLE        IOT_JSON_DOUBLE
 #define SMPL_JSON_BOOLEAN       IOT_JSON_BOOLEAN
 #define SMPL_JSON_OBJECT        IOT_JSON_OBJECT
 #define SMPL_JSON_ARRAY         IOT_JSON_ARRAY
+#define smpl_json_create        iot_json_create
 #define smpl_json_load_file     iot_json_load_file
 #define smpl_json_ref           iot_json_ref
 #define smpl_json_unref         iot_json_unref
@@ -109,8 +113,11 @@
 #define smpl_json_object_length iot_json_object_length
 #define smpl_json_array_length  iot_json_array_length
 #define smpl_json_array_get     iot_json_array_get
-#define smpl_json_t             iot_json_t
-#define smpl_json_iter_t        iot_json_iter_t
+#define smpl_json_add_string    iot_json_add_string
+#define smpl_json_add_integer   iot_json_add_integer
+#define smpl_json_add_double    iot_json_add_double
+#define smpl_json_add_object    iot_json_add_object
+#define smpl_json_del_member    iot_json_del_member
 #define smpl_json_foreach       iot_json_foreach_member
 #define smpl_json_iter_last(it) ((it).entry->next == NULL)
 

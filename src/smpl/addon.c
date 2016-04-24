@@ -44,7 +44,7 @@ static int addon_notify(smpl_t *smpl, smpl_addon_t *a)
 
 
 int addon_create(smpl_t *smpl, const char *name, const char *template,
-                 const char *destination)
+                 const char *destination, smpl_json_t *data)
 {
     smpl_addon_t *a;
     int           verdict;
@@ -61,6 +61,7 @@ int addon_create(smpl_t *smpl, const char *name, const char *template,
 
     a->name     = smpl_strdup(name);
     a->template = smpl_strdup(template);
+    a->data     = data;
 
     if (!a->name || (!a->template && template))
         goto nomem;
@@ -99,6 +100,7 @@ void addon_free(smpl_addon_t *a)
     result_free(&a->result);
     smpl_free(a->name);
     smpl_free(a->template);
+    smpl_json_unref(a->data);
     smpl_free(a);
 }
 
@@ -171,7 +173,12 @@ int addon_evaluate(smpl_t *smpl, smpl_addon_t *a, const char *data_name,
 
     smpl_debug("evaluating addon template '%s'...", a->name);
 
+    if (a->template != NULL)
+        smpl_json_add_string(a->data, "template", a->template);
+
+    smpl_json_add_object(data, "addon", smpl_json_ref(a->data));
     r = smpl_evaluate(ampl, data_name, data, smpl->user_data, &a->result);
+    smpl_json_del_member(data, "addon");
 
     smpl_free_template(ampl);
 

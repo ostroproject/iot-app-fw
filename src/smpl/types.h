@@ -125,6 +125,7 @@ struct smpl_addon_s {
     smpl_list_t      hook;               /* to list of addons */
     char            *name;               /* addon name */
     char            *template;           /* addon template to use */
+    smpl_json_t     *data;               /* extra addon data */
     smpl_result_t    result;             /* evaluation result */
 };
 
@@ -629,7 +630,7 @@ char *buffer_steal(smpl_buffer_t *b);
 void buffer_purge(smpl_list_t *bufs);
 
 int addon_create(smpl_t *smpl, const char *name, const char *template,
-                 const char *destination);
+                 const char *destination, smpl_json_t *data);
 void addon_free(smpl_addon_t *a);
 int addon_evaluate(smpl_t *smpl, smpl_addon_t *addon, const char *data_name,
                    smpl_data_t *data);
