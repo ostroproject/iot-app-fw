@@ -55,7 +55,7 @@ int main(int argc, char *argv[], char *env[])
         exit(1);
     }
 
-    if (self_check(&g) > 0)
+    if (self_check_dir(&g) > 0)
         self_generate(&g);
     else {
         if (g.update)

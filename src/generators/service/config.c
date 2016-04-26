@@ -96,10 +96,32 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
     g->path_config     = PATH_CONFIG;
     g->path_template   = PATH_TEMPLATE_DIR;
     g->path_containers = PATH_CONTAINER;
-    g->name_template   = NAME_TEMPLATE;
     g->name_manifest   = NAME_MANIFEST;
 
     iot_log_set_mask(IOT_LOG_MASK_ERROR | IOT_LOG_MASK_WARNING);
+}
+
+
+static void update_defaults(generator_t *g, int argc, char **argv, int optind)
+{
+    int self = self_check_dir(g) > 0;
+
+    if (g->name_template == NULL) {
+        if (self)
+            g->name_template = "self/"NAME_TEMPLATE;
+        else
+            g->name_template = "host/"NAME_TEMPLATE;
+    }
+
+    if (!self) {
+        if (argc != optind + 3)
+            print_usage(argv[0], EINVAL, "Need 3 arguments in non-agent mode.");
+
+        g->dir_normal  = argv[optind];
+        g->dir_early   = argv[optind + 1];
+        g->dir_late    = argv[optind + 2];
+        g->dir_service = g->dir_normal;
+    }
 }
 
 
@@ -203,19 +225,10 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
         }
     }
 
-    if (optind + 2 >= argc)
-        print_usage(argv[0], EINVAL, "Too few arguments.");
-
-    if (optind + 4 < argc)
-        print_usage(argv[0], EINVAL, "Too many arguments.");
-
-    g->dir_normal  = argv[optind];
-    g->dir_early   = argv[optind + 1];
-    g->dir_late    = argv[optind + 2];
-    g->dir_service = g->dir_normal;
-
     if (g->log_path == NULL)
         g->log_path = g->dry_run ? "/proc/self/fd/1" : "/dev/kmsg";
+
+    update_defaults(g, argc, argv, optind);
 
     return 0;
 }
