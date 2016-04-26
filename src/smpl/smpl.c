@@ -361,15 +361,21 @@ int smpl_write_result(smpl_result_t *r, int flags)
 }
 
 
-char *smpl_addon_name(smpl_addon_t *a)
+const char *smpl_addon_name(smpl_addon_t *a)
 {
     return a->name;
 }
 
 
-char *smpl_addon_template(smpl_addon_t *a)
+const char *smpl_addon_template(smpl_addon_t *a)
 {
     return a->template;
+}
+
+
+const char *smpl_addon_destination(smpl_addon_t *a)
+{
+    return a->result.destination;
 }
 
 

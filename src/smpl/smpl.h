@@ -239,8 +239,9 @@ int smpl_print_template(smpl_t *smpl, int fd);
  */
 void smpl_dump_template(smpl_t *smpl, int fd);
 
-char *smpl_addon_name(smpl_addon_t *a);
-char *smpl_addon_template(smpl_addon_t *a);
+const char *smpl_addon_name(smpl_addon_t *a);
+const char *smpl_addon_template(smpl_addon_t *a);
+const char *smpl_addon_destination(smpl_addon_t *a);
 int smpl_addon_set_destination(smpl_addon_t *a, const char *destination);
 
 
