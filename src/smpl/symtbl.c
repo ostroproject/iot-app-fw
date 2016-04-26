@@ -85,6 +85,27 @@ smpl_symbol_t *symtbl_symbol(smpl_t *smpl, const char *name)
 }
 
 
+static int check_name(const char *name)
+{
+    while (*name) {
+        switch (*name) {
+        case 'A'...'Z':
+        case 'a'...'z':
+        case '0'...'9':
+        case '_':
+        case '-':
+            break;
+        default:
+            return -1;
+        }
+
+        name++;
+    }
+
+    return 0;
+}
+
+
 smpl_sym_t symtbl_add(smpl_t *smpl, const char *name, int32_t tag)
 {
     smpl_symtbl_t *tbl = smpl->symtbl;
@@ -92,6 +113,9 @@ smpl_sym_t symtbl_add(smpl_t *smpl, const char *name, int32_t tag)
     smpl_sym_t     id;
     char          *end;
     int            idx;
+
+    if (check_name(name) < 0)
+        goto invalid_name;
 
     if (tag == SMPL_SYMBOL_FIELD || tag == SMPL_SYMBOL_INDEX) {
         idx = (int)strtol(name, &end, 0);
@@ -120,6 +144,10 @@ smpl_sym_t symtbl_add(smpl_t *smpl, const char *name, int32_t tag)
     }
 
     return id | tag;
+
+ invalid_name:
+    smpl_fail(-1, smpl, EINVAL, "invalid symbol name '%s'", name);
+    return -1;
 
  nomem:
     return -1;
@@ -631,7 +659,8 @@ int symtbl_resolve(smpl_t *smpl, smpl_varref_t *vref, smpl_value_t *val)
 
  invalid_value:
     value_set(val, SMPL_VALUE_UNKNOWN);
-    smpl_fail(-1, smpl, EINVAL, "invalid value for symbol 0x%x", *sym);
+    smpl_fail(-1, smpl, EINVAL, "invalid value for symbol 0x%x (%s)", *sym,
+              s->symbol);
 }
 
 

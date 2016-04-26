@@ -77,6 +77,9 @@ int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     if (br == NULL)
         goto nomem;
 
+    br->path = t->path;
+    br->line = t->line;
+
     smpl_list_init(&br->hook);
     smpl_list_init(&br->posbr);
     smpl_list_init(&br->negbr);
