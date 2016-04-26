@@ -20,7 +20,7 @@
 
 {#} Macro for doing very basic manifest verification.
 {macro} CHECK-MANIFEST(m) {do}
-.   {if} (!{m.application} || {!m.service}) {then}
+.   {if} (!{m.application} || !{m.service}) {then}
 .       {ERROR}(-1, 'Invalid manifest: missing mandatory section ',
 .                   '(application or service).');
 .   {end}
@@ -61,7 +61,7 @@
 .   ExecStartPre={MKDIR} {CR}/dev/../proc/../sys
 .   ExecStartPre={MKDIR} {CR}/lib/../sbin/../bin/../usr
 .   ExecStartPre={MKDIR} {CR}/root/../home/{USER}
-.   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/../usr
+.   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/
 {end}
 
 {#} Macros for various bind-, overlay-, and tmpfs-mounts.
@@ -75,9 +75,6 @@
 {macro} NETWORK(c) {do}
 .   {if} ({c.network.type} == 'VirtualEthernet') {then}
 .       --private-network --network-veth {\}
-.       {if} ({c.type} != 'nspawn-system') {then}
-.       --auto-dhcp {\}
-.       {end}
 .   {end}
 {end}
 
@@ -97,12 +94,17 @@
 .   {end}
 {end}
 
+{#} Macro for running the service generator as an agent.
+{macro} GENERATOR-AGENT(t) {do}
+.    {t.generator}
+{end}
+
 {#} Macro for checking if a firewall addon is needed by the container.
 {macro} CHECK-FIREWALL(c) {do}
 .    {if} ({c.network.ports}) {then}
 .        Requires={app.provider}-{app.application}-firewall.service
 .        After={app.provider}-{app.application}-firewall.service
-.        {REQUEST-ADDON}('name:firewall')
+.        {REQUEST-ADDON}('name:firewall', 'template:host/firewall.template')
 .    {end}
 {end}
 

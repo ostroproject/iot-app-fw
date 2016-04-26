@@ -1,0 +1,8 @@
+{ } .
+{include} 'self/macros.inc'
+
+{switch} ({CONTAINER.type}) {in}
+{case} 'nspawn-shared' {do}{include} 'self/nspawn-shared.inc' {end}
+{case} 'nspawn-app'    {do}{include} 'self/nspawn-app.inc'    {end}
+{case} 'nspawn-system' {do}{include} 'self/nspawn-system.inc' {end}
+{end}

@@ -1,5 +1,5 @@
 { } .
-{include} 'macros.inc'
+{include} 'host/macros.inc'
 
 {CHECK-MANIFEST}({MANIFEST})
 ###########################################################################
