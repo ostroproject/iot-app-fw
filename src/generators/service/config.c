@@ -96,10 +96,20 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
     g->path_config     = PATH_CONFIG;
     g->path_template   = PATH_TEMPLATE_DIR;
     g->path_containers = PATH_CONTAINER;
-    g->name_template   = NAME_TEMPLATE;
     g->name_manifest   = NAME_MANIFEST;
 
     iot_log_set_mask(IOT_LOG_MASK_ERROR | IOT_LOG_MASK_WARNING);
+}
+
+
+static void update_defaults(generator_t *g)
+{
+    if (g->name_template == NULL) {
+        if (self_check_dir(g) > 0)
+            g->name_template = "self/"NAME_TEMPLATE;
+        else
+            g->name_template = "host/"NAME_TEMPLATE;
+    }
 }
 
 
@@ -202,6 +212,8 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
             break;
         }
     }
+
+    update_defaults(g);
 
     if (optind + 2 >= argc)
         print_usage(argv[0], EINVAL, "Too few arguments.");

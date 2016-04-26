@@ -271,7 +271,7 @@ int service_write(generator_t *g);
 int service_prepare_data(service_t *s);
 
 
-int self_check(generator_t *g);
+int self_check_dir(generator_t *g);
 int self_generate(generator_t *g);
 
 #endif /* __SERVICE_GENERATOR_H__ */

@@ -40,7 +40,7 @@
 #include "generator.h"
 
 
-int self_check(generator_t *g)
+int self_check_dir(generator_t *g)
 {
     char path[PATH_MAX];
     int  n;
