@@ -20,7 +20,7 @@
 
 {#} Macro for doing very basic manifest verification.
 {macro} CHECK-MANIFEST(m) {do}
-.   {if} (!{m.application} || {!m.service}) {then}
+.   {if} (!{m.application} || !{m.service}) {then}
 .       {ERROR}(-1, 'Invalid manifest: missing mandatory section ',
 .                   '(application or service).');
 .   {end}
@@ -99,7 +99,7 @@
 .    {if} ({c.network.ports}) {then}
 .        Requires={app.provider}-{app.application}-firewall.service
 .        After={app.provider}-{app.application}-firewall.service
-.        {REQUEST-ADDON}('name:firewall')
+.        {REQUEST-ADDON}('name:firewall', 'template:host/firewall.template')
 .    {end}
 {end}
 

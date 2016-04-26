@@ -3,9 +3,9 @@
 {end}
 setuser:{USER}
 {if} ({SERVICE.groups}) {then}
-.    setgroups:{foreach} g {in} {SERVICE.groups} {do}
-.       {!first}g{do},{end}{g}{\}
-.    {end}{\n}
+.    setgroups:{USER}{foreach} g {in} {SERVICE.groups} {do},{g}{end}{\n}
+{else}
+.    setgroups:{USER}
 {end}
 {foreach} cmd {in} {SERVICE.start} {do}
 .    exec:{foreach} arg {in} {cmd} {do}{arg} {end}{\n}
