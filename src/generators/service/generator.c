@@ -55,14 +55,18 @@ int main(int argc, char *argv[], char *env[])
         exit(1);
     }
 
-    if (g.update)
-        log_info("Running in update mode...");
+    if (self_check(&g) > 0)
+        self_generate(&g);
+    else {
+        if (g.update)
+            log_info("Running in update mode...");
 
-    application_mount(&g);
-    application_discover(&g);
-    application_umount(&g);
-    service_generate(&g);
-    service_write(&g);
+        application_mount(&g);
+        application_discover(&g);
+        application_umount(&g);
+        service_generate(&g);
+        service_write(&g);
+    }
 
     template_destroy(&g);
 

@@ -182,3 +182,4 @@ iot_json_t *manifest_read(generator_t *g, const char *path)
  failed:
     return NULL;
 }
+

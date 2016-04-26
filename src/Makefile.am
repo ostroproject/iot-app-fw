@@ -111,6 +111,7 @@ iot_service_generator_SOURCES =				\
 		generators/service/generator.c		\
 		generators/service/config.c		\
 		generators/service/application.c	\
+		generators/service/self.c		\
 		generators/service/manifest.c		\
 		generators/service/service.c		\
 		generators/service/template.c		\

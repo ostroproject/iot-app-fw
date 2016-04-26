@@ -84,6 +84,10 @@
 #    define PATH_APPS "/apps"
 #endif
 
+#ifndef PATH_SELF
+#    define PATH_SELF "/self"
+#endif
+
 /* Top directory under which we stitch together container images. */
 #ifndef PATH_CONTAINER
 #    define PATH_CONTAINER "/run/systemd/machines"
@@ -117,10 +121,10 @@ struct generator_s {
     const char      *dir_normal;         /* systemd 'normal' service dir */
     const char      *dir_early;          /* systemd 'early' service dir */
     const char      *dir_late;           /* systemd 'late' service dir */
-    const char      *dir_apps;           /* application top directory */
     const char      *dir_service;        /* service (output) directory */
     const char      *path_config;        /* configuration path */
     const char      *path_apps;          /* application top dir */
+    const char      *path_self;          /* self top directory */
     const char      *path_containers;    /* container root path */
     const char      *path_template;      /* template directory path */
     const char      *name_template;      /* service template name */
@@ -129,6 +133,7 @@ struct generator_s {
     int              dry_run : 1;        /* just a dry-run, don't generate */
     int              update : 1;         /* whether to run in update mode */
     int              premounted : 1;     /* whether dir_apps was mounted */
+    int              container : 1;      /* running in container mode */
     int              status;             /* service generation status */
     iot_json_t      *cfg;                /* optional configuration */
     smpl_t          *template;           /* service template */
@@ -251,8 +256,6 @@ struct service_s {
     iot_json_t      *m;                  /* application manifest */
     iot_json_t      *data;               /* template configuration data */
     smpl_result_t    result;             /* template generation result */
-    const char      *user;               /* user to run service as */
-    const char      *group;              /* group to run service as */
     iot_json_t      *argv;               /* user command to execute */
     int              autostart : 1;      /* wants started on boot */
     int              firewall : 1;       /* needs firewall manipulation */
@@ -265,5 +268,10 @@ service_t *service_create(generator_t *g, const char *provider, const char *app,
 void service_abort(service_t *s);
 int service_generate(generator_t *g);
 int service_write(generator_t *g);
+int service_prepare_data(service_t *s);
+
+
+int self_check(generator_t *g);
+int self_generate(generator_t *g);
 
 #endif /* __SERVICE_GENERATOR_H__ */

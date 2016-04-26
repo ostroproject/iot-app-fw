@@ -50,25 +50,31 @@ static void print_usage(const char *argv0, int exit_code, const char *fmt, ...)
         va_end(ap);
     }
 
-    fprintf(stderr, "usage: %s [options] normal early late [<apps-dir>]\n"
+    fprintf(stderr, "usage: %s [options] normal early late\n"
             "\n"
-            "Search <apps-dir> for application manifests and generate a "
-            "systemd service\n"
-            "file for each application found. The default path for <apps-dir> "
-            "is %s.\n"
+            "Search for application manifests in the give application or self "
+            "directory.\n"
+            "If a self directory is found, generate a systemd service or a set "
+            "of actions to execute.\n"
+            "Otherwise if applicaiton manifests are found, generate a systemd "
+            "service file and potential\n"
+            "addon services for each application found.\n"
+            "file for each application found.\n"
             "\n"
             "The possible opions are:\n"
-            "  -c, --config <path>    configuration to load\n"
-            "  -T, --templates <dir>  template directory to use\n"
-            "  -t  --template <name>  template file to use\n"
-            "  -m  --manifest <name>  manifest name to look for\n"
-            "  -n, --dry-run          just print, don't generate anything\n"
-            "  -u, --update           process only touched manifests\n"
-            "  -l, --log <path>       where to log to (default: /dev/kmsg)\n"
-            "  -v, --verbose          increase logging verbosity\n"
-            "  -d, --debug <site>     enable deugging for <site>\n"
-            "  -h, --help             print this help message\n", argv0,
-            PATH_APPS);
+            "  -c, --config <path>       configuration to load\n"
+            "  -T, --templates <dir>     directory to search for templates\n"
+            "  -t  --template <name>     name of template to use\n"
+            "  -A, --applications <dir>  root directory for applications\n"
+            "  -S, --self <dir>          root directory for container app\n"
+            "  -m  --manifest <name>     name of manifest to look for\n"
+            "  -C, --containers <dir>    container root directory\n"
+            "  -n, --dry-run             just print, don't generate anything\n"
+            "  -u, --update              process only touched manifests\n"
+            "  -l, --log <path>          where to log to (default: /dev/kmsg)\n"
+            "  -v, --verbose             increase logging verbosity\n"
+            "  -d, --debug <site>        enable deugging for <site>\n"
+            "  -h, --help                print this help message\n", argv0);
 
     if (exit_code < 0)
         return;
@@ -86,6 +92,7 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
     g->env             = (const char **)env;
     g->argv0           = argv[0];
     g->path_apps       = PATH_APPS;
+    g->path_self       = PATH_SELF;
     g->path_config     = PATH_CONFIG;
     g->path_template   = PATH_TEMPLATE_DIR;
     g->path_containers = PATH_CONTAINER;
@@ -98,7 +105,7 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
 
 int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 {
-#   define OPTIONS "c:T:A:C:t:m:nul:vd:h"
+#   define OPTIONS "c:T:A:S:C:t:m:nul:vd:h"
     static struct option options[] = {
         { "config"      , required_argument, NULL, 'c' },
         { "templates"   , required_argument, NULL, 'T' },
@@ -131,6 +138,10 @@ int config_parse_cmdline(generator_t *g, int argc, char *argv[], char *env[])
 
         case 'A':
             g->path_apps = optarg;
+            break;
+
+        case 'S':
+            g->path_self = optarg;
             break;
 
         case 'C':
