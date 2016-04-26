@@ -1,5 +1,5 @@
 { } .
-{include} 'macros.inc'
+{include} 'host/macros.inc'
 
 {CHECK-MANIFEST}({MANIFEST})
 ###########################################################################
@@ -21,10 +21,10 @@ Description={APPLICATION.description}
 
 [Service]
 {switch} ({CONTAINER.type}) {in}
-{case} 'nspawn-shared' {do}{include} 'nspawn-shared.inc' {end}
-{case} 'nspawn-app'    {do}{include} 'nspawn-app.inc'    {end}
-{case} 'nspawn-system' {do}{include} 'nspawn-system.inc' {end}
-{else}                 {do}{include} 'no-container.inc'  {end}
+{case} 'nspawn-shared' {do}{include} 'host/nspawn-shared.inc' {end}
+{case} 'nspawn-app'    {do}{include} 'host/nspawn-app.inc'    {end}
+{case} 'nspawn-system' {do}{include} 'host/nspawn-system.inc' {end}
+{else}                 {do}{include} 'host/no-container.inc'  {end}
 {end}
 
 [Install]
