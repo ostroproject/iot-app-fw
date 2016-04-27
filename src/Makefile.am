@@ -163,9 +163,12 @@ SYSTEMD_UNITS = 	      		\
 
 # Install service file template(s).
 install-service-templates:
-	mkdir -p $(DESTDIR)${libexecdir}/iot-app-fw && \
-	    cp $(top_srcdir)/src/$(SERVICE_TEMPLATES) \
-	        $(DESTDIR)${libexecdir}/iot-app-fw
+	install -d $(DESTDIR)${libexecdir}/iot-app-fw/host && \
+	install -d $(DESTDIR)${libexecdir}/iot-app-fw/self && \
+	    cp -t $(DESTDIR)/${libexecdir}/iot-app-fw/host \
+                $(top_srcdir)/data/templates/ostro/host/*.{template,inc} && \
+	    cp -t $(DESTDIR)/${libexecdir}/iot-app-fw/self \
+                $(top_srcdir)/data/templates/ostro/self/*.{template,inc}
 
 # Install units for systemd.
 install-systemd-units:

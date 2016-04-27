@@ -58,7 +58,10 @@
 
 {#} Macro for preparing the container root directory.
 {macro} PREPARE-CONTAINER() {do}
-.   ExecStartPre={MKDIR} {CR}
+.   ExecStartPre={MKDIR} {CR}/dev/../proc/../sys
+.   ExecStartPre={MKDIR} {CR}/lib/../sbin/../bin/../usr
+.   ExecStartPre={MKDIR} {CR}/root/../home/{USER}
+.   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/../usr
 {end}
 
 {#} Macros for various bind-, overlay-, and tmpfs-mounts.
@@ -81,7 +84,7 @@
 {#} Macro for generating nspwan port redirection options.
 {macro} PORTMAP(c) {do}
 .   {foreach} e {in} {c.network.ports} {do}
-.       -p {e.proto}:{e.port}:{e.map} {\}
+.       -p {e.proto}:{e.map}:{e.port} {\}
 .   {end}
 {end}
 
@@ -124,7 +127,7 @@
 .    {if} ({c.type} != 'none') {then}
 .        ExecStopPost={IPT} -t filter -D FORWARD -o {CIF} -j ACCEPT
 .        {foreach} e {in} {c.network.ports} {do}
-.            ExecStartPre={IPT} -t filter -D INPUT -p {e.proto} {\}
+.            ExecStopPre={IPT} -t filter -D INPUT -p {e.proto} {\}
 .                         --dport {e.map} -j ACCEPT
 .        {end}
 .    {else}
@@ -137,7 +140,7 @@
 
 {#} Macro for checking if the services should be autostarted.
 {macro} CHECK-AUTOSTART(s) {do}
-.    {if} ({s.autostart} == 'true' || {s.autostart} == 'yes') {then}
+.    {if} ({s.autostart}) {then}
 .        {REQUEST-ADDON}('name:autostart')
 .    {end}
 {end}
