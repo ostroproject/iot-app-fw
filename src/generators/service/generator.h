@@ -105,9 +105,9 @@ typedef struct mount_s        mount_t;
 typedef struct generator_s    generator_t;
 typedef struct service_s      service_t;
 typedef struct preprocessor_s preprocessor_t;
+typedef struct scriptlet_s    scriptlet_t;
 
-typedef iot_json_t *(*preproc_t)(generator_t *, iot_json_t *, void *data);
-
+typedef iot_json_t *(*preproc_t)(generator_t *g, iot_json_t *json, void *data);
 
 /*
  * Generator runtime context.
@@ -139,6 +139,7 @@ struct generator_s {
     smpl_t          *template;           /* service template */
     iot_list_hook_t  services;           /* generated service( file)s */
     iot_list_hook_t  preprocessors;      /* manifest preprocessors */
+    iot_list_hook_t  scriptlets;         /* scriptlet command handlers */
 };
 
 
@@ -234,6 +235,25 @@ int preprocessor_register(generator_t *g, preprocessor_t *pp);
 
 
 iot_json_t *manifest_read(generator_t *g, const char *path);
+
+
+/*
+ * scriptlet handling
+ */
+
+struct scriptlet_s {
+    iot_list_hook_t  hook;               /* to list of commands */
+    const char      *name;               /* command name */
+    int              len;                /* command name length */
+    void            *user_data;          /* opaque user data and handler */
+    int            (*handler)(generator_t *g, const char *cmd, int len,
+                              void *user_data);
+};
+
+
+int scriptlet_register(generator_t *g, scriptlet_t *s);
+int scriptlet_run(generator_t *g, char *scriptlet);
+
 
 /*
  * Service file generation.
