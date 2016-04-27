@@ -1,5 +1,5 @@
 Type=simple
-TimeoutStop=5
+TimeoutStopSec=5
 {SET-GROUPS}({SERVICE})
 {SET-ENVIRONMENT}({CONTAINER}, {SERVICE})
 {PREPARE-CONTAINER}()
