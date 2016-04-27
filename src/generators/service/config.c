@@ -88,6 +88,7 @@ static void set_defaults(generator_t *g, char **argv, char *env[])
     iot_clear(g);
     iot_list_init(&g->services);
     iot_list_init(&g->preprocessors);
+    iot_list_init(&g->scriptlets);
 
     g->env             = (const char **)env;
     g->argv0           = argv[0];
