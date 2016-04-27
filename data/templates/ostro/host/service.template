@@ -24,7 +24,10 @@ Description={APPLICATION.description}
 {case} 'nspawn-shared' {do}{include} 'host/nspawn-shared.inc' {end}
 {case} 'nspawn-app'    {do}{include} 'host/nspawn-app.inc'    {end}
 {case} 'nspawn-system' {do}{include} 'host/nspawn-system.inc' {end}
-{else}                 {do}{include} 'host/no-container.inc'  {end}
+{case} 'none'          {do}{include} 'host/no-container.inc'  {end}
+{else} {do}
+.          {ERROR}(1, 'invalid container type:', {CONTAINER.type})
+       {end}
 {end}
 
 [Install]
