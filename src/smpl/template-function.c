@@ -170,15 +170,13 @@ int function_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
         if (parser_push_token(smpl, t) < 0)
             goto failed;
 
-        e = expr_parse(smpl, &end);
+        c->expr = e = expr_parse(smpl, &end);
 
         if (e == NULL || e->type != SMPL_VALUE_FUNCREF)
             goto invalid_expr;
 
         if (e->call.f != c->f)
             goto invalid_expr;
-
-        c->expr = e;
     }
 
     parser_skip_newline(smpl);
@@ -192,7 +190,7 @@ int function_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     return -1;
 
  invalid_expr:
-    expr_free(e);
+    function_free_ref((smpl_insn_t *)c);
     smpl_fail(-1, smpl, EINVAL, "failed to parse call of function '%s'", name);
 }
 
