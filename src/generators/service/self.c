@@ -61,7 +61,11 @@ int self_execute(service_t *s)
 {
     char *script = smpl_steal_result_output(&s->result);
 
-    return scriptlet_run(s->g, script);
+    if (scriptlet_run(s->g, script) < 0)
+        return -1;
+
+    for(;;)
+        sleep(300);
 }
 
 
