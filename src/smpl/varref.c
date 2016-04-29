@@ -116,6 +116,7 @@ smpl_varref_t *varref_parse(smpl_t *smpl, char *str, const char *path, int line)
         return varref_parse(smpl, unaliased, path, line);
     }
 
+    vref = NULL;
     syms = NULL;
     nsym = 0;
     p    = str;

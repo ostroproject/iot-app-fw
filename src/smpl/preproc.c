@@ -479,6 +479,11 @@ int preproc_file(smpl_t *smpl, const char *path)
     smpl_fail(-1, smpl, errno, "failed to read file '%s'", path);
 
  preproc_failed:
+    if (in) {
+        smpl_free(in->buf);
+        smpl_free(in->path);
+        smpl_free(in);
+    }
     smpl_fail(-1, smpl, errno, "failed to preprocess '%s'", path);
 
  nomem:
