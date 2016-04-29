@@ -127,9 +127,11 @@ int macro_parse(smpl_t *smpl)
     return -1;
 
  name_failed:
+    smpl_free(m);
     smpl_fail(-1, smpl, errno, "failed to parse/add macro name");
 
  failed:
+    macro_free(m);
     smpl_fail(-1, smpl, errno, "failed to parse body of macro '%s'", name.str);
 }
 
@@ -185,15 +187,13 @@ int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
         if (parser_push_token(smpl, t) < 0)
             goto failed;
 
-        e = expr_parse(smpl, &end);
+        c->expr = e = expr_parse(smpl, &end);
 
         if (e == NULL || e->type != SMPL_VALUE_MACROREF)
             goto invalid_expr;
 
         if (e->call.m != c->m)
             goto invalid_expr;
-
-        c->expr = e;
     }
 
     if (c->m->narg >= 0)
@@ -208,7 +208,7 @@ int macro_parse_ref(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     return -1;
 
  invalid_expr:
-    expr_free(e);
+    macro_free_ref((smpl_insn_t *)c);
     smpl_fail(-1, smpl, EINVAL, "failed to parse reference to macro '%s'", name);
 }
 
