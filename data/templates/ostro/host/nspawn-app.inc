@@ -1,6 +1,5 @@
 Type=simple
 TimeoutStopSec=5
-{SET-GROUPS}({SERVICE})
 {SET-ENVIRONMENT}({CONTAINER}, {SERVICE})
 {PREPARE-CONTAINER}()
 ExecStart=/usr/bin/systemd-nspawn \
@@ -8,7 +7,6 @@ ExecStart=/usr/bin/systemd-nspawn \
     --as-pid2 \
     -M {MACHINE} \
     -D {CR} \
-    -u {USER} \
     {BIND-RO}({AR}, '/self') \
     {BIND-RW}({CONCAT}('/home/', {USER}), {CONCAT}('/home/', {USER})) \
     {OVERLAY-RW}('/etc') \
@@ -20,5 +18,5 @@ ExecStart=/usr/bin/systemd-nspawn \
     {TMPFS}('/tmp', '0755') \
     {NETWORK}({CONTAINER}) \
     {PORTMAP}({CONTAINER}) \
-    {COMMAND}({CONTAINER}, {SERVICE})
+    {GENERATOR-AGENT}({TEMPLATE})
     

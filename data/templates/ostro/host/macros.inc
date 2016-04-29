@@ -75,9 +75,6 @@
 {macro} NETWORK(c) {do}
 .   {if} ({c.network.type} == 'VirtualEthernet') {then}
 .       --private-network --network-veth {\}
-.       {if} ({c.type} != 'nspawn-system') {then}
-.       --auto-dhcp {\}
-.       {end}
 .   {end}
 {end}
 
@@ -95,6 +92,11 @@
 .   {else}
 .       {foreach} arg {in} {s.start} {do}{arg} {end}
 .   {end}
+{end}
+
+{#} Macro for running the service generator as an agent.
+{macro} GENERATOR-AGENT(t) {do}
+.    {t.generator}
 {end}
 
 {#} Macro for checking if a firewall addon is needed by the container.
