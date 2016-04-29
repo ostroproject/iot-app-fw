@@ -89,21 +89,27 @@ int switch_parse(smpl_t *smpl, smpl_list_t *block)
     return -1;
 
  invalid_expression:
+    switch_free((smpl_insn_t *)sw);
     smpl_fail(-1, smpl, EINVAL, "failed to parse switch expression");
 
  missing_in:
+    switch_free((smpl_insn_t *)sw);
     smpl_fail(-1, smpl, EINVAL, "missing do keyword in switch");
 
  invalid_case:
+    switch_free((smpl_insn_t *)sw);
     smpl_fail(-1, smpl, EINVAL, "failed to parse switch case");
 
  multiple_defaults:
+    switch_free((smpl_insn_t *)sw);
     smpl_fail(-1, smpl, EINVAL, "multiple default branches for switch");
 
  invalid_default:
+    switch_free((smpl_insn_t *)sw);
     smpl_fail(-1, smpl, EINVAL, "failed to parse switch 'default' branch");
 
  parse_error:
+    switch_free((smpl_insn_t *)sw);
     smpl_fail(-1, smpl, EINVAL, "failed to parse switch statement");
 }
 
@@ -228,9 +234,11 @@ static int case_parse(smpl_t *smpl, smpl_list_t *cases)
     return -1;
 
  invalid_expression:
+    case_free(c);
     smpl_fail(-1, smpl, EINVAL, "failed to parse case expression");
 
  invalid_block:
+    case_free(c);
     smpl_fail(-1, smpl, EINVAL, "failed to parse case block");
 }
 
