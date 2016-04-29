@@ -133,7 +133,6 @@ struct generator_s {
     int              dry_run : 1;        /* just a dry-run, don't generate */
     int              update : 1;         /* whether to run in update mode */
     int              premounted : 1;     /* whether dir_apps was mounted */
-    int              container : 1;      /* running in container mode */
     int              status;             /* service generation status */
     iot_json_t      *cfg;                /* optional configuration */
     smpl_t          *template;           /* service template */
