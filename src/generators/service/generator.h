@@ -106,6 +106,7 @@ typedef struct generator_s    generator_t;
 typedef struct service_s      service_t;
 typedef struct preprocessor_s preprocessor_t;
 typedef struct scriptlet_s    scriptlet_t;
+typedef struct child_s        child_t;
 
 typedef iot_json_t *(*preproc_t)(generator_t *g, iot_json_t *json, void *data);
 
@@ -139,6 +140,7 @@ struct generator_s {
     iot_list_hook_t  services;           /* generated service( file)s */
     iot_list_hook_t  preprocessors;      /* manifest preprocessors */
     iot_list_hook_t  scriptlets;         /* scriptlet command handlers */
+    iot_list_hook_t  children;           /* scriptlet child processes */
 };
 
 
@@ -246,12 +248,28 @@ struct scriptlet_s {
     int              len;                /* command name length */
     void            *user_data;          /* opaque user data and handler */
     int            (*handler)(generator_t *g, const char *cmd, int len,
-                              void *user_data);
+                              char *beg, char *end, void *user_data);
+};
+
+
+enum {
+    CHILD_RESTART_ONFAIL = 0x1,
+    CHILD_RESTART_ALWAYS = 0x2,
+    CHILD_FAILURE_IGNORE = 0x4,
+};
+
+struct child_s {
+    iot_list_hook_t   hook;              /* to list of children */
+    pid_t             pid;               /* current process id */
+    char            **argv;              /* binary and arguments to exec */
+    int               flags;             /* child flags */
+    int               restarts;          /* number of restarts */
 };
 
 
 int scriptlet_register(generator_t *g, scriptlet_t *s);
 int scriptlet_run(generator_t *g, char *scriptlet);
+int scriptlet_wait(generator_t *g);
 
 
 /*
