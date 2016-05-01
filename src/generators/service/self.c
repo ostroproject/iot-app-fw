@@ -64,8 +64,10 @@ int self_execute(service_t *s)
     if (scriptlet_run(s->g, script) < 0)
         return -1;
 
-    for(;;)
-        sleep(300);
+    if (scriptlet_wait(s->g) < 0)
+        return -1;
+
+    return 0;
 }
 
 
