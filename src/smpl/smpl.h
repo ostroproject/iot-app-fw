@@ -156,6 +156,7 @@ char *smpl_steal_result_output(smpl_result_t *r);
 char **smpl_steal_result_errors(smpl_result_t *r);
 char **smpl_result_errors(smpl_result_t *r);
 int smpl_write_result(smpl_result_t *r, int flags);
+int smpl_write_addons(smpl_result_t *r, int flags);
 
 
 /**

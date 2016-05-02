@@ -637,13 +637,20 @@ int addon_evaluate(smpl_t *smpl, smpl_addon_t *addon, const char *data_name,
 int addon_set_destination(smpl_addon_t *a, const char *destination);
 int addon_set_template(smpl_addon_t *a, const char *template);
 
+
+typedef enum {
+    SMPL_WRITE_MAIN   = 0x1,
+    SMPL_WRITE_ADDONS = 0x2,
+    SMPL_WRITE_ALL    = 0x3,
+} smpl_write_flag_t;
+
 smpl_result_t *result_init(smpl_result_t *r, const char *destination);
 void result_free(smpl_result_t *r);
 int result_set_destination(smpl_result_t *r, const char *destination);
 char *result_steal_output(smpl_result_t *r);
 char **result_steal_errors(smpl_result_t *r);
 char **result_errors(smpl_result_t *r);
-int result_write(smpl_result_t *r, int flags);
+int result_write(smpl_result_t *r, int flags, int wflags);
 
 
 

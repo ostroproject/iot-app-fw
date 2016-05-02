@@ -357,7 +357,13 @@ char **smpl_result_errors(smpl_result_t *r)
 
 int smpl_write_result(smpl_result_t *r, int flags)
 {
-    return result_write(r, flags);
+    return result_write(r, flags, SMPL_WRITE_ALL);
+}
+
+
+int smpl_write_addons(smpl_result_t *r, int flags)
+{
+    return result_write(r, flags, SMPL_WRITE_ADDONS);
 }
 
 
