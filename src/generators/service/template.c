@@ -92,11 +92,15 @@ static int template_notify(smpl_t *smpl, smpl_addon_t *addon, void *user_data)
 
         return 1;
     }
+
     if (!strcmp(name, "autostart")) {
         s->autostart = 1;
 
         return 0;
     }
+
+    if (smpl_addon_destination(addon) != NULL)
+        return 1;
 
     return -1;
 }
