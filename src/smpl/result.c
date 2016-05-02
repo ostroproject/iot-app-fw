@@ -158,26 +158,30 @@ int write_output(char *output, char *destination, int flags, mode_t mode)
 }
 
 
-int result_write(smpl_result_t *r, int flags)
+int result_write(smpl_result_t *r, int flags, int wflags)
 {
     smpl_list_t  *p, *n;
     smpl_addon_t *a;
 
-    if (r->output == NULL)
-        goto no_output;
+    if (wflags & SMPL_WRITE_MAIN) {
+        if (r->output == NULL)
+            goto no_output;
 
-    if (r->destination == NULL)
-        goto no_destination;
+        if (r->destination == NULL)
+            goto no_destination;
 
-    smpl_debug("writing template output to %s...", r->destination);
+        smpl_debug("writing template output to %s...", r->destination);
 
-    if (write_output(r->output, r->destination, flags, 0644) < 0)
-        goto write_error;
-
-    smpl_list_foreach(&r->addons, p, n) {
-        a = smpl_list_entry(p, typeof(*a), hook);
-        if (result_write(&a->result, flags | O_WRONLY) < 0)
+        if (write_output(r->output, r->destination, flags, 0644) < 0)
             goto write_error;
+    }
+
+    if (wflags & SMPL_WRITE_ADDONS) {
+        smpl_list_foreach(&r->addons, p, n) {
+            a = smpl_list_entry(p, typeof(*a), hook);
+            if (result_write(&a->result, flags | O_WRONLY, SMPL_WRITE_ALL) < 0)
+                goto write_error;
+        }
     }
 
     return 0;
