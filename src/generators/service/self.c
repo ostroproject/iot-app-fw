@@ -129,6 +129,13 @@ static int self_evaluate(service_t *s)
     return template_eval(s);
 }
 
+
+static int self_write(service_t *s)
+{
+    return smpl_write_addons(&s->result, O_CREAT);
+}
+
+
 static void self_cleanup(service_t *s)
 {
     iot_json_unref(s->data);
@@ -146,6 +153,9 @@ int self_generate(generator_t *g)
     if (self_evaluate(&s) < 0)
         goto evaluate_failed;
 
+    if (self_write(&s) < 0)
+        goto write_failed;
+
     if (self_execute(&s) < 0)
         goto execute_failed;
 
@@ -160,6 +170,11 @@ int self_generate(generator_t *g)
 
  evaluate_failed:
     log_error("Failed to evaluate template for '%s'.", g->path_self);
+    self_cleanup(&s);
+    return -1;
+
+ write_failed:
+    log_error("Failed to write some addon for self scriptlet.");
     self_cleanup(&s);
     return -1;
 
