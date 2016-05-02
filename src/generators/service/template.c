@@ -99,10 +99,14 @@ static int template_notify(smpl_t *smpl, smpl_addon_t *addon, void *user_data)
         return 0;
     }
 
-    if (smpl_addon_destination(addon) != NULL)
-        return 1;
+    if (smpl_addon_destination(addon) == NULL)
+        return -1;
 
-    return -1;
+    if (s->g->dry_run)
+        if (smpl_addon_set_destination(addon, "/proc/self/fd/1") < 0)
+            return -1;
+
+    return 1;
 }
 
 
