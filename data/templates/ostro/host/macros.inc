@@ -61,7 +61,7 @@
 .   ExecStartPre={MKDIR} {CR}/dev/../proc/../sys
 .   ExecStartPre={MKDIR} {CR}/lib/../sbin/../bin/../usr
 .   ExecStartPre={MKDIR} {CR}/root/../home/{USER}
-.   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/../usr
+.   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/
 {end}
 
 {#} Macros for various bind-, overlay-, and tmpfs-mounts.
