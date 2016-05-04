@@ -290,7 +290,7 @@ struct service_s {
     char            *provider;           /* application provider */
     char            *app;                /* application name */
     char            *appdir;             /* application directory */
-    char            *src;                /* mannifest source path */
+    char            *src;                /* manifest source path */
     iot_json_t      *m;                  /* application manifest */
     iot_json_t      *data;               /* template configuration data */
     smpl_result_t    result;             /* template generation result */
