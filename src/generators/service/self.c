@@ -59,7 +59,7 @@ int self_check_dir(generator_t *g)
 
 int self_execute(service_t *s)
 {
-    char *script = smpl_steal_result_output(&s->result);
+    char *script = s->g->self_script;
 
     if (scriptlet_run(s->g, script) < 0)
         return -1;
@@ -130,9 +130,35 @@ static int self_evaluate(service_t *s)
 }
 
 
-static int self_write(service_t *s)
+static int process_cb(smpl_addon_t *addon, const char *output,
+                      const char *destination, const char *name, void *user_data)
 {
-    return smpl_write_addons(&s->result, O_CREAT);
+    generator_t *g = (generator_t *)user_data;
+    int          status;
+
+    IOT_UNUSED(destination);
+    IOT_UNUSED(name);
+
+    if (addon == NULL) {
+        g->self_script = (char *)output;
+        status         = SMPL_RESULT_STOLEN;
+    }
+    else {
+        if ((status < smpl_write_addon(addon, O_CREAT)) < 0)
+            goto addon_failed;
+    }
+
+    return status;
+
+ addon_failed:
+    log_error("Failed to write addon '%s'.", name);
+    return -1;
+}
+
+
+static int self_process(service_t *s)
+{
+    return smpl_process_result(&s->result, process_cb, s->g);
 }
 
 
@@ -153,7 +179,7 @@ int self_generate(generator_t *g)
     if (self_evaluate(&s) < 0)
         goto evaluate_failed;
 
-    if (self_write(&s) < 0)
+    if (self_process(&s) < 0)
         goto write_failed;
 
     if (self_execute(&s) < 0)

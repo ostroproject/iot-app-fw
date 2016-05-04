@@ -816,6 +816,7 @@ int scriptlet_wait(generator_t *g)
         if (pending & (m = (1 << (s=SIGINT)))) {
             signal_children(g, s);
             pending &= ~m;
+            break;
         }
 
         if (pending & (m = (1 << (s=SIGTERM)))) {
