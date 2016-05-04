@@ -197,3 +197,72 @@ int result_write(smpl_result_t *r, int flags, int wflags)
  write_error:
     return -1;
 }
+
+
+int result_process(smpl_result_t *r, int (*cb)(smpl_addon_t *addon,
+                                               const char *output,
+                                               const char *destination,
+                                               const char *name,
+                                               void *user_data),
+                   void *user_data)
+{
+    smpl_addon_t *addon;
+    smpl_list_t  *p, *n;
+    const char   *out;
+    const char   *dest;
+    const char   *name;
+    int           ar, mr;
+
+    out  = r->output;
+    dest = r->destination;
+    name = "<main template>";
+
+    mr = cb(NULL, out, dest, name, user_data);
+
+    if (mr < 0)
+        goto main_failed;
+
+    smpl_list_foreach(&r->addons, p, n) {
+        addon = smpl_list_entry(p, typeof(*addon), hook);
+        out   = addon->result.output;
+        dest  = addon->result.destination;
+        name  = addon->name;
+
+        ar = cb(addon, out, dest, name, user_data);
+
+        switch (ar) {
+        case SMPL_RESULT_OK:
+            break;
+        case SMPL_RESULT_FREE:
+            addon_free(addon);
+            break;
+        case SMPL_RESULT_STOLEN:
+            smpl_steal_result_output(&addon->result);
+            break;
+        default:
+            goto addon_failed;
+        }
+    }
+
+    switch (mr) {
+    case SMPL_RESULT_OK:
+        break;
+    case SMPL_RESULT_FREE:
+        result_free(r);
+        break;
+    case SMPL_RESULT_STOLEN:
+        smpl_steal_result_output(r);
+        break;
+    default:
+        goto main_failed;
+    }
+
+    return 0;
+
+ main_failed:
+    return -1;
+
+ addon_failed:
+    return -1;
+
+}
