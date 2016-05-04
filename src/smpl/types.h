@@ -651,7 +651,12 @@ char *result_steal_output(smpl_result_t *r);
 char **result_steal_errors(smpl_result_t *r);
 char **result_errors(smpl_result_t *r);
 int result_write(smpl_result_t *r, int flags, int wflags);
-
+int result_process(smpl_result_t *r, int (*cb)(smpl_addon_t *a,
+                                               const char *output,
+                                               const char *destination,
+                                               const char *name,
+                                               void *user_data),
+                   void *user_data);
 
 
 #define SMPL_INDENT_FMT        "%*.*s"

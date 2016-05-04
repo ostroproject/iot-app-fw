@@ -157,6 +157,19 @@ char **smpl_steal_result_errors(smpl_result_t *r);
 char **smpl_result_errors(smpl_result_t *r);
 int smpl_write_result(smpl_result_t *r, int flags);
 int smpl_write_addons(smpl_result_t *r, int flags);
+int smpl_write_addon(smpl_addon_t *addon, int flags);
+
+
+#define SMPL_RESULT_FAIL   -1
+#define SMPL_RESULT_OK      0
+#define SMPL_RESULT_FREE    1
+#define SMPL_RESULT_STOLEN  2
+int smpl_process_result(smpl_result_t *r, int (*cb)(smpl_addon_t *addon,
+                                                    const char *output,
+                                                    const char *destination,
+                                                    const char *name,
+                                                    void *user_data),
+                        void *user_data);
 
 
 /**

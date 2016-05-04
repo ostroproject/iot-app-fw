@@ -361,9 +361,26 @@ int smpl_write_result(smpl_result_t *r, int flags)
 }
 
 
+int smpl_process_result(smpl_result_t *r, int (*cb)(smpl_addon_t *addon,
+                                                    const char *output,
+                                                    const char *destination,
+                                                    const char *name,
+                                                    void *user_data),
+                        void *user_data)
+{
+    return result_process(r, cb, user_data);
+}
+
+
 int smpl_write_addons(smpl_result_t *r, int flags)
 {
     return result_write(r, flags, SMPL_WRITE_ADDONS);
+}
+
+
+int smpl_write_addon(smpl_addon_t *addon, int flags)
+{
+    return result_write(&addon->result, flags, SMPL_WRITE_ALL);
 }
 
 
