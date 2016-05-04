@@ -139,6 +139,7 @@ struct generator_s {
     smpl_t          *template;           /* service template */
     iot_list_hook_t  services;           /* generated service( file)s */
     iot_list_hook_t  preprocessors;      /* manifest preprocessors */
+    char            *self_script;        /* generated self_script */
     iot_list_hook_t  scriptlets;         /* scriptlet command handlers */
     iot_list_hook_t  children;           /* scriptlet child processes */
 };
