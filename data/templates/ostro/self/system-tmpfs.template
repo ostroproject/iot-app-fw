@@ -1,18 +1,20 @@
 { } .
 
-D    /var              0755 root root - -
-D    /run/lock         0755 root root - -
+D    /var                  0755 root root - -
+D    /run/lock             0755 root root - -
+D    /run/dbus             0755 root root - -
+D    /run/tmpfiles.d       0755 root root - -
+D    /run/systemd/journal  0755 root root - -
+D    /var/backups          0755 root root - -
+D    /var/cache            0755 root root - -
+D    /var/lib              0755 root root - -
+D    /var/local            0755 root root - -
+D    /var/spool            0755 root root - -
+D    /var/volatile         0755 root root - -
+D    /var/volatile/log     0755 root root - -
+D    /var/volatile/tmp     0777 root root - -
 
-D    /var/backups      0755 root root - -
-D    /var/cache        0755 root root - -
-D    /var/lib          0755 root root - -
-D    /var/local        0755 root root - -
-D    /var/spool        0755 root root - -
-D    /var/volatile     0755 root root - -
-D    /var/volatile/log 0755 root root - -
-D    /var/volatile/tmp 0777 root root - -
-
-L    /var/lock        -    -    -    - ../run/lock
-L    /var/log         -    -    -    - volatile/log
-L    /var/run         -    -    -    - ../run
-L    /var/tmp         -    -    -    - volatile/tmp
+L    /var/lock             -    -    -    - ../run/lock
+L    /var/log              -    -    -    - volatile/log
+L    /var/run              -    -    -    - ../run
+L    /var/tmp              -    -    -    - volatile/tmp
