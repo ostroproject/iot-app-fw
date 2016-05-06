@@ -1,0 +1,8 @@
+{ } .
+
+{include} 'self/macros.inc'
+
+disable *
+{foreach} s {in} {SERVICE.enable} {do}
+.    enable {s}
+{end}
