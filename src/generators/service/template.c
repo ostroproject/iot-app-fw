@@ -150,7 +150,7 @@ void template_destroy(generator_t *g)
 
 int template_eval(service_t *s)
 {
-    char **e;
+    char **errors, **e;
 
     if (smpl_evaluate(s->g->template, "app", s->data, s, &s->result) < 0) {
         log_error("Service template failed for %s / %s.", s->provider, s->app);
@@ -160,10 +160,12 @@ int template_eval(service_t *s)
     return 0;
 
  dump_errors:
-    if (s->result.errors != NULL) {
-        for (e = s->result.errors; *e; e++)
+    errors = smpl_steal_result_errors(&s->result);
+
+    if (errors != NULL) {
+        for (e = errors; *e; e++)
             log_error("error: %s", *e);
-        smpl_free_errors(s->result.errors);
+        smpl_free_errors(errors);
     }
 
     return -1;
