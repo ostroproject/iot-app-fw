@@ -595,6 +595,36 @@ static int service_handler(generator_t *g, const char *cmd, int len,
 }
 
 
+static int exit_handler(generator_t *g, const char *cmd, int len,
+                           char *set_beg, char *set_end, void *user_data)
+{
+    int status;
+
+    IOT_UNUSED(set_end);
+    IOT_UNUSED(user_data);
+
+    if (set_beg != NULL)
+        goto unknown_settings;
+
+    if (g->dry_run)
+        printf("  should exit with status '%*.*s'...\n", len, len, cmd);
+    else {
+        while ((*cmd == ' ' || *cmd == '\t') && len > 0)
+            cmd++;
+
+        status = strtol(cmd, NULL, 10);
+
+        exit(status);
+    }
+
+    return 0;
+
+ unknown_settings:
+    log_error("scriptlet exit command does not take settings.");
+    return -1;
+}
+
+
 static void register_builtin(generator_t *g)
 {
     static scriptlet_t builtin[] = {
@@ -616,6 +646,11 @@ static void register_builtin(generator_t *g)
         {
             .name      = "service",
             .handler   = service_handler,
+            .user_data = NULL,
+        },
+        {
+            .name      = "exit",
+            .handler   = exit_handler,
             .user_data = NULL,
         },
         {
