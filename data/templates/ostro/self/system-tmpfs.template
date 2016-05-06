@@ -13,6 +13,8 @@ D    /var/spool            0755 root root - -
 D    /var/volatile         0755 root root - -
 D    /var/volatile/log     0755 root root - -
 D    /var/volatile/tmp     0777 root root - -
+T    /var                  -    -    -    - System
+T    /run                  -    -    -    - System
 
 L    /var/lock             -    -    -    - ../run/lock
 L    /var/log              -    -    -    - volatile/log
