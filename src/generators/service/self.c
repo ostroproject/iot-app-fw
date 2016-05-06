@@ -134,7 +134,8 @@ static int process_cb(smpl_addon_t *addon, const char *output,
                       const char *destination, const char *name, void *user_data)
 {
     generator_t *g = (generator_t *)user_data;
-    int          status;
+    char         dir[PATH_MAX], *e;
+    int          status, l;
 
     IOT_UNUSED(destination);
     IOT_UNUSED(name);
@@ -144,6 +145,26 @@ static int process_cb(smpl_addon_t *addon, const char *output,
         status         = SMPL_RESULT_STOLEN;
     }
     else {
+        if (destination != NULL) {
+            e = strrchr(destination, '/');
+
+            if (e != NULL) {
+                l = e - destination;
+
+                if (l >= (int)sizeof(dir))
+                    goto overflow;
+
+                strncpy(dir, destination, l);
+                dir[l] = '\0';
+
+                if (g->dry_run)
+                    printf("should try to create directory '%s'...\n", dir);
+
+                if (access(dir, X_OK|W_OK) < 0 && errno == ENOENT)
+                    iot_mkdir(dir, 0755, "System");
+            }
+        }
+
         if ((status < smpl_write_addon(addon, O_CREAT)) < 0)
             goto addon_failed;
     }
@@ -152,6 +173,10 @@ static int process_cb(smpl_addon_t *addon, const char *output,
 
  addon_failed:
     log_error("Failed to write addon '%s'.", name);
+    return -1;
+
+ overflow:
+    log_error("Directory name '%*.*s' too long.", l, l, destination);
     return -1;
 }
 
