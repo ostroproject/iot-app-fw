@@ -538,6 +538,63 @@ static int setgroups_handler(generator_t *g, const char *cmd, int len,
 }
 
 
+static int service_handler(generator_t *g, const char *cmd, int len,
+                           char *set_beg, char *set_end, void *user_data)
+{
+    char    *argv[64], buf[1024];
+    int      argc, i;
+    pid_t    pid;
+
+    IOT_UNUSED(set_end);
+    IOT_UNUSED(user_data);
+
+    if (set_beg != NULL)
+        goto unknown_settings;
+
+    if (g->dry_run)
+        printf("  service command '%*.*s'...\n", len, len, cmd);
+
+    argc = IOT_ARRAY_SIZE(argv);
+    argc = parse_cmdline(cmd, len, buf, sizeof(buf), argv + 1, argc - 2);
+
+    if (argc < 0)
+        return -1;
+
+    argv[0] = "/bin/systemctl";
+
+    if (g->dry_run) {
+        for (i = 0; argv[i] != NULL; i++)
+            printf("    service arg[%d] = '%s'\n", i, argv[i]);
+    }
+    else {
+        pid = fork();
+
+        if (pid < 0)
+            goto fork_failed;
+
+        if (pid == 0) {
+            dup2(0, open("/dev/null", O_RDONLY));
+            if (execv(argv[0], argv) < 0)
+                goto exec_failed;
+        }
+    }
+
+    return 0;
+
+ unknown_settings:
+    log_error("service scriptlet command does not take settings.");
+    return -1;
+
+ fork_failed:
+    log_error("Failed to fork child for '%s'.", argv[0]);
+    return -1;
+
+ exec_failed:
+    log_error("Failed to exec '%s' (%d: %s).", argv[0], errno, strerror(errno));
+    return -1;
+}
+
+
 static void register_builtin(generator_t *g)
 {
     static scriptlet_t builtin[] = {
@@ -554,6 +611,11 @@ static void register_builtin(generator_t *g)
         {
             .name      = "setgroups",
             .handler   = setgroups_handler,
+            .user_data = NULL,
+        },
+        {
+            .name      = "service",
+            .handler   = service_handler,
             .user_data = NULL,
         },
         {
@@ -687,7 +749,6 @@ static int restart_child(child_t *c)
         goto fork_failed;
 
     if (c->pid == 0) {
-        close(0);
         dup2(0, open("/dev/null", O_RDONLY));
         if (execv(c->argv[0], c->argv) < 0)
             goto exec_failed;
