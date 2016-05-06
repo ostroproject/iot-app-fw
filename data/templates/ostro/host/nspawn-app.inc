@@ -14,7 +14,7 @@ ExecStart=/usr/bin/systemd-nspawn \
     {OVERLAY-RO}('/lib') \
     {OVERLAY-RO}('/sbin') \
     {OVERLAY-RO}('/bin') \
-    {OVERLAY-RO}('/usr') \
+    {BIND-RO}('/usr', '/usr') \
     {TMPFS}('/tmp', '0755') \
     {NETWORK}({CONTAINER}) \
     {PORTMAP}({CONTAINER}) \
