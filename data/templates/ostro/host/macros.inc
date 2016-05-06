@@ -129,7 +129,7 @@
 .    {if} ({c.type} != 'none') {then}
 .        ExecStopPost={IPT} -t filter -D FORWARD -o {CIF} -j ACCEPT
 .        {foreach} e {in} {c.network.ports} {do}
-.            ExecStopPre={IPT} -t filter -D INPUT -p {e.proto} {\}
+.            ExecStopPost={IPT} -t filter -D INPUT -p {e.proto} {\}
 .                         --dport {e.map} -j ACCEPT
 .        {end}
 .    {else}
