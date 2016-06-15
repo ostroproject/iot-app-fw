@@ -104,7 +104,8 @@ systemd_generator_PROGRAMS = iot-service-generator
 systemd_generatordir = /lib/systemd/system-generators
 
 iot_service_generator_PREPROCESSORS = \
-		generators/service/preprocessors/whitelist-groups.c
+		generators/service/preprocessors/whitelist-groups.c \
+		generators/service/preprocessors/convert-manifest.c
 
 
 iot_service_generator_SOURCES =				\
