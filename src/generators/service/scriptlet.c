@@ -95,6 +95,8 @@ static int parse_settings(char *beg, char *end,
     if (end == NULL)
         end = beg + strlen(beg);
 
+    value = "";
+
     p = beg;
     while (p < end) {
         while (*p == ',' || *p == ' ')
