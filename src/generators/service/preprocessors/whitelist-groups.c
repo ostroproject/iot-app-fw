@@ -34,6 +34,7 @@
 #include <iot/common/debug.h>
 #include <iot/generators/service/generator.h>
 
+#define MANIFEST_SERVICE "service"
 #define MANIFEST_GROUPS  "groups"
 #define WHITELIST_GROUPS "GroupWhitelist"
 
@@ -103,7 +104,7 @@ static inline int group_id(const char *name)
 static iot_json_t *whitelist_groups(generator_t *g, iot_json_t *m, void *data)
 {
     static int  loaded = 0;
-    iot_json_t *requested, *filtered;
+    iot_json_t *a, *requested, *filtered;
     const char *name;
     int         l, i, n, keep;
 
@@ -127,9 +128,8 @@ static iot_json_t *whitelist_groups(generator_t *g, iot_json_t *m, void *data)
         }
     }
 
-    requested = iot_json_get(m, MANIFEST_GROUPS);
-
-    if (requested == NULL)
+    if ((a = iot_json_get(m, MANIFEST_SERVICE)) == NULL ||
+        (requested = iot_json_get(a, MANIFEST_GROUPS)) == NULL)
         return m;
 
     switch (iot_json_get_type(requested)) {
@@ -151,7 +151,7 @@ static iot_json_t *whitelist_groups(generator_t *g, iot_json_t *m, void *data)
         }
 
         if (keep == 0)
-            iot_json_del_member(m, MANIFEST_GROUPS);
+            iot_json_del_member(a, MANIFEST_GROUPS);
 
         return m;
 
@@ -188,10 +188,10 @@ static iot_json_t *whitelist_groups(generator_t *g, iot_json_t *m, void *data)
         }
 
         if (n != l) {
-            iot_json_del_member(m, MANIFEST_GROUPS);
+            iot_json_del_member(a, MANIFEST_GROUPS);
 
             if (n > 0)
-                iot_json_add(m, MANIFEST_GROUPS, filtered);
+                iot_json_add(a, MANIFEST_GROUPS, filtered);
         }
 
         return m;
