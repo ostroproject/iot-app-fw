@@ -78,7 +78,7 @@
 .   {end}
 {end}
 
-{#} Macro for generating nspwan port redirection options.
+{#} Macro for generating nspawn port redirection options.
 {macro} PORTMAP(c) {do}
 .   {foreach} e {in} {c.network.ports} {do}
 .       -p {e.proto}:{e.map}:{e.port} {\}
