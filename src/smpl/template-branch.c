@@ -90,12 +90,14 @@ int branch_parse(smpl_t *smpl, smpl_token_t *t, smpl_list_t *block)
     blks[ neg] = &br->posbr;
     blks[!neg] = &br->negbr;
 
-    flags = SMPL_SKIP_WHITESPACE|SMPL_PARSE_BLOCK|SMPL_BLOCK_DOELSEEND;
+    flags  = SMPL_SKIP_WHITESPACE|SMPL_ALLOW_INCLUDE;
+    flags |= SMPL_PARSE_BLOCK | SMPL_BLOCK_DOELSEEND;
+
     if (block_parse(smpl, flags, blks[0], &end) < 0)
         goto parse_error;
 
     if (end.type == SMPL_TOKEN_ELSE) {
-        flags = SMPL_PARSE_BLOCK|SMPL_BLOCK_END;
+        flags = SMPL_PARSE_BLOCK | SMPL_ALLOW_INCLUDE | SMPL_BLOCK_END;
         if (block_parse(smpl, flags, blks[1], &end) < 0)
             goto parse_error;
     }
