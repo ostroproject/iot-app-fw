@@ -166,10 +166,13 @@ SYSTEMD_UNITS = 	      		\
 install-service-templates:
 	install -d $(DESTDIR)${libexecdir}/iot-app-fw/host && \
 	install -d $(DESTDIR)${libexecdir}/iot-app-fw/self && \
+	install -d $(DESTDIR)${libexecdir}/iot-app-fw/agentless && \
 	    cp -t $(DESTDIR)/${libexecdir}/iot-app-fw/host \
                 $(top_srcdir)/data/templates/ostro/host/*.{template,inc} && \
 	    cp -t $(DESTDIR)/${libexecdir}/iot-app-fw/self \
-                $(top_srcdir)/data/templates/ostro/self/*.{template,inc}
+                $(top_srcdir)/data/templates/ostro/self/*.{template,inc} && \
+	    cp -t $(DESTDIR)/${libexecdir}/iot-app-fw/agentless \
+                $(top_srcdir)/data/templates/ostro/agentless/*.{template,inc}
 
 # Install units for systemd.
 install-systemd-units:
