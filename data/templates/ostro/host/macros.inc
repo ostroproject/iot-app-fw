@@ -22,7 +22,7 @@
 {macro} CHECK-MANIFEST(m) {do}
 .   {if} (!{m.application} || !{m.service}) {then}
 .       {ERROR}(-1, 'Invalid manifest: missing mandatory section ',
-.                   '(application or service).');
+.                   '(application or service).')
 .   {end}
 .   {if} (!{m.application.origin} || !{m.application.name}) {then}
 .       {ERROR}(-1, 'Invalid manifest: application section ',
