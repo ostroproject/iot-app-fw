@@ -1,44 +1,118 @@
 /*
- * Application manifest sections and keys:
+ * A sample application manifest.
  *
- * - application section: metadata about the application
+ * The application manifest is a collection of metadata about the
+ * application. This metadata can be used during (image) building,
+ * installation, removal, startup and shutdown of the application.
  *
- *   o origin: provider of the application
- *   o name: name of the application
- *   o install: extra commands to execute for installing the application
- *   o remove: extra commands to execute for removing the application
+ * The manifest consists of sections. Each section consists of
+ * section-specific keys and values for these keys. There is a
+ * minimal set of mandatory keys that must be present or else the
+ * manifest is considered invalid. The manifest file is in JSON
+ * format.
  *
- * - service section: data for running the application processes
+ * Currently the manifest is used to generate one or more systemd
+ * service files for starting and stopping the application. The
+ * current version of the manifest contains three sections. These
+ * are the application, service, and container sections. The app-
+ * lication and service sections are mandatory. The container
+ * section is optional.
  *
- *   o groups: supplementary groups to set for the application
- *   o environment: extra environment variables to set for the application
- *   o start: commands to run for starting the application
- *   o stop: command to stop the applciation if signals are insufficient
- *   o autostart: whether to automatically start the application on boot
+ * The application section contains data about the application and
+ * its origin. Data from this section is used during image building
+ * to relocate the application and at boot-time for generating
+ * systemd service files.
  *
- * - container section: data for isolating the application into a container
+ * The service section contains data necessary for starting and
+ * stopping the application. Data from this section is used at boot-
+ * time to generate systemd service files.
  *
- *   o type: type of the container, one of none, nspawn-shared, nspawn-app,
- *            and nspawn-system
- *   o network: data about the container network setup
+ * The optional container section contains data about the container
+ * the application is supposed to be run in. If absent, the application
+ * is run without any containers.
  *
- *     - type: currently must be VirtualEthernet
- *     - ports: array of ports to open on the firewall and potentially redirect
+ * application section keys:
  *
- *        o proto: protocol, tcp, udp, tcp6, udp6
- *        o port:  port the application listens/serves on (in the container)
- *        o map: optional port to redirect on the host side
+ *  - origin: string
+ *    The provider/origin of the application. Used for relocating the
+ *    application and for naming the generated service file of the
+ *    application.
  *
+ *  - name: string
+ *    The name of the application. Used for relocating the application
+ *    and for naming the generated service file of the application.
+ *
+ *  - description: string
+ *    A short verbal description of the application. Used as the description
+ *    of the application in the generated service file.
+ *
+ *  - install: string (just a placeholder, currently unused)
+ *    Extra commands to run after installation. In some cases it might be
+ *    necessary to run some extra commands to register the application (or
+ *    parts of the application) with some runtime components before the
+ *    application can be started for the first time. For instance, if the
+ *    application was a docker image or a flatpak application, the image
+ *    needs to be registered with Docker or flatpak before it can be started.
+ *    Those extra commands could/should be advertised in the application
+ *    manifest as application.install.
+ *
+ *  - remove: string (just a placeholder, currently unused)
+ *    Extra commands to run before application removal. Similar in purpose
+ *    to install but meant for removal.
+ *
+ * service section keys:
+ *
+ *  - groups: array of strings
+ *    List of supplementary group names the application should be part of.
+ *    Used for generating the application service file.
+ *
+ *  - environment: dictionary
+ *    Environment variables to set for the application. Used for generating
+ *    the application service file.
+ *
+ *  - start: array of strings
+ *    Commands for running the application. Used for generating the
+ *    application service file.
+ *
+ *  - stop: array of string
+ *    Commands used for stopping the application, if there are any. If set,
+ *    used for generating the application service file.
+ *
+ *  - autostart: boolean
+ *    Whether the application should be automatically started during
+ *    bootup. Used for decising if the application service file should be
+ *    linked into the set of application services to start during boot.
+ *
+ * container section keys:
+ *
+ *  - type: string
+ *    Container type to use for the application. Can be one of
+ *      o none: no container
+ *      o nspawn-app: single-application container
+ *      o nspawn-shared: single application container running with shared
+ *            PID, UTS, and IPC namespaces
+ *      o nspawn-system: system-image application, running with its own init
+ *  - network: dictionary
+ *      o type: string
+ *        Container network type. The current templates only handle
+ *        'VirtualEthernet'.
+ *      o ports: array of dictionaries
+ *        Application ports to redirect from the host to the container and
+ *        to puch holes for in the firewall ruleset. Each port dictionary
+ *        consists of the following keys:
+ *        - proto: string
+ *          IP protocol for the port, must be either 'tcp', or 'udp'.
+ *        - port: integer
+ *          port to use on the container side (if there is a container in use)
+ *        - map: integer
+ *          Port to redirect from the host side to the container port.
  */
-
-
+ 
 {
     'application': {
         'origin':      'app-provider',
         'name':        'sample-app',
         'description': 'sample-app - A sample application.',
-        'install':     'echo "Installing sample-app..."',
-        'remove':      'echo "Removing sample-app..."',
     },
 
     'service': {
@@ -49,17 +123,18 @@
         },
 
         'start': [
-            '/usr/bin/sample-app arg1 arg2 arg3' ],
+            '/usr/bin/sample-app arg1 arg2 arg3',
+         ],
         'stop': '',
 
         'autostart': true,
     },
 
     'container': {
-        'type': 'nspawn',
+        'type': 'nspawn-app',
         'network': {
             'type': 'VirtualEthernet',
-            'ports': [ { 'proto': 'tcp', 'port': 12345, 'map': 2003 } ],
+            'ports': [ { 'proto': 'tcp', 'port': 23458, 'map': 2003 } ],
         },
     },
 }
