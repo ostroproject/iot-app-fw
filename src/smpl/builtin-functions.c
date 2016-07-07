@@ -34,7 +34,7 @@
 #define FN_ERROR   "ERROR"
 #define FN_WARNING "WARNING"
 #define FN_ADDON   "REQUEST-ADDON"
-
+#define FN_COUNTER "COUNTER"
 
 static int fn_error(smpl_t *smpl, int argc, smpl_value_t *argv,
                     smpl_value_t *rv, void *user_data)
@@ -245,9 +245,70 @@ static int fn_addon(smpl_t *smpl, int argc, smpl_value_t *argv,
 }
 
 
+static int fn_counter(smpl_t *smpl, int argc, smpl_value_t *argv,
+                      smpl_value_t *rv, void *user_data)
+{
+    #define MAX_COUNTERS 64
+
+    static struct {
+        const char *name;
+        int         cnt;
+    } counters[] = {
+        [0]                      = { "default", 0  },
+        [1 ... MAX_COUNTERS - 1] = { NULL     , 0  },
+        [MAX_COUNTERS]           = { NULL     , -1 },
+    }, *cnt;
+    const char *which = "default";
+    int diff = 0;
+
+    SMPL_UNUSED(user_data);
+
+    if (argc > 2)
+        goto toomany_args;
+
+    if (argc > 0) {
+        if (argv[0].type != SMPL_VALUE_STRING)
+            goto invalid_arg;
+
+        which = *argv[0].str ? argv[0].str : "default";
+    }
+
+    if (argc > 1) {
+        if (argv[1].type != SMPL_VALUE_INTEGER)
+            goto invalid_arg;
+
+        diff = argv[1].i32;
+    }
+
+    for (cnt = counters; cnt->name && strcmp(cnt->name, which) != 0; cnt++)
+        ;
+
+    if (cnt->cnt < 0)
+        goto invalid_counter;
+
+    if (cnt->name == NULL)
+        cnt->name = iot_strdup(which);
+
+    rv->type = SMPL_VALUE_INTEGER;
+    rv->i32  = cnt->cnt += diff;
+
+    return 0;
+
+ toomany_args:
+    smpl_fail(-1, smpl, EINVAL, "too many arguments to function %s", FN_COUNTER);
+
+ invalid_arg:
+    smpl_fail(-1, smpl, EINVAL, "invalid argument to function %s", FN_COUNTER);
+
+ invalid_counter:
+    smpl_fail(-1, smpl, EINVAL, "invalid/unknown counter '%s'", which);
+}
+
+
 void builtin_register(void)
 {
     function_register(NULL, FN_ERROR  , fn_error  , NULL);
     function_register(NULL, FN_WARNING, fn_warning, NULL);
     function_register(NULL, FN_ADDON  , fn_addon  , NULL);
+    function_register(NULL, FN_COUNTER, fn_counter, NULL);
 }
