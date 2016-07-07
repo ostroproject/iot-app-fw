@@ -8,7 +8,7 @@
 {macro} PATH        {CONFIG.path}
 
 {#} Macros for container name, root, application root and user.
-{macro} MACHINE {do}{app.provider}-{app.application}{end}
+{macro} MACHINE {do}{CONCAT}('app-', {COUNTER}('apps', 1)){end}
 {macro} CR {do}{PATH.container}/{app.provider}-{app.application}-root{end}
 {macro} AR {do}{PATH.application}{end}
 {macro} USER {do}{app.provider}-{app.application}{end}
@@ -16,7 +16,7 @@
 {#} Macros for iptables, mkdir, and for container interface names.
 {macro} MKDIR {do}/bin/mkdir -p{end}
 {macro} IPT   {do}/usr/sbin/iptables -w{end}
-{macro} CIF   {do}{TRUNCATE}({CONCAT}('ve-', {USER}), 15){end}
+{macro} CIF   {do}ve-app-{COUNTER}('apps'){end}
 {macro} TOUCH {do}/bin/touch{end}
 
 {#} Macro for doing very basic manifest verification.
