@@ -17,6 +17,7 @@
 {macro} MKDIR {do}/bin/mkdir -p{end}
 {macro} IPT   {do}/usr/sbin/iptables -w{end}
 {macro} CIF   {do}{TRUNCATE}({CONCAT}('ve-', {USER}), 15){end}
+{macro} TOUCH {do}/bin/touch{end}
 
 {#} Macro for doing very basic manifest verification.
 {macro} CHECK-MANIFEST(m) {do}
@@ -62,6 +63,7 @@
 .   ExecStartPre={MKDIR} {CR}/lib/../sbin/../bin/../usr
 .   ExecStartPre={MKDIR} {CR}/root/../home/{USER}
 .   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/
+.   ExecStartPre={TOUCH} {CR}/etc/machine-id
 {end}
 
 {#} Macros for various bind-, overlay-, and tmpfs-mounts.
