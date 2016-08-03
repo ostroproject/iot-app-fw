@@ -12,6 +12,7 @@
 {macro} CR {do}{PATH.container}/{app.provider}-{app.application}-root{end}
 {macro} AR {do}{PATH.application}{end}
 {macro} USER {do}{app.provider}-{app.application}{end}
+{macro} HOME(u) {do}{USER-HOME}({u}){end}
 
 {#} Macros for iptables, mkdir -p, container interface names.
 {macro} MKDIR {do}/sbin/mkdir -p{end}
