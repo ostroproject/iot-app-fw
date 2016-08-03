@@ -28,13 +28,16 @@
  */
 
 #include <errno.h>
+#include <pwd.h>
+#include <sys/types.h>
 
 #include <smpl/smpl.h>
 
-#define FN_ERROR   "ERROR"
-#define FN_WARNING "WARNING"
-#define FN_ADDON   "REQUEST-ADDON"
-#define FN_COUNTER "COUNTER"
+#define FN_ERROR     "ERROR"
+#define FN_WARNING   "WARNING"
+#define FN_ADDON     "REQUEST-ADDON"
+#define FN_COUNTER   "COUNTER"
+#define FN_USER_HOME "USER-HOME"
 
 static int fn_error(smpl_t *smpl, int argc, smpl_value_t *argv,
                     smpl_value_t *rv, void *user_data)
@@ -305,10 +308,60 @@ static int fn_counter(smpl_t *smpl, int argc, smpl_value_t *argv,
 }
 
 
+static int fn_user_home(smpl_t *smpl, int argc, smpl_value_t *argv,
+                        smpl_value_t *rv, void *user_data)
+{
+    const char    *name;
+    struct passwd  e, *r;
+    char           buf[1024];
+
+    SMPL_UNUSED(user_data);
+
+    if (argc != 1)
+        goto toomany_args;
+
+    if (argv[0].type != SMPL_VALUE_STRING)
+        goto invalid_arg;
+
+    name = argv[0].str;
+
+    if (getpwnam_r(name, &e, buf, sizeof(buf), &r) < 0)
+        goto pwnam_error;
+
+    if (r == NULL)
+        goto unknown_user;
+
+    rv->type    = SMPL_VALUE_STRING;
+    rv->dynamic = 1;
+    rv->str     = iot_strdup(r->pw_dir);
+
+    if (rv->str == NULL)
+        goto nomem;
+
+    return 0;
+
+ toomany_args:
+    smpl_fail(-1, smpl, EINVAL, "too many arguments to function %s", FN_COUNTER);
+
+ invalid_arg:
+    smpl_fail(-1, smpl, EINVAL, "invalid argument to function %s", FN_COUNTER);
+
+ pwnam_error:
+    smpl_fail(-1, smpl, EINVAL, "failed to get passwd entry for user %s", name);
+
+ unknown_user:
+    smpl_fail(-1, smpl, ENOENT, "no passwd entry for unknown user %s", name);
+
+ nomem:
+    return -1;
+}
+
+
 void builtin_register(void)
 {
-    function_register(NULL, FN_ERROR  , fn_error  , NULL);
-    function_register(NULL, FN_WARNING, fn_warning, NULL);
-    function_register(NULL, FN_ADDON  , fn_addon  , NULL);
-    function_register(NULL, FN_COUNTER, fn_counter, NULL);
+    function_register(NULL, FN_ERROR    , fn_error    , NULL);
+    function_register(NULL, FN_WARNING  , fn_warning  , NULL);
+    function_register(NULL, FN_ADDON    , fn_addon    , NULL);
+    function_register(NULL, FN_COUNTER  , fn_counter  , NULL);
+    function_register(NULL, FN_USER_HOME, fn_user_home, NULL);
 }
