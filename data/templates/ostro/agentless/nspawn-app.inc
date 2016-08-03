@@ -10,7 +10,7 @@ ExecStart=/usr/bin/systemd-nspawn \
     -D {CR} \
     --user {USER} \
     {BIND-RO}({AR}, '/self') \
-    {BIND-RW}({HOME}({USER}), {HOME}({USER})) \
+    {BIND-RW}({HOME}({USER}), {CONCAT}('/home/', {USER})) \
     {OVERLAY-RW}('/etc') \
     {OVERLAY-RW}('/var') \
     {OVERLAY-RO}('/lib') \

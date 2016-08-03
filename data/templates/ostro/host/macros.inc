@@ -61,7 +61,7 @@
 {macro} PREPARE-CONTAINER() {do}
 .   ExecStartPre={MKDIR} {CR}/dev/../proc/../sys
 .   ExecStartPre={MKDIR} {CR}/lib/../sbin/../bin/../usr
-.   ExecStartPre={MKDIR} {CR}/root/../{HOME}({USER})
+.   ExecStartPre={MKDIR} {CR}/root/../home/{USER}
 .   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/
 {end}
 
