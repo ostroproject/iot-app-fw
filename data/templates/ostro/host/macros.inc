@@ -61,8 +61,9 @@
 {macro} PREPARE-CONTAINER() {do}
 .   ExecStartPre={MKDIR} {CR}/dev/../proc/../sys
 .   ExecStartPre={MKDIR} {CR}/lib/../sbin/../bin/../usr
-.   ExecStartPre={MKDIR} {CR}/root/../{HOME}({USER})
+.   ExecStartPre={MKDIR} {CR}/root/../home/{USER}
 .   ExecStartPre={MKDIR} {CR}/etc/../var/../tmp/
+.   ExecStartPre={TOUCH} {CR}/etc/machine-id
 {end}
 
 {#} Macros for various bind-, overlay-, and tmpfs-mounts.
