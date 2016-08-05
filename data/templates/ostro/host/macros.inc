@@ -48,9 +48,16 @@
 {end}
 
 {#} Macro for setting up the environment for a service.
-{macro} SET-ENVIRONMENT(c, s) {do}
-.   {foreach} name:value {in} {s.environment} {do}
-.      Environment={name}={value}
+{macro} SET-ENVIRONMENT(c, s, where) {do}
+.   {if} ({c.type} != 'none' && {where} == 'nspawn') {then}
+.       {foreach} name:value {in} {s.environment} {do}
+.           --setenv={name}={value} \
+.       {end}
+.   {end}
+.   {if} ({c.type} == 'none') {then}
+.       {foreach} name:value {in} {s.environment} {do}
+.           Environment={name}={value}
+.       {end}
 .   {end}
 .   {if} ({c.type} == 'none') {then}
 .       Environment=LD_LIBRARY_PATH={AR}/lib:/lib:/usr/lib

@@ -1,12 +1,13 @@
 Type=simple
 TimeoutStopSec=5
-{SET-ENVIRONMENT}({CONTAINER}, {SERVICE})
+{SET-ENVIRONMENT}({CONTAINER}, {SERVICE}, 'service')
 {PREPARE-CONTAINER}()
 ExecStart=/usr/bin/systemd-nspawn \
     --keep-unit \
     --share-system \
     -M {MACHINE} \
     -D {CR} \
+    {SET-ENVIRONMENT}({CONTAINER}, {SERVICE}, 'nspawn') \
     {BIND-RO}({AR}, '/self') \
     {BIND-RW}({HOME}({USER}), {HOME}({USER})) \
     {OVERLAY-RW}('/etc') \
