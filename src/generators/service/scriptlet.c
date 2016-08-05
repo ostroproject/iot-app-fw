@@ -27,6 +27,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <pwd.h>
@@ -417,6 +418,10 @@ static int setuser_handler(generator_t *g, const char *cmd, int len,
 
         if (setreuid(pwe->pw_uid, pwe->pw_uid) < 0)
             goto setuid_failed;
+
+        if (setenv("HOME", iot_strdup(pwe->pw_dir), 1) < 0 ||
+            setenv("USER", iot_strdup(usr), 1) < 0)
+            goto setenv_failed;
     }
 
     return 0;
@@ -440,6 +445,11 @@ static int setuser_handler(generator_t *g, const char *cmd, int len,
  setuid_failed:
     log_error("Failed to change user identity to '%s/%d (%d: %s).",
               usr, pwe->pw_uid, errno, strerror(errno));
+    return -1;
+
+ setenv_failed:
+    log_error("Failed to set up enviroment for user=%s (%d: %s).",
+              usr, errno, strerror(errno));
     return -1;
 }
 
