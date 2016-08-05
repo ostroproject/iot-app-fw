@@ -19,5 +19,3 @@ ExecStart=/usr/bin/systemd-nspawn \
     {NETWORK}({CONTAINER}) \
     {PORTMAP}({CONTAINER}) \
     {GENERATOR-AGENT}({TEMPLATE})
-
-

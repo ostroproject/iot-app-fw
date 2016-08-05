@@ -9,6 +9,8 @@ ExecStart=/usr/bin/systemd-nspawn \
     -M {MACHINE} \
     -D {CR} \
     --user {USER} \
+    --setenv=USER={USER} \
+    --setenv=HOME={HOME}({USER}) \
     {BIND-RO}({AR}, '/self') \
     {BIND-RW}({HOME}({USER}), {HOME}({USER})) \
     {OVERLAY-RW}('/etc') \
